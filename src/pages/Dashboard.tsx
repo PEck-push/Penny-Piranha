@@ -176,7 +176,7 @@ export default function Dashboard() {
           <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[28px] z-40 animate-[crownBob_2s_ease-in-out_infinite] drop-shadow-[0_0_20px_rgba(255,212,71,0.9)]">👑</div>
           <div className="absolute top-10 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
             {topPlayer.avatar ? (
-              <img src={topPlayer.avatar} alt={topPlayer.name} className="w-[180px] h-[180px] object-contain drop-shadow-[0_-12px_50px_rgba(255,212,71,0.8)] drop-shadow-[0_8px_30px_rgba(0,0,0,0.5)]" referrerPolicy="no-referrer" />
+              <img src={topPlayer.avatar} alt={topPlayer.name} className="w-[180px] h-[180px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" referrerPolicy="no-referrer" />
             ) : (
               <div className="w-[180px] h-[180px] rounded-full bg-white/5" />
             )}
@@ -414,7 +414,7 @@ export default function Dashboard() {
           
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
             {me.avatar ? (
-              <img src={me.avatar} alt={me.name} className="w-[200px] h-[200px] object-contain drop-shadow-[0_-15px_50px_rgba(59,110,255,0.7)] drop-shadow-[0_8px_30px_rgba(0,0,0,0.4)]" referrerPolicy="no-referrer" />
+              <img src={me.avatar} alt={me.name} className="w-[200px] h-[200px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" referrerPolicy="no-referrer" />
             ) : (
               <div className="w-[200px] h-[200px] rounded-full bg-white/5" />
             )}

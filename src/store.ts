@@ -54,9 +54,10 @@ interface AppState {
   resolveStorno: (marketId: string) => void;
   lockMarket: (marketId: string) => void;
   giveTokens: (playerId: string, amount: number) => void;
+  resetState: () => void;
 }
 
-const INITIAL_PLAYERS: Player[] = [
+export const INITIAL_PLAYERS: Player[] = [
   { id: 'p1', name: 'Alex', avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
   { id: 'p2', name: 'Neigi', avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
   { id: 'p3', name: 'Michi', avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
@@ -70,7 +71,7 @@ const INITIAL_PLAYERS: Player[] = [
   { id: 'p11', name: 'Moz', avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
 ];
 
-const INITIAL_MARKETS: Market[] = [
+export const INITIAL_MARKETS: Market[] = [
   {
     id: 'm1',
     question: 'Gewinnt Max das nächste Mario Kart Rennen?',
@@ -281,4 +282,11 @@ export const useStore = create<AppState>((set) => ({
   giveTokens: (playerId, amount) => set((state) => ({
     players: state.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens + amount } : p)
   })),
+
+  resetState: () => set({
+    players: INITIAL_PLAYERS,
+    markets: INITIAL_MARKETS,
+    bets: INITIAL_BETS,
+    jackpot: 38,
+  }),
 }));

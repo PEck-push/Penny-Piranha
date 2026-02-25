@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useStore } from '../store';
+import { useStore, INITIAL_PLAYERS, INITIAL_MARKETS } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
+import { resetToInitialState } from '../services/db';
 
 export default function Admin() {
   const [pin, setPin] = useState('');
@@ -19,6 +20,7 @@ export default function Admin() {
   const resolveStorno = useStore(state => state.resolveStorno);
   const lockMarket = useStore(state => state.lockMarket);
   const giveTokens = useStore(state => state.giveTokens);
+  const resetState = useStore(state => state.resetState);
   const players = useStore(state => state.players);
   const navigate = useNavigate();
 
@@ -223,8 +225,25 @@ export default function Admin() {
           {/* Session */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Session beenden</div>
-            <button onClick={() => navigate('/cashout')} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-red to-orange font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(255,61,90,0.3)] transition-all duration-200 hover:-translate-y-px">
+            <button onClick={() => navigate('/cashout')} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-red to-orange font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(255,61,90,0.3)] transition-all duration-200 hover:-translate-y-px mb-3">
               💰 CASHOUT SCREEN ÖFFNEN
+            </button>
+            <button 
+              onClick={async () => {
+                if (window.confirm('Möchtest du wirklich alles auf den Ausgangszustand zurücksetzen? Alle Wetten und Märkte gehen verloren!')) {
+                  resetState();
+                  try {
+                    await resetToInitialState(INITIAL_PLAYERS, INITIAL_MARKETS);
+                    alert('Zurückgesetzt!');
+                  } catch (e) {
+                    console.error(e);
+                    alert('Fehler beim Zurücksetzen der Datenbank.');
+                  }
+                }
+              }} 
+              className="w-full p-3.5 border border-red/40 rounded-xl bg-red/10 font-sans text-[14px] font-black text-red cursor-pointer transition-all duration-200 hover:bg-red/20"
+            >
+              ⚠️ ALLES ZURÜCKSETZEN (TESTING)
             </button>
           </div>
           
