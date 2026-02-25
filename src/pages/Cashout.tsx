@@ -32,7 +32,7 @@ export default function Cashout() {
   const sortedPlayers = [...players].sort((a, b) => b.tokens - a.tokens);
 
   return (
-    <div className="flex-1 flex flex-col bg-[#02040C] relative min-h-screen overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#02040C] relative h-full overflow-hidden">
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,212,71,.15)_0%,transparent_50%)]" />
       
       <div className="relative z-10 px-5 pt-10 pb-6 flex flex-col items-center">

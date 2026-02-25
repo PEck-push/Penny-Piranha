@@ -121,7 +121,7 @@ export default function Admin() {
           <div className="text-[10px] font-black tracking-[0.1em] text-red bg-red/10 border border-red/30 rounded-lg px-2.5 py-1">HOST ONLY</div>
         </div>
         
-        <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 px-4 pb-20">
+        <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 px-4 pb-safe">
           {/* Create Market */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Neuen Markt erstellen</div>

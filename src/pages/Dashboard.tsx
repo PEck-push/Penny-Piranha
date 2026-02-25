@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore, Market } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Target, Trophy } from 'lucide-react';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'my-bets' | 'leaderboard'>('dashboard');
@@ -176,7 +177,7 @@ export default function Dashboard() {
           <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[28px] z-40 animate-[crownBob_2s_ease-in-out_infinite] drop-shadow-[0_0_20px_rgba(255,212,71,0.9)]">👑</div>
           <div className="absolute top-10 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
             {topPlayer.avatar ? (
-              <img src={topPlayer.avatar} alt={topPlayer.name} className="w-[180px] h-[180px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" referrerPolicy="no-referrer" />
+              <img src={topPlayer.avatar} alt={topPlayer.name} className="w-[180px] h-[180px] object-contain" referrerPolicy="no-referrer" />
             ) : (
               <div className="w-[180px] h-[180px] rounded-full bg-white/5" />
             )}
@@ -414,7 +415,7 @@ export default function Dashboard() {
           
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
             {me.avatar ? (
-              <img src={me.avatar} alt={me.name} className="w-[200px] h-[200px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" referrerPolicy="no-referrer" />
+              <img src={me.avatar} alt={me.name} className="w-[200px] h-[200px] object-contain" referrerPolicy="no-referrer" />
             ) : (
               <div className="w-[200px] h-[200px] rounded-full bg-white/5" />
             )}
@@ -461,36 +462,36 @@ export default function Dashboard() {
       {activeTab === 'leaderboard' && renderLeaderboard()}
 
       {/* Bottom Nav */}
-      <div className="bg-[#050912]/95 backdrop-blur-xl border-t border-border px-10 pb-3 shrink-0 sticky bottom-0 z-40">
-        <div className="flex justify-around">
+      <div className="bg-[#050912]/95 backdrop-blur-xl border-t border-border px-2 pb-3 shrink-0 sticky bottom-0 z-40">
+        <div className="grid grid-cols-3">
           <div 
             onClick={() => setActiveTab('dashboard')}
-            className="flex-1 flex flex-col items-center px-2 pt-3 pb-1 gap-1 cursor-pointer relative"
+            className="flex flex-col items-center px-2 pt-3 pb-3 gap-1.5 cursor-pointer relative"
           >
-            <span className="text-[22px] leading-none">📊</span>
-            <span className={clsx("text-[10px] font-black tracking-[0.08em] uppercase", activeTab === 'dashboard' ? "text-blue2" : "text-muted")}>Dashboard</span>
+            <LayoutDashboard className={clsx("w-6 h-6", activeTab === 'dashboard' ? "text-green" : "text-muted")} strokeWidth={2} />
+            <span className={clsx("text-[10px] font-black tracking-[0.08em] uppercase", activeTab === 'dashboard' ? "text-green" : "text-muted")}>Dashboard</span>
             {activeTab === 'dashboard' && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-sm bg-gradient-to-r from-blue to-purple shadow-[0_0_10px_rgba(59,110,255,0.5)]" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-sm bg-green shadow-[0_0_10px_rgba(0,214,143,0.5)]" />
             )}
           </div>
           <div 
             onClick={() => setActiveTab('my-bets')}
-            className="flex-1 flex flex-col items-center px-2 pt-3 pb-1 gap-1 cursor-pointer relative"
+            className="flex flex-col items-center px-2 pt-3 pb-3 gap-1.5 cursor-pointer relative"
           >
-            <span className="text-[22px] leading-none">🎯</span>
-            <span className={clsx("text-[10px] font-black tracking-[0.08em] uppercase", activeTab === 'my-bets' ? "text-blue2" : "text-muted")}>My Bets</span>
+            <Target className={clsx("w-6 h-6", activeTab === 'my-bets' ? "text-green" : "text-muted")} strokeWidth={2} />
+            <span className={clsx("text-[10px] font-black tracking-[0.08em] uppercase", activeTab === 'my-bets' ? "text-green" : "text-muted")}>My Bets</span>
             {activeTab === 'my-bets' && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-sm bg-gradient-to-r from-blue to-purple shadow-[0_0_10px_rgba(59,110,255,0.5)]" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-sm bg-green shadow-[0_0_10px_rgba(0,214,143,0.5)]" />
             )}
           </div>
           <div 
             onClick={() => setActiveTab('leaderboard')}
-            className="flex-1 flex flex-col items-center px-2 pt-3 pb-1 gap-1 cursor-pointer relative"
+            className="flex flex-col items-center px-2 pt-3 pb-3 gap-1.5 cursor-pointer relative"
           >
-            <span className="text-[22px] leading-none">🏆</span>
-            <span className={clsx("text-[10px] font-black tracking-[0.08em] uppercase", activeTab === 'leaderboard' ? "text-blue2" : "text-muted")}>Ranking</span>
+            <Trophy className={clsx("w-6 h-6", activeTab === 'leaderboard' ? "text-green" : "text-muted")} strokeWidth={2} />
+            <span className={clsx("text-[10px] font-black tracking-[0.08em] uppercase", activeTab === 'leaderboard' ? "text-green" : "text-muted")}>Ranking</span>
             {activeTab === 'leaderboard' && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-sm bg-gradient-to-r from-blue to-purple shadow-[0_0_10px_rgba(59,110,255,0.5)]" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-sm bg-green shadow-[0_0_10px_rgba(0,214,143,0.5)]" />
             )}
           </div>
         </div>

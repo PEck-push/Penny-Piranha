@@ -103,7 +103,7 @@ export default function Login() {
             ))}
           </div>
           
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/80 to-transparent pt-4 pb-7 px-5">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/80 to-transparent pt-4 pb-safe px-5">
             <button 
               onClick={() => selectedPlayerId && setStep(2)}
               disabled={!selectedPlayerId}
@@ -138,7 +138,7 @@ export default function Login() {
           <img 
             src={selectedAvatar.img} 
             alt={selectedAvatar.n}
-            className="relative z-30 h-[260px] object-contain drop-shadow-[0_10px_40px_rgba(0,0,0,0.5)] -mb-2.5 cursor-pointer"
+            className="relative z-30 h-[260px] object-contain -mb-2.5 cursor-pointer"
             referrerPolicy="no-referrer"
           />
         ) : (
@@ -149,14 +149,6 @@ export default function Login() {
       <div className="relative z-20 text-center px-5 pt-4">
         <div className="text-[36px] font-black text-white tracking-[-1px] drop-shadow-[0_0_40px_rgba(139,61,255,0.6)]">
           {selectedAvatar.n}
-        </div>
-        <div className={clsx(
-          "inline-block font-mono text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1 rounded-full mt-1",
-          selectedAvatar.r === 'EPIC' ? "bg-yellow/10 border border-yellow/40 text-yellow" :
-          selectedAvatar.r === 'RARE' ? "bg-purple/15 border border-purple/40 text-purple2" :
-          "bg-muted/15 border border-muted/40 text-muted"
-        )}>
-          {selectedAvatar.r === 'EPIC' ? '✦ EPIC' : selectedAvatar.r === 'RARE' ? '◆ RARE' : '● STANDARD'}
         </div>
       </div>
 
@@ -176,14 +168,6 @@ export default function Login() {
                 ) : (
                   <div className="w-full h-full bg-white/5" />
                 )}
-                {a.r !== 'STD' && (
-                  <span className={clsx(
-                    "absolute bottom-[2px] left-0 right-0 text-center text-[6px] font-black tracking-[0.05em] z-30",
-                    a.r === 'EPIC' ? "text-yellow" : "text-purple2"
-                  )}>
-                    {a.r}
-                  </span>
-                )}
               </div>
               <div className={clsx(
                 "text-[8px] font-bold text-center leading-[1.2]",
@@ -196,17 +180,17 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-4 pb-7 px-5 z-30">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-4 pb-8 px-5 z-30">
         <button 
           onClick={handleLogin}
-          className="w-full p-[19px] border-none rounded-[18px] bg-gradient-to-br from-purple to-blue font-sans text-[17px] font-black text-white cursor-pointer tracking-[0.02em] shadow-[0_10px_40px_rgba(139,61,255,0.45),0_0_0_1px_rgba(139,61,255,0.25)] transition-all duration-200 flex items-center justify-center gap-2.5 hover:-translate-y-[3px] hover:shadow-[0_16px_55px_rgba(139,61,255,0.6)]"
+          className="w-full p-[14px] border-none rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-sans text-[16px] font-black text-bg cursor-pointer tracking-[0.02em] shadow-[0_8px_30px_rgba(0,214,143,0.4)] transition-all duration-200 flex items-center justify-center gap-2.5 hover:-translate-y-[2px] hover:shadow-[0_12px_40px_rgba(0,214,143,0.5)]"
         >
           {selectedAvatar.img ? (
             <img src={selectedAvatar.img} alt={selectedAvatar.n} className="w-8 h-8 object-cover rounded-full" referrerPolicy="no-referrer" />
           ) : (
             <div className="w-8 h-8 rounded-full bg-white/5" />
           )}
-          <span>Spielen als {players.find(p => p.id === selectedPlayerId)?.name} — {selectedAvatar.n}</span>
+          <span>Spielen als {selectedAvatar.n}</span>
         </button>
       </div>
     </div>
