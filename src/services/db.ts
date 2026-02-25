@@ -1,80 +1,45 @@
-import { collection, doc, setDoc, getDocs, onSnapshot, writeBatch, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet, Answer } from '../store';
 
 export const initFirebaseSync = () => {
   if (!db) {
-    console.warn("Firebase not configured. Using local state.");
+    console.warn("Firebase not configured — using localStorage only.");
     return;
   }
 
-  const playersRef = collection(db, 'players');
-  const marketsRef = collection(db, 'markets');
-  const betsRef = collection(db, 'bets');
-  const answersRef = collection(db, 'answers'); // NEW
+  const playersRef  = collection(db, 'players');
+  const marketsRef  = collection(db, 'markets');
+  const betsRef     = collection(db, 'bets');
+  const answersRef  = collection(db, 'answers');
   const appStateRef = doc(db, 'appState', 'global');
 
-  onSnapshot(playersRef, (snapshot) => {
-    const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
-    if (players.length > 0) useStore.setState({ players });
-  });
-
-  onSnapshot(marketsRef, (snapshot) => {
-    const markets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Market));
-    if (markets.length > 0) useStore.setState({ markets });
-  });
-
-  onSnapshot(betsRef, (snapshot) => {
-    const bets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bet));
-    useStore.setState({ bets });
-  });
-
-  // NEW: sync open-text answers
-  onSnapshot(answersRef, (snapshot) => {
-    const answers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Answer));
-    useStore.setState({ answers });
-  });
-
-  onSnapshot(appStateRef, (doc) => {
-    if (doc.exists()) {
-      useStore.setState({ jackpot: doc.data().jackpot || 0 });
-    }
-  });
+  // Firebase is the canonical truth; overwrite local state whenever it fires.
+  onSnapshot(playersRef,  snap => { const players = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player)); if (players.length > 0) useStore.setState({ players }); });
+  onSnapshot(marketsRef,  snap => { const markets = snap.docs.map(d => ({ id: d.id, ...d.data() } as Market)); useStore.setState({ markets }); });
+  onSnapshot(betsRef,     snap => { const bets    = snap.docs.map(d => ({ id: d.id, ...d.data() } as Bet));    useStore.setState({ bets }); });
+  onSnapshot(answersRef,  snap => { const answers = snap.docs.map(d => ({ id: d.id, ...d.data() } as Answer)); useStore.setState({ answers }); });
+  onSnapshot(appStateRef, snap => { if (snap.exists()) useStore.setState({ jackpot: snap.data().jackpot ?? 0 }); });
 };
 
 export const resetToInitialState = async (initialPlayers: Player[], initialMarkets: Market[]) => {
   if (!db) return;
-  
-  const playersRef = collection(db, 'players');
-  const marketsRef = collection(db, 'markets');
-  const betsRef = collection(db, 'bets');
-  const answersRef = collection(db, 'answers');
-  const appStateRef = doc(db, 'appState', 'global');
-
   const batch = writeBatch(db);
 
-  const betsSnapshot = await getDocs(betsRef);
-  betsSnapshot.forEach(doc => batch.delete(doc.ref));
+  // Clear all collections
+  for (const colName of ['bets', 'markets', 'answers']) {
+    const snap = await getDocs(collection(db, colName));
+    snap.forEach(d => batch.delete(d.ref));
+  }
 
-  const marketsSnapshot = await getDocs(marketsRef);
-  marketsSnapshot.forEach(doc => batch.delete(doc.ref));
+  // Write initial players
+  initialPlayers.forEach(p => batch.set(doc(db, 'players', p.id), p));
 
-  // NEW: delete all answers on reset
-  const answersSnapshot = await getDocs(answersRef);
-  answersSnapshot.forEach(doc => batch.delete(doc.ref));
+  // Write initial markets (empty array = no docs written, which is fine)
+  initialMarkets.forEach(m => batch.set(doc(db, 'markets', m.id), m));
 
-  initialPlayers.forEach(player => {
-    const ref = doc(playersRef, player.id);
-    batch.set(ref, player);
-  });
-
-  initialMarkets.forEach(market => {
-    const ref = doc(marketsRef, market.id);
-    batch.set(ref, market);
-  });
-
-  // Reset jackpot to 0
-  batch.set(appStateRef, { jackpot: 0 });
+  // Reset jackpot
+  batch.set(doc(db, 'appState', 'global'), { jackpot: 0 });
 
   await batch.commit();
 };
