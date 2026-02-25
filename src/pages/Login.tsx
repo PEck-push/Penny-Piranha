@@ -1,0 +1,214 @@
+import { useState } from 'react';
+import { useStore } from '../store';
+import { useNavigate } from 'react-router-dom';
+import { clsx } from 'clsx';
+
+const AVATARS = [
+  { id: 'c1', n: 'BWL-Justus', r: 'STD', img: '/avatars/1.webp', color: '#ffb6c1' },
+  { id: 'c2', n: 'Krypto-Kevin', r: 'STD', img: '/avatars/2.webp', color: '#e0e0e0' },
+  { id: 'c3', n: 'Yoga-Yvonne', r: 'EPIC', img: '/avatars/3.webp', color: '#ffa500' },
+  { id: 'c4', n: 'Helikopter-Helga', r: 'STD', img: '/avatars/4.webp', color: '#8b4513' },
+  { id: 'c5', n: 'Vegan-Sören', r: 'RARE', img: '/avatars/5.webp', color: '#87ceeb' },
+  { id: 'c6', n: 'Fitness-Falko', r: 'EPIC', img: '/avatars/6.webp', color: '#ff4500' },
+  { id: 'c7', n: 'Tinder-Torsten', r: 'STD', img: '/avatars/7.webp', color: '#ffdab9' },
+  { id: 'c8', n: 'TikTok-Tamara', r: 'RARE', img: '/avatars/8.webp', color: '#8b4513' },
+  { id: 'c9', n: 'Insta-Ingo', r: 'STD', img: '/avatars/9.webp', color: '#8b4513' },
+  { id: 'c10', n: 'Boomer-Bernd', r: 'RARE', img: '/avatars/10.webp', color: '#a9a9a9' },
+  { id: 'c11', n: 'Alman-Achim', r: 'EPIC', img: '/avatars/11.webp', color: '#00bfff' },
+  { id: 'c12', n: 'Karen (will Manager)', r: 'RARE', img: '/avatars/12.webp', color: '#ff0000' },
+  { id: 'c13', n: 'Discord-Detlef', r: 'EPIC', img: '/avatars/13.webp', color: '#ffd700' },
+  { id: 'c14', n: 'Vape-Valentin', r: 'RARE', img: '/avatars/14.webp', color: '#8b4513' },
+  { id: 'c15', n: 'Matcha-Mandy', r: 'STD', img: '/avatars/15.webp', color: '#ffdab9' },
+  { id: 'c16', n: 'Glutenfrei-Gabi', r: 'RARE', img: '/avatars/16.webp', color: '#696969' },
+  { id: 'c17', n: 'Pilates-Petra', r: 'STD', img: '/avatars/17.webp', color: '#8b4513' },
+  { id: 'c18', n: 'Crossfit-Christian', r: 'RARE', img: '/avatars/18.webp', color: '#4169e1' },
+  { id: 'c19', n: 'StartUp-Sven', r: 'EPIC', img: '/avatars/19.webp', color: '#f0f8ff' },
+  { id: 'c20', n: 'Podcast-Pascal', r: 'RARE', img: '/avatars/20.webp', color: '#e0e0e0' },
+  { id: 'c21', n: 'LifeCoach-Lars', r: 'EPIC', img: '/avatars/21.webp', color: '#ffd700' },
+  { id: 'c22', n: 'Mindset-Manni', r: 'RARE', img: '/avatars/22.webp', color: '#b22222' },
+  { id: 'c23', n: 'Hustle-Holger', r: 'RARE', img: '/avatars/23.webp', color: '#f5f5dc' },
+  { id: 'c24', n: 'Gründer-Gerd', r: 'EPIC', img: '/avatars/24.webp', color: '#2f4f4f' },
+  { id: 'c25', n: 'Influencer-Ilona', r: 'EPIC', img: '/avatars/25.webp', color: '#708090' },
+  { id: 'c26', n: 'Gamer-Gerrit', r: 'EPIC', img: '/avatars/26.webp', color: '#000000' },
+  { id: 'c27', n: 'Otaku-Olaf', r: 'RARE', img: '/avatars/27.webp', color: '#b0c4de' },
+  { id: 'c28', n: 'Cosplay-Corinna', r: 'STD', img: '/avatars/28.webp', color: '#32cd32' },
+  { id: 'c29', n: 'Anime-Andreas', r: 'RARE', img: '/avatars/29.webp', color: '#3cb371' },
+  { id: 'c30', n: 'Zocker-Zeno', r: 'STD', img: '/avatars/30.webp', color: '#ffdab9' },
+];
+
+export default function Login() {
+  const [step, setStep] = useState(1);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+
+  const players = useStore(state => state.players);
+  const login = useStore(state => state.login);
+  const navigate = useNavigate();
+
+  const handleLogin = () => {
+    if (selectedPlayerId) {
+      // In a real app we would update the player's avatar in the store here
+      login(selectedPlayerId, selectedAvatar.img, selectedAvatar.color);
+      navigate('/dashboard');
+    }
+  };
+
+  if (step === 1) {
+    return (
+      <div className="flex-1 flex flex-col bg-bg relative">
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(139,61,255,.35)_0%,transparent_50%),radial-gradient(ellipse_at_80%_10%,rgba(0,229,255,.15)_0%,transparent_45%),radial-gradient(ellipse_at_50%_100%,rgba(59,110,255,.2)_0%,transparent_50%)]" />
+        
+        <div className="relative z-10 px-5 pt-5 flex-1 flex flex-col">
+          <div className="text-center py-2 pb-4">
+            <div className="text-[64px] leading-none inline-block drop-shadow-[0_0_30px_rgba(0,214,143,0.7)] animate-[float_3s_ease-in-out_infinite]">🐼</div>
+          </div>
+          
+          <div className="text-[28px] font-black text-white leading-[1.1] mb-1">
+            Wer <span className="bg-gradient-to-r from-green to-cyan bg-clip-text text-transparent">spielst du</span><br/>heute Abend?
+          </div>
+          <div className="text-[12px] text-muted mb-[18px]">Kein Passwort. Kein Login. Wähle einfach deinen Namen.</div>
+          
+          <div className="flex items-center gap-1.5 mb-4">
+            <div className="w-7 h-1.5 rounded-full overflow-hidden bg-gradient-to-r from-blue to-purple" />
+            <div className="w-7 h-1.5 rounded-full overflow-hidden bg-border" />
+            <div className="w-7 h-1.5 rounded-full overflow-hidden bg-border" />
+            <span className="font-mono text-[9px] text-muted tracking-[0.1em] ml-1">Schritt 1 von 3</span>
+          </div>
+          
+          <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-2.5">11 Spieler</div>
+          
+          <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto no-scrollbar pb-32">
+            {players.map(p => (
+              <div 
+                key={p.id}
+                onClick={() => setSelectedPlayerId(p.id)}
+                className={clsx(
+                  "bg-white/5 border rounded-[14px] p-3 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 relative overflow-hidden group",
+                  selectedPlayerId === p.id 
+                    ? "border-green bg-green/10 shadow-[0_0_24px_rgba(0,214,143,0.1),inset_0_0_20px_rgba(0,214,143,0.04)]" 
+                    : "border-border hover:border-blue/40 hover:translate-x-1"
+                )}
+              >
+                <div className="flex-1">
+                  <div className="text-[15px] font-black text-white">{p.name}</div>
+                  <div className="font-mono text-[10px] text-muted mt-[1px]">Start: <b className="text-yellow">{p.tokens} Token</b></div>
+                </div>
+                <div className={clsx(
+                  "w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center text-[11px] transition-all duration-200",
+                  selectedPlayerId === p.id ? "bg-green border-green text-bg font-black" : "border-border text-transparent"
+                )}>
+                  ✓
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/80 to-transparent pt-4 pb-7 px-5">
+            <button 
+              onClick={() => selectedPlayerId && setStep(2)}
+              disabled={!selectedPlayerId}
+              className="w-full p-[17px] border-none rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-sans text-[16px] font-black text-bg cursor-pointer tracking-[0.02em] shadow-[0_8px_40px_rgba(0,214,143,0.4),0_0_0_1px_rgba(0,214,143,0.2)] transition-all duration-200 flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_rgba(0,214,143,0.5)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Weiter → Avatar wählen {selectedPlayerId && `als ${players.find(p => p.id === selectedPlayerId)?.name}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col bg-bg relative overflow-hidden">
+      <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(139,61,255,.4)_0%,transparent_55%),radial-gradient(ellipse_at_20%_60%,rgba(0,229,255,.12)_0%,transparent_40%),radial-gradient(ellipse_at_80%_80%,rgba(59,110,255,.15)_0%,transparent_40%)] animate-[flareMove_15s_ease-in-out_infinite]" />
+      
+      <div className="relative z-20 px-5 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[13px] font-bold text-muted cursor-pointer" onClick={() => setStep(1)}>
+          ‹ Zurück
+        </div>
+        <div className="font-mono text-[9px] text-muted border border-border rounded-full px-2.5 py-1 tracking-[0.1em]">
+          Schritt 2 von 3
+        </div>
+      </div>
+
+      <div className="relative z-10 flex-none h-[300px] flex flex-col items-center justify-end overflow-visible">
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[220px] h-[60px] rounded-full blur-[30px]" style={{ backgroundColor: selectedAvatar.color }} />
+        <div className="absolute bottom-[30px] left-1/2 -translate-x-1/2 w-[160px] h-[160px] rounded-full bg-[radial-gradient(circle,rgba(0,214,143,.15)_0%,transparent_70%)] blur-[10px] animate-[flareMove_10s_ease-in-out_infinite]" />
+        
+        {selectedAvatar.img ? (
+          <img 
+            src={selectedAvatar.img} 
+            alt={selectedAvatar.n}
+            className="relative z-30 h-[260px] object-contain drop-shadow-[0_10px_40px_rgba(0,0,0,0.5)] -mb-2.5 cursor-pointer"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="relative z-30 h-[260px] w-[200px] bg-white/5 rounded-t-full -mb-2.5" />
+        )}
+      </div>
+
+      <div className="relative z-20 text-center px-5 pt-4">
+        <div className="text-[36px] font-black text-white tracking-[-1px] drop-shadow-[0_0_40px_rgba(139,61,255,0.6)]">
+          {selectedAvatar.n}
+        </div>
+        <div className={clsx(
+          "inline-block font-mono text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1 rounded-full mt-1",
+          selectedAvatar.r === 'EPIC' ? "bg-yellow/10 border border-yellow/40 text-yellow" :
+          selectedAvatar.r === 'RARE' ? "bg-purple/15 border border-purple/40 text-purple2" :
+          "bg-muted/15 border border-muted/40 text-muted"
+        )}>
+          {selectedAvatar.r === 'EPIC' ? '✦ EPIC' : selectedAvatar.r === 'RARE' ? '◆ RARE' : '● STANDARD'}
+        </div>
+      </div>
+
+      <div className="relative z-20 px-4 pt-4 flex-1 overflow-y-auto no-scrollbar">
+        <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Alle 30 Charaktere — tippe zum Vorschauen</div>
+        <div className="grid grid-cols-6 gap-1.5 pb-32">
+          {AVATARS.map((a, i) => (
+            <div key={i} className="flex flex-col items-center gap-[3px] cursor-pointer group" onClick={() => setSelectedAvatar(a)}>
+              <div className={clsx(
+                "w-12 h-12 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all duration-150 relative overflow-hidden",
+                selectedAvatar.id === a.id 
+                  ? "border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(0,214,143,0.35)] scale-110" 
+                  : "border-border group-hover:border-blue/50 group-hover:scale-110"
+              )}>
+                {a.img ? (
+                  <img src={a.img} alt={a.n} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-full h-full bg-white/5" />
+                )}
+                {a.r !== 'STD' && (
+                  <span className={clsx(
+                    "absolute bottom-[2px] left-0 right-0 text-center text-[6px] font-black tracking-[0.05em] z-30",
+                    a.r === 'EPIC' ? "text-yellow" : "text-purple2"
+                  )}>
+                    {a.r}
+                  </span>
+                )}
+              </div>
+              <div className={clsx(
+                "text-[8px] font-bold text-center leading-[1.2]",
+                selectedAvatar.id === a.id ? "text-green" : "text-muted"
+              )}>
+                {a.n}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-4 pb-7 px-5 z-30">
+        <button 
+          onClick={handleLogin}
+          className="w-full p-[19px] border-none rounded-[18px] bg-gradient-to-br from-purple to-blue font-sans text-[17px] font-black text-white cursor-pointer tracking-[0.02em] shadow-[0_10px_40px_rgba(139,61,255,0.45),0_0_0_1px_rgba(139,61,255,0.25)] transition-all duration-200 flex items-center justify-center gap-2.5 hover:-translate-y-[3px] hover:shadow-[0_16px_55px_rgba(139,61,255,0.6)]"
+        >
+          {selectedAvatar.img ? (
+            <img src={selectedAvatar.img} alt={selectedAvatar.n} className="w-8 h-8 object-cover rounded-full" referrerPolicy="no-referrer" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-white/5" />
+          )}
+          <span>Spielen als {players.find(p => p.id === selectedPlayerId)?.name} — {selectedAvatar.n}</span>
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #050912;
+  --color-bg2: #0A1020;
+  --color-bg3: #101728;
+  --color-card: #0D1525;
+  --color-input: #080E1C;
+  --color-blue: #3B6EFF;
+  --color-blue2: #5D8FFF;
+  --color-purple: #8B3DFF;
+  --color-purple2: #A855F7;
+  --color-cyan: #00E5FF;
+  --color-green: #00D68F;
+  --color-green2: #00FF9F;
+  --color-yellow: #FFD447;
+  --color-orange: #FF7A00;
+  --color-red: #FF3D5A;
+  --color-white: #FFFFFF;
+  --color-muted: #5A6A8A;
+  --color-border: rgba(255, 255, 255, 0.06);
+
+  --font-sans: 'Nunito', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-[#02040C] font-sans text-white min-h-screen flex flex-col items-center py-12 px-5 gap-18;
+  }
+}
+
+/* Custom Animations */
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 40px rgba(0,214,143,.55), 0 0 80px rgba(0,214,143,.2); }
+  50% { box-shadow: 0 0 60px rgba(0,214,143,.8), 0 0 120px rgba(0,214,143,.35); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.05); }
+}
+@keyframes cpFloat {
+  0% { transform: translateY(0) scale(0); opacity: 0; }
+  30% { opacity: 1; transform: translateY(-20px) scale(1); }
+  100% { transform: translateY(-80px) scale(0); opacity: 0; }
+}
+@keyframes charFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-16px) scale(1.04); }
+}
+@keyframes coinPop {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes gradMove {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes tick {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes puls {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .3; }
+}
+@keyframes hts {
+  from { background-position: 0%; }
+  to { background-position: 200%; }
+}
+@keyframes blnk {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .2; }
+}
+@keyframes crownBob {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(-5deg); }
+  50% { transform: translateX(-50%) translateY(-6px) rotate(5deg); }
+}
+
+@keyframes flareMove {
+  0%, 100% { transform: scale(1) translate(0, 0); }
+  33% { transform: scale(1.15) translate(15px, 20px); }
+  66% { transform: scale(1.05) translate(-15px, -10px); }
+}
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
