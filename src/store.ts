@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { db } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection } from 'firebase/firestore';
 
 export type Badge = 'MARKET MOVER' | 'THE WHALE' | 'BANKROTT' | 'STREAK';
 export type ResolutionType = 'normal' | 'rollover' | 'storno' | 'no-winner' | 'all-same-side';
 export type ComboStatus = 'active' | 'partial' | 'won' | 'lost' | 'cancelled';
 
-// NEU: Jede Option hat id, label und pool
 export interface MarketOption {
   id: string;
   label: string;
@@ -28,21 +27,31 @@ export interface Market {
   question: string;
   type: 'standard' | 'hot-take' | 'anonymous' | 'combo';
   status: 'open' | 'locked' | 'resolved' | 'cancelled';
-  options: MarketOption[];   // ERSETZT poolYes / poolNo
+  options: MarketOption[];
   createdAt: number;
   expiresAt?: number;
   createdBy: string;
   winningOptionId?: string | null;
   resolutionType?: ResolutionType | null;
+  isOpenQuestion?: boolean; // NEW: for anonymous open-text questions
 }
 
 export interface Bet {
   id: string;
   marketId: string;
   playerId: string;
-  optionId: string;      // ERSETZT side: 'yes' | 'no'
-  optionLabel: string;   // NEU: für die Anzeige
+  optionId: string;
+  optionLabel: string;
   amount: number;
+  timestamp: number;
+}
+
+// NEW: Open-text answer for anonymous open-question markets
+export interface Answer {
+  id: string;
+  marketId: string;
+  playerId: string;
+  text: string;
   timestamp: number;
 }
 
@@ -69,14 +78,34 @@ export interface Combo {
   createdAt: number;
 }
 
-// Helper: Gesamtpool eines Markts
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
+
+// ─── Cookie helpers ────────────────────────────────────────────────────────────
+export const saveSessionCookie = (playerId: string, avatar: string, avatarColor: string) => {
+  const value = encodeURIComponent(JSON.stringify({ playerId, avatar, avatarColor }));
+  document.cookie = `betpanda_session=${value}; max-age=604800; path=/`; // 7 days
+};
+
+export const readSessionCookie = (): { playerId: string; avatar: string; avatarColor: string } | null => {
+  try {
+    const match = document.cookie.split('; ').find(r => r.startsWith('betpanda_session='));
+    if (!match) return null;
+    return JSON.parse(decodeURIComponent(match.split('=')[1]));
+  } catch {
+    return null;
+  }
+};
+
+export const clearSessionCookie = () => {
+  document.cookie = 'betpanda_session=; max-age=0; path=/';
+};
 
 interface AppState {
   players: Player[];
   markets: Market[];
   bets: Bet[];
   combos: Combo[];
+  answers: Answer[];  // NEW
   jackpot: number;
   currentUser: string | null;
   isAdmin: boolean;
@@ -85,6 +114,7 @@ interface AppState {
   logout: () => void;
   setAdmin: (isAdmin: boolean) => void;
   placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
+  submitAnswer: (marketId: string, text: string) => void; // NEW
   createMarket: (market: Omit<Market, 'id' | 'createdAt'>) => void;
   resolveMarket: (marketId: string, winningOptionId: string) => void;
   resolveRollover: (marketId: string) => void;
@@ -94,6 +124,7 @@ interface AppState {
   resetState: () => void;
 }
 
+// ─── INITIAL STATE — all zero ─────────────────────────────────────────────────
 export const INITIAL_PLAYERS: Player[] = [
   { id: 'p1',  name: 'Alex',    avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
   { id: 'p2',  name: 'Neigi',   avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
@@ -108,34 +139,10 @@ export const INITIAL_PLAYERS: Player[] = [
   { id: 'p11', name: 'Moz',     avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
 ];
 
-export const INITIAL_MARKETS: Market[] = [
-  {
-    id: 'm1', question: 'Gewinnt Max das nächste Mario Kart Rennen?',
-    type: 'standard', status: 'open', createdBy: 'admin',
-    options: [{ id: 'yes', label: 'JA', pool: 120 }, { id: 'no', label: 'NEIN', pool: 80 }],
-    createdAt: Date.now() - 100000, winningOptionId: null, resolutionType: null,
-  },
-  {
-    id: 'm2', question: 'Wird Jonas beim nächsten Runde Bier bestellen?',
-    type: 'hot-take', status: 'open', createdBy: 'admin',
-    options: [{ id: 'yes', label: 'JA', pool: 60 }, { id: 'no', label: 'NEIN', pool: 24 }],
-    createdAt: Date.now(), expiresAt: Date.now() + 60000, winningOptionId: null, resolutionType: null,
-  },
-  {
-    id: 'm3', question: 'Wer hat heimlich Käsebrot mitgebracht?',
-    type: 'anonymous', status: 'open', createdBy: 'admin',
-    options: [{ id: 'yes', label: 'JA', pool: 45 }, { id: 'no', label: 'NEIN', pool: 55 }],
-    createdAt: Date.now() - 200000, winningOptionId: null, resolutionType: null,
-  },
-];
+// ─── All pools start at 0, no pre-filled markets ──────────────────────────────
+export const INITIAL_MARKETS: Market[] = [];
 
-const INITIAL_BETS: Bet[] = [
-  { id: 'b1', marketId: 'm1', playerId: 'p3',  optionId: 'yes', optionLabel: 'JA',   amount: 50, timestamp: Date.now() },
-  { id: 'b2', marketId: 'm1', playerId: 'p7',  optionId: 'yes', optionLabel: 'JA',   amount: 50, timestamp: Date.now() },
-  { id: 'b3', marketId: 'm1', playerId: 'p4',  optionId: 'yes', optionLabel: 'JA',   amount: 20, timestamp: Date.now() },
-  { id: 'b4', marketId: 'm1', playerId: 'p5',  optionId: 'no',  optionLabel: 'NEIN', amount: 60, timestamp: Date.now() },
-  { id: 'b5', marketId: 'm1', playerId: 'p10', optionId: 'no',  optionLabel: 'NEIN', amount: 20, timestamp: Date.now() },
-];
+const INITIAL_BETS: Bet[] = [];
 
 // ─── COMBO HELPERS ─────────────────────────────────────────────────────────────
 async function updateCombosForResolvedMarket(
@@ -208,15 +215,26 @@ async function cancelCombosWithMarket(
 
 // ─── STORE ─────────────────────────────────────────────────────────────────────
 export const useStore = create<AppState>((set, get) => ({
-  players: INITIAL_PLAYERS, markets: INITIAL_MARKETS,
-  bets: INITIAL_BETS, combos: [], jackpot: 38,
-  currentUser: null, isAdmin: false,
+  players: INITIAL_PLAYERS,
+  markets: INITIAL_MARKETS,
+  bets: INITIAL_BETS,
+  combos: [],
+  answers: [],
+  jackpot: 0,          // starts at 0
+  currentUser: null,
+  isAdmin: false,
 
   login: async (playerId, avatar, avatarColor) => {
     set(s => ({ currentUser: playerId, players: s.players.map(p => p.id === playerId ? { ...p, avatar, avatarColor } : p) }));
+    saveSessionCookie(playerId, avatar, avatarColor); // persist session
     if (db) await setDoc(doc(db, 'players', playerId), { avatar, avatarColor }, { merge: true });
   },
-  logout: () => set({ currentUser: null, isAdmin: false }),
+
+  logout: () => {
+    clearSessionCookie();
+    set({ currentUser: null, isAdmin: false });
+  },
+
   setAdmin: (isAdmin) => set({ isAdmin }),
 
   placeBet: async (marketId, optionId, optionLabel, amount) => {
@@ -234,64 +252,91 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     if (db) {
       const mkt = state.markets.find(m => m.id === marketId);
-      if (!mkt) return;
+      const updatedOpts = mkt?.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o);
       const batch = writeBatch(db);
       batch.set(doc(db, 'bets', bet.id), bet);
-      batch.update(doc(db, 'players', player.id), { tokens: player.tokens - amount });
-      batch.update(doc(db, 'markets', marketId), { options: mkt.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) });
+      batch.update(doc(db, 'players', state.currentUser), { tokens: player.tokens - amount });
+      if (mkt && updatedOpts) batch.update(doc(db, 'markets', marketId), { options: updatedOpts });
       await batch.commit();
     }
   },
 
-  createMarket: async (marketData) => {
-    const m: Market = { ...marketData, id: Math.random().toString(36).substring(7), createdAt: Date.now(), winningOptionId: null, resolutionType: null };
-    set(s => ({ markets: [...s.markets, m] }));
-    if (db) await setDoc(doc(db, 'markets', m.id), m);
+  // NEW: Submit open-text answer for anonymous open-question markets
+  submitAnswer: async (marketId, text) => {
+    const state = get();
+    if (!state.currentUser) return;
+    const answer: Answer = {
+      id: Math.random().toString(36).substring(7),
+      marketId,
+      playerId: state.currentUser,
+      text: text.trim(),
+      timestamp: Date.now(),
+    };
+    set(s => ({ answers: [...s.answers, answer] }));
+    if (db) {
+      await setDoc(doc(db, 'answers', answer.id), answer);
+    }
+  },
+
+  createMarket: async (market) => {
+    const newMarket: Market = { ...market, id: Math.random().toString(36).substring(7), createdAt: Date.now() };
+    set(s => ({ markets: [...s.markets, newMarket] }));
+    if (db) await setDoc(doc(db, 'markets', newMarket.id), newMarket);
   },
 
   resolveMarket: async (marketId, winningOptionId) => {
     const state = get();
     const market = state.markets.find(m => m.id === marketId);
     if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
+
     const winOpt = market.options.find(o => o.id === winningOptionId);
-    if (!winOpt) return;
-
-    const totalPool = getMarketTotal(market);
-    const winPool = winOpt.pool;
-    const allBets = state.bets.filter(b => b.marketId === marketId);
-    const winBets = allBets.filter(b => b.optionId === winningOptionId);
+    const total = getMarketTotal(market);
     const pUpdates: Record<string, number> = {};
-    let newJackpot = state.jackpot;
-    let resType: ResolutionType;
 
-    if (winPool === 0) {
-      resType = 'no-winner';
-      let refunded = 0;
-      allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-      newJackpot = state.jackpot + (totalPool - refunded);
-    } else if (winPool === totalPool) {
-      resType = 'all-same-side';
-      let jpPaid = 0;
-      winBets.forEach(b => { const share = state.jackpot > 0 ? Math.floor((b.amount / winPool) * state.jackpot) : 0; pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount + share; jpPaid += share; });
-      newJackpot = Math.max(0, state.jackpot - jpPaid);
+    if (!winOpt || winOpt.pool === 0) {
+      // no-winner: refund all
+      state.bets.filter(b => b.marketId === marketId).forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
+      set(s => ({
+        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: 'no-winner' } : m),
+        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+      }));
     } else {
-      resType = 'normal';
-      const eff = totalPool + state.jackpot;
-      let paid = 0;
-      winBets.forEach(b => { const p = Math.floor((b.amount / winPool) * eff); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
-      newJackpot = Math.max(0, eff - paid);
+      const allSameSide = market.options.filter(o => o.id !== winningOptionId).every(o => o.pool === 0);
+      if (allSameSide) {
+        // refund all
+        state.bets.filter(b => b.marketId === marketId).forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
+        set(s => ({
+          markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: 'all-same-side' } : m),
+          players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+        }));
+      } else {
+        const currentJackpot = state.jackpot;
+        const jackpotWinnerBet = state.bets.filter(b => b.marketId === marketId && b.optionId === winningOptionId)
+          .sort((a, b) => b.amount - a.amount)[0];
+        state.bets.filter(b => b.marketId === marketId && b.optionId === winningOptionId).forEach(b => {
+          pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + Math.floor((b.amount / winOpt.pool) * total);
+        });
+        set(s => ({
+          markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: 'normal' } : m),
+          players: s.players.map(p => {
+            let bonus = pUpdates[p.id] || 0;
+            if (jackpotWinnerBet && p.id === jackpotWinnerBet.playerId) bonus += currentJackpot;
+            return bonus ? { ...p, tokens: p.tokens + bonus } : p;
+          }),
+          jackpot: jackpotWinnerBet ? 0 : s.jackpot,
+        }));
+      }
     }
-
-    set(s => ({
-      jackpot: newJackpot,
-      markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: resType } : m),
-      players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-    }));
     if (db) {
       const batch = writeBatch(db);
-      batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId, resolutionType: resType });
-      batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-      Object.entries(pUpdates).forEach(([pid, amt]) => { const p = state.players.find(pl => pl.id === pid); if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt }); });
+      const updatedState = get();
+      batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId, resolutionType: updatedState.markets.find(m => m.id === marketId)?.resolutionType });
+      Object.entries(pUpdates).forEach(([pid, _]) => {
+        const p = updatedState.players.find(pl => pl.id === pid);
+        if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens });
+      });
+      const appStateRef = doc(db, 'appState', 'global');
+      batch.set(appStateRef, { jackpot: updatedState.jackpot }, { merge: true });
       await batch.commit();
     }
     await updateCombosForResolvedMarket(get(), marketId, winningOptionId, fn => set(fn as any));
@@ -301,21 +346,21 @@ export const useStore = create<AppState>((set, get) => ({
     const state = get();
     const market = state.markets.find(m => m.id === marketId);
     if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-    const allBets = state.bets.filter(b => b.marketId === marketId);
     const pUpdates: Record<string, number> = {};
-    let refunded = 0;
-    allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-    const newJackpot = state.jackpot + (getMarketTotal(market) - refunded);
+    state.bets.filter(b => b.marketId === marketId).forEach(b => {
+      pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + Math.floor(b.amount * 0.5);
+    });
+    const addToJackpot = state.bets.filter(b => b.marketId === marketId).reduce((s, b) => s + Math.floor(b.amount * 0.5), 0);
     set(s => ({
-      jackpot: newJackpot,
-      markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId: null, resolutionType: 'rollover' } : m),
+      markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', resolutionType: 'rollover' } : m),
       players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+      jackpot: s.jackpot + addToJackpot,
     }));
     if (db) {
       const batch = writeBatch(db);
-      batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: null, resolutionType: 'rollover' });
-      batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
+      batch.update(doc(db, 'markets', marketId), { status: 'resolved', resolutionType: 'rollover' });
       Object.entries(pUpdates).forEach(([pid, amt]) => { const p = state.players.find(pl => pl.id === pid); if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt }); });
+      batch.set(doc(db, 'appState', 'global'), { jackpot: get().jackpot }, { merge: true });
       await batch.commit();
     }
     await cancelCombosWithMarket(get(), marketId, fn => set(fn as any));
@@ -351,5 +396,12 @@ export const useStore = create<AppState>((set, get) => ({
     if (db && player) await updateDoc(doc(db, 'players', playerId), { tokens: player.tokens + amount });
   },
 
-  resetState: () => set({ players: INITIAL_PLAYERS, markets: INITIAL_MARKETS, bets: INITIAL_BETS, combos: [], jackpot: 38 }),
+  resetState: () => set({
+    players: INITIAL_PLAYERS,
+    markets: INITIAL_MARKETS,
+    bets: INITIAL_BETS,
+    combos: [],
+    answers: [],
+    jackpot: 0,  // reset to 0
+  }),
 }));
