@@ -61,6 +61,12 @@ export default function Admin() {
     return (
       <div className="flex-1 flex flex-col bg-bg relative">
         <div className="absolute inset-0 z-[100] bg-[#02040C]/95 backdrop-blur-2xl flex flex-col items-center justify-center">
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="absolute top-6 left-6 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors"
+          >
+            ✕
+          </button>
           <div className="text-[70px] mb-3 animate-[float_3s_ease-in-out_infinite]">🐼</div>
           <div className="text-[18px] font-black text-white mb-1">Admin-Zugang</div>
           <div className="text-[12px] text-muted mb-7">Nur für den Host · PIN eingeben (1234)</div>

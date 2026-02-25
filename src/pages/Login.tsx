@@ -63,10 +63,10 @@ export default function Login() {
             <div className="text-[64px] leading-none inline-block drop-shadow-[0_0_30px_rgba(0,214,143,0.7)] animate-[float_3s_ease-in-out_infinite]">🐼</div>
           </div>
           
-          <div className="text-[28px] font-black text-white leading-[1.1] mb-1">
-            Wer <span className="bg-gradient-to-r from-green to-cyan bg-clip-text text-transparent">spielst du</span><br/>heute Abend?
+          <div className="text-[28px] font-black text-white leading-[1.1] mb-1 text-center">
+            Wähle deinen <span className="bg-gradient-to-r from-green to-cyan bg-clip-text text-transparent">Namen</span>
           </div>
-          <div className="text-[12px] text-muted mb-[18px]">Kein Passwort. Kein Login. Wähle einfach deinen Namen.</div>
+          <div className="text-[12px] text-muted mb-[18px] text-center">Kein Passwort. Kein Login. Wähle einfach deinen Namen.</div>
           
           <div className="flex items-center gap-1.5 mb-4">
             <div className="w-7 h-1.5 rounded-full overflow-hidden bg-gradient-to-r from-blue to-purple" />
@@ -103,11 +103,11 @@ export default function Login() {
             ))}
           </div>
           
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/80 to-transparent pt-4 pb-safe px-5">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-12 pb-12 px-5 pointer-events-none">
             <button 
               onClick={() => selectedPlayerId && setStep(2)}
               disabled={!selectedPlayerId}
-              className="w-full p-[17px] border-none rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-sans text-[16px] font-black text-bg cursor-pointer tracking-[0.02em] shadow-[0_8px_40px_rgba(0,214,143,0.4),0_0_0_1px_rgba(0,214,143,0.2)] transition-all duration-200 flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_rgba(0,214,143,0.5)] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full p-[17px] border-none rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-sans text-[16px] font-black text-bg cursor-pointer tracking-[0.02em] shadow-[0_8px_40px_rgba(0,214,143,0.4),0_0_0_1px_rgba(0,214,143,0.2)] transition-all duration-200 flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_rgba(0,214,143,0.5)] disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
             >
               Weiter → Avatar wählen {selectedPlayerId && `als ${players.find(p => p.id === selectedPlayerId)?.name}`}
             </button>

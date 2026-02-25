@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore, Market } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Target, Trophy } from 'lucide-react';
+import { LayoutDashboard, Target, Trophy, Lock } from 'lucide-react';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'my-bets' | 'leaderboard'>('dashboard');
@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [betAmount, setBetAmount] = useState(20);
   const [confirmBet, setConfirmBet] = useState<{side: 'yes' | 'no', amount: number} | null>(null);
 
+  const navigate = useNavigate();
   const currentUser = useStore(state => state.currentUser);
   const players = useStore(state => state.players);
   const markets = useStore(state => state.markets);
@@ -403,6 +404,12 @@ export default function Dashboard() {
               <span className="text-[14px]">🎰</span>
               <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
             </div>
+            <button 
+              onClick={() => navigate('/admin')}
+              className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Lock className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}

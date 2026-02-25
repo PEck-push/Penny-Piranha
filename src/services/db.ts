@@ -2,13 +2,18 @@ import { collection, doc, setDoc, getDocs, onSnapshot, writeBatch, updateDoc, de
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet } from '../store';
 
-// Collection references
-const playersRef = collection(db, 'players');
-const marketsRef = collection(db, 'markets');
-const betsRef = collection(db, 'bets');
-const appStateRef = doc(db, 'appState', 'global');
-
 export const initFirebaseSync = () => {
+  if (!db) {
+    console.warn("Firebase not configured. Using local state.");
+    return;
+  }
+
+  // Collection references
+  const playersRef = collection(db, 'players');
+  const marketsRef = collection(db, 'markets');
+  const betsRef = collection(db, 'bets');
+  const appStateRef = doc(db, 'appState', 'global');
+
   // Listen to players
   onSnapshot(playersRef, (snapshot) => {
     const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
@@ -36,6 +41,13 @@ export const initFirebaseSync = () => {
 };
 
 export const resetToInitialState = async (initialPlayers: Player[], initialMarkets: Market[]) => {
+  if (!db) return;
+  
+  const playersRef = collection(db, 'players');
+  const marketsRef = collection(db, 'markets');
+  const betsRef = collection(db, 'bets');
+  const appStateRef = doc(db, 'appState', 'global');
+
   const batch = writeBatch(db);
 
   // Delete all existing bets

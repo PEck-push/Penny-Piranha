@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { db } from './firebase';
+import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 export type Badge = 'MARKET MOVER' | 'THE WHALE' | 'BANKROTT' | 'STREAK';
 
@@ -113,7 +115,7 @@ const INITIAL_BETS: Bet[] = [
   { id: 'b5', marketId: 'm1', playerId: 'p10', side: 'no', amount: 20, timestamp: Date.now() },
 ];
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
   players: INITIAL_PLAYERS,
   markets: INITIAL_MARKETS,
   bets: INITIAL_BETS,
@@ -121,18 +123,25 @@ export const useStore = create<AppState>((set) => ({
   currentUser: null,
   isAdmin: false,
 
-  login: (playerId, avatar, avatarColor) => set((state) => ({ 
-    currentUser: playerId,
-    players: state.players.map(p => p.id === playerId ? { ...p, avatar, avatarColor } : p)
-  })),
+  login: async (playerId, avatar, avatarColor) => {
+    set((state) => ({ 
+      currentUser: playerId,
+      players: state.players.map(p => p.id === playerId ? { ...p, avatar, avatarColor } : p)
+    }));
+
+    if (db) {
+      await setDoc(doc(db, 'players', playerId), { avatar, avatarColor }, { merge: true });
+    }
+  },
   logout: () => set({ currentUser: null, isAdmin: false }),
   setAdmin: (isAdmin) => set({ isAdmin }),
 
-  placeBet: (marketId, side, amount) => set((state) => {
-    if (!state.currentUser) return state;
+  placeBet: async (marketId, side, amount) => {
+    const state = get();
+    if (!state.currentUser) return;
     
     const player = state.players.find(p => p.id === state.currentUser);
-    if (!player || player.tokens < amount) return state;
+    if (!player || player.tokens < amount) return;
 
     const newBet: Bet = {
       id: Math.random().toString(36).substring(7),
@@ -143,7 +152,7 @@ export const useStore = create<AppState>((set) => ({
       timestamp: Date.now(),
     };
 
-    return {
+    set((state) => ({
       bets: [...state.bets, newBet],
       players: state.players.map(p => 
         p.id === state.currentUser ? { ...p, tokens: p.tokens - amount } : p
@@ -153,22 +162,48 @@ export const useStore = create<AppState>((set) => ({
           ? { ...m, poolYes: m.poolYes + (side === 'yes' ? amount : 0), poolNo: m.poolNo + (side === 'no' ? amount : 0) }
           : m
       )
-    };
-  }),
+    }));
 
-  createMarket: (marketData) => set((state) => ({
-    markets: [...state.markets, {
+    if (db) {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'bets', newBet.id), newBet);
+      
+      const newTokens = player.tokens - amount;
+      batch.update(doc(db, 'players', player.id), { tokens: newTokens });
+      
+      const market = state.markets.find(m => m.id === marketId);
+      if (market) {
+        batch.update(doc(db, 'markets', marketId), {
+          poolYes: market.poolYes + (side === 'yes' ? amount : 0),
+          poolNo: market.poolNo + (side === 'no' ? amount : 0)
+        });
+      }
+      await batch.commit();
+    }
+  },
+
+  createMarket: async (marketData) => {
+    const newMarket: Market = {
       ...marketData,
       id: Math.random().toString(36).substring(7),
       poolYes: 0,
       poolNo: 0,
       createdAt: Date.now(),
-    }]
-  })),
+    };
 
-  resolveMarket: (marketId, winningSide) => set((state) => {
+    set((state) => ({
+      markets: [...state.markets, newMarket]
+    }));
+
+    if (db) {
+      await setDoc(doc(db, 'markets', newMarket.id), newMarket);
+    }
+  },
+
+  resolveMarket: async (marketId, winningSide) => {
+    const state = get();
     const market = state.markets.find(m => m.id === marketId);
-    if (!market || market.status === 'resolved') return state;
+    if (!market || market.status === 'resolved') return;
 
     const totalPool = market.poolYes + market.poolNo;
     const winningPool = winningSide === 'yes' ? market.poolYes : market.poolNo;
@@ -212,7 +247,7 @@ export const useStore = create<AppState>((set) => ({
       newJackpot = effectiveTotal - totalPaid; // Remainder -> Jackpot
     }
 
-    return {
+    set((state) => ({
       jackpot: newJackpot,
       markets: state.markets.map(m => m.id === marketId ? { ...m, status: 'resolved' } : m),
       players: state.players.map(p => {
@@ -221,12 +256,28 @@ export const useStore = create<AppState>((set) => ({
         }
         return p;
       })
-    };
-  }),
+    }));
 
-  resolveRollover: (marketId: string) => set((state) => {
+    if (db) {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'markets', marketId), { status: 'resolved' });
+      batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
+      
+      Object.entries(playerUpdates).forEach(([playerId, amount]) => {
+        const player = state.players.find(p => p.id === playerId);
+        if (player) {
+          batch.update(doc(db, 'players', playerId), { tokens: player.tokens + amount });
+        }
+      });
+      
+      await batch.commit();
+    }
+  },
+
+  resolveRollover: async (marketId: string) => {
+    const state = get();
     const market = state.markets.find(m => m.id === marketId);
-    if (!market || market.status === 'resolved') return state;
+    if (!market || market.status === 'resolved') return;
 
     const marketBets = state.bets.filter(b => b.marketId === marketId);
     const playerUpdates: Record<string, number> = {};
@@ -241,7 +292,7 @@ export const useStore = create<AppState>((set) => ({
     const totalPool = market.poolYes + market.poolNo;
     const newJackpot = state.jackpot + (totalPool - totalRefunded);
 
-    return {
+    set((state) => ({
       jackpot: newJackpot,
       markets: state.markets.map(m => m.id === marketId ? { ...m, status: 'resolved' } : m),
       players: state.players.map(p => {
@@ -250,12 +301,28 @@ export const useStore = create<AppState>((set) => ({
         }
         return p;
       })
-    };
-  }),
+    }));
 
-  resolveStorno: (marketId: string) => set((state) => {
+    if (db) {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'markets', marketId), { status: 'resolved' });
+      batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
+      
+      Object.entries(playerUpdates).forEach(([playerId, amount]) => {
+        const player = state.players.find(p => p.id === playerId);
+        if (player) {
+          batch.update(doc(db, 'players', playerId), { tokens: player.tokens + amount });
+        }
+      });
+      
+      await batch.commit();
+    }
+  },
+
+  resolveStorno: async (marketId: string) => {
+    const state = get();
     const market = state.markets.find(m => m.id === marketId);
-    if (!market || market.status === 'resolved') return state;
+    if (!market || market.status === 'resolved') return;
 
     const marketBets = state.bets.filter(b => b.marketId === marketId);
     const playerUpdates: Record<string, number> = {};
@@ -264,7 +331,7 @@ export const useStore = create<AppState>((set) => ({
       playerUpdates[bet.playerId] = (playerUpdates[bet.playerId] || 0) + bet.amount;
     });
 
-    return {
+    set((state) => ({
       markets: state.markets.map(m => m.id === marketId ? { ...m, status: 'cancelled' } : m),
       players: state.players.map(p => {
         if (playerUpdates[p.id]) {
@@ -272,16 +339,45 @@ export const useStore = create<AppState>((set) => ({
         }
         return p;
       })
-    };
-  }),
+    }));
 
-  lockMarket: (marketId) => set((state) => ({
-    markets: state.markets.map(m => m.id === marketId ? { ...m, status: 'locked' } : m)
-  })),
+    if (db) {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'markets', marketId), { status: 'cancelled' });
+      
+      Object.entries(playerUpdates).forEach(([playerId, amount]) => {
+        const player = state.players.find(p => p.id === playerId);
+        if (player) {
+          batch.update(doc(db, 'players', playerId), { tokens: player.tokens + amount });
+        }
+      });
+      
+      await batch.commit();
+    }
+  },
 
-  giveTokens: (playerId, amount) => set((state) => ({
-    players: state.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens + amount } : p)
-  })),
+  lockMarket: async (marketId) => {
+    set((state) => ({
+      markets: state.markets.map(m => m.id === marketId ? { ...m, status: 'locked' } : m)
+    }));
+
+    if (db) {
+      await updateDoc(doc(db, 'markets', marketId), { status: 'locked' });
+    }
+  },
+
+  giveTokens: async (playerId, amount) => {
+    const state = get();
+    const player = state.players.find(p => p.id === playerId);
+    
+    set((state) => ({
+      players: state.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens + amount } : p)
+    }));
+
+    if (db && player) {
+      await updateDoc(doc(db, 'players', playerId), { tokens: player.tokens + amount });
+    }
+  },
 
   resetState: () => set({
     players: INITIAL_PLAYERS,
