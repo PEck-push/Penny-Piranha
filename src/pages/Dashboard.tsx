@@ -18,7 +18,6 @@ const OPT_SHADOW = [
   'shadow-[0_8px_32px_rgba(139,61,255,0.35)]',
 ];
 
-// ─── Potentiellen Gewinn berechnen ────────────────────────────────────────────
 function calcPayout(market: Market, optionId: string, betAmt: number, jackpot: number): number {
   const opt = market.options.find(o => o.id === optionId);
   if (!opt) return 0;
@@ -27,7 +26,6 @@ function calcPayout(market: Market, optionId: string, betAmt: number, jackpot: n
   return simOpt === 0 ? 0 : Math.floor((betAmt / simOpt) * simTotal);
 }
 
-// ─── Pool-Balken (funktioniert für 2–5 Optionen) ──────────────────────────────
 function PoolBar({ market }: { market: Market }) {
   const total = getMarketTotal(market) || 1;
   return (
@@ -54,14 +52,18 @@ export default function Dashboard() {
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [betAmount, setBetAmount] = useState(20);
   const [confirmBet, setConfirmBet] = useState<{ optionId: string; optionLabel: string; amount: number } | null>(null);
+  const [openAnswerText, setOpenAnswerText] = useState('');  // NEW: for anonymous open questions
+  const [answerSubmitted, setAnswerSubmitted] = useState(false); // NEW
 
   const navigate = useNavigate();
   const currentUser = useStore(s => s.currentUser);
   const players = useStore(s => s.players);
   const markets = useStore(s => s.markets);
   const bets = useStore(s => s.bets);
+  const answers = useStore(s => s.answers);  // NEW
   const jackpot = useStore(s => s.jackpot);
   const placeBet = useStore(s => s.placeBet);
+  const submitAnswer = useStore(s => s.submitAnswer);  // NEW
   const me = players.find(p => p.id === currentUser);
 
   const handleBet = (optionId: string, optionLabel: string) => {
@@ -77,7 +79,37 @@ export default function Dashboard() {
     }
   };
 
+  // NEW: submit open-text answer for anonymous open-question markets
+  const handleSubmitOpenAnswer = () => {
+    if (!selectedMarket || !openAnswerText.trim()) return;
+    submitAnswer(selectedMarket.id, openAnswerText.trim());
+    setAnswerSubmitted(true);
+    setOpenAnswerText('');
+    setTimeout(() => {
+      setAnswerSubmitted(false);
+      setSelectedMarket(null);
+    }, 1500);
+  };
+
+  const openMarketModal = (m: Market) => {
+    setSelectedMarket(m);
+    setOpenAnswerText('');
+    setAnswerSubmitted(false);
+  };
+
   if (!me) return null;
+
+  // ─── Ticker items — only live/dynamic data ────────────────────────────────
+  const openMarketsCount = markets.filter(m => m.status === 'open').length;
+  const hasActiveHotTake = markets.some(m => m.type === 'hot-take' && m.status === 'open');
+
+  const tickerItems = [
+    `🟢 LIVE — ${openMarketsCount} ${openMarketsCount === 1 ? 'Markt' : 'Märkte'} offen`,
+    ...(hasActiveHotTake ? ['⚡ HOT TAKE läuft'] : []),
+    `🎰 Jackpot: ${jackpot} TKN`,
+  ];
+  // Duplicate for seamless scroll
+  const tickerContent = [...tickerItems, ...tickerItems];
 
   // ─── DASHBOARD TAB ───────────────────────────────────────────────────────────
   const renderDashboard = () => (
@@ -91,7 +123,7 @@ export default function Dashboard() {
               <span className="text-[12px] font-black text-muted uppercase tracking-[0.1em]">⚡ Hot Take</span>
               <span className="text-[12px] font-bold text-blue2">LIVE</span>
             </div>
-            <div onClick={() => setSelectedMarket(m)} className="bg-card border-[1.5px] border-blue2/50 rounded-[18px] p-4 relative overflow-hidden shadow-[0_0_30px_rgba(59,110,255,0.1),inset_0_0_40px_rgba(59,110,255,0.03)] cursor-pointer">
+            <div onClick={() => openMarketModal(m)} className="bg-card border-[1.5px] border-blue2/50 rounded-[18px] p-4 relative overflow-hidden shadow-[0_0_30px_rgba(59,110,255,0.1),inset_0_0_40px_rgba(59,110,255,0.03)] cursor-pointer">
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue via-purple to-cyan bg-[length:200%] animate-[hts_2s_linear_infinite]" />
               <div className="flex items-center gap-1.5 bg-gradient-to-r from-blue/20 to-purple/20 border border-blue2/40 rounded-full px-3 py-1 text-[10px] font-black text-blue2 tracking-[0.1em] w-fit mb-2.5">⚡ HOT TAKE</div>
               <div className="text-[15px] font-black text-white leading-[1.3] mb-3.5">{m.question}</div>
@@ -115,7 +147,7 @@ export default function Dashboard() {
       {markets.filter(m => m.type === 'standard' && m.status === 'open').map(m => {
         const myBet = bets.find(b => b.marketId === m.id && b.playerId === me.id);
         return (
-          <div key={m.id} onClick={() => setSelectedMarket(m)} className="bg-card border border-border rounded-[18px] p-4 mb-2.5 cursor-pointer transition-all duration-200 relative overflow-hidden hover:border-blue/40 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)]">
+          <div key={m.id} onClick={() => openMarketModal(m)} className="bg-card border border-border rounded-[18px] p-4 mb-2.5 cursor-pointer transition-all duration-200 relative overflow-hidden hover:border-blue/40 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)]">
             <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-blue2/40 to-transparent" />
             <div className="flex items-center gap-1.5 mb-2">
               <div className="w-1.5 h-1.5 rounded-full bg-green shadow-[0_0_6px_rgba(0,214,143,1)] animate-[puls_1.5s_infinite]" />
@@ -141,17 +173,29 @@ export default function Dashboard() {
           </div>
           {markets.filter(m => m.type === 'anonymous' && m.status === 'open').map(m => {
             const myBet = bets.find(b => b.marketId === m.id && b.playerId === me.id);
+            const myAnswer = answers.find(a => a.marketId === m.id && a.playerId === me.id);
+            const hasParticipated = myBet || myAnswer;
             return (
-              <div key={m.id} onClick={() => setSelectedMarket(m)} className="bg-card border border-border rounded-[18px] p-4 mb-2.5 cursor-pointer">
-                <div className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 mb-2.5 text-[10px] font-extrabold text-muted tracking-[0.1em]">🕵️ ANONYM · Reveal nach Schluss</div>
+              <div key={m.id} onClick={() => openMarketModal(m)} className="bg-card border border-border rounded-[18px] p-4 mb-2.5 cursor-pointer">
+                <div className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 mb-2.5 text-[10px] font-extrabold text-muted tracking-[0.1em]">
+                  {m.isOpenQuestion ? '✏️ OFFENE FRAGE · Reveal nach Schluss' : '🕵️ ANONYM · Reveal nach Schluss'}
+                </div>
                 <div className="text-[15px] font-black text-white leading-[1.3] mb-3.5">{m.question}</div>
-                <PoolBar market={m} />
+                {!m.isOpenQuestion && <PoolBar market={m} />}
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex gap-1">
                     {[1,2,3,4].map(i => <div key={i} className="w-8 h-8 rounded-lg bg-input border border-border flex items-center justify-center text-[12px] text-muted font-extrabold font-mono">[?]</div>)}
-                    <div className="w-8 h-8 rounded-lg bg-input border border-border flex items-center justify-center text-[12px] text-muted font-extrabold font-mono">+{bets.filter(b => b.marketId === m.id).length}</div>
+                    <div className="w-8 h-8 rounded-lg bg-input border border-border flex items-center justify-center text-[12px] text-muted font-extrabold font-mono">
+                      +{m.isOpenQuestion
+                        ? answers.filter(a => a.marketId === m.id).length
+                        : bets.filter(b => b.marketId === m.id).length}
+                    </div>
                   </div>
-                  {myBet && <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>}
+                  {hasParticipated && (
+                    <span className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1">
+                      {m.isOpenQuestion ? '✓ Geantwortet' : `🪙 ${myBet?.amount} auf ${myBet?.optionLabel}`}
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -362,16 +406,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Ticker */}
-      {activeTab === 'dashboard' && (
+      {/* ── TICKER — only live/dynamic items ────────────────────────────────── */}
+      {activeTab === 'dashboard' && openMarketsCount > 0 && (
         <div className="bg-gradient-to-r from-blue via-purple to-blue bg-[length:200%_100%] animate-[gradMove_4s_linear_infinite] py-1.5 overflow-hidden shrink-0 relative z-30">
           <div className="flex gap-12 animate-[tick_20s_linear_infinite] w-max">
-            <span className="font-mono text-[10px] font-bold text-white/90 tracking-[0.08em] whitespace-nowrap">🟢 LIVE — {markets.filter(m => m.status === 'open').length} Märkte offen</span>
-            <span className="font-mono text-[10px] font-bold text-white/90 tracking-[0.08em] whitespace-nowrap">⚡ HOT TAKE läuft</span>
-            <span className="font-mono text-[10px] font-bold text-white/90 tracking-[0.08em] whitespace-nowrap">Max ist MARKET MOVER 🐋</span>
-            <span className="font-mono text-[10px] font-bold text-white/90 tracking-[0.08em] whitespace-nowrap">🟢 LIVE — {markets.filter(m => m.status === 'open').length} Märkte offen</span>
-            <span className="font-mono text-[10px] font-bold text-white/90 tracking-[0.08em] whitespace-nowrap">⚡ HOT TAKE läuft</span>
-            <span className="font-mono text-[10px] font-bold text-white/90 tracking-[0.08em] whitespace-nowrap">Max ist MARKET MOVER 🐋</span>
+            {tickerContent.map((item, i) => (
+              <span key={i} className="font-mono text-[10px] font-bold text-white/90 tracking-[0.08em] whitespace-nowrap">{item}</span>
+            ))}
           </div>
         </div>
       )}
@@ -411,78 +452,118 @@ export default function Dashboard() {
                 <button onClick={() => setSelectedMarket(null)} className="text-muted hover:text-white p-2">✕</button>
               </div>
 
-              {/* Pool */}
-              <div className="p-4 px-5 border-b border-border">
-                <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Pool-Verteilung</div>
-                <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
-                  {selectedMarket.options.map((opt, i) => (
-                    <div key={opt.id} className="h-full transition-all duration-500"
-                      style={{ width: `${(opt.pool / (getMarketTotal(selectedMarket) || 1)) * 100}%`, backgroundColor: OPT_HEX[i] }} />
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between">
-                  {selectedMarket.options.map((opt, i) => (
-                    <div key={opt.id} className="flex flex-col gap-0.5">
-                      <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{opt.pool} TKN</span>
-                      <span className="text-[10px] text-muted font-bold">{opt.label} — {Math.round((opt.pool / (getMarketTotal(selectedMarket) || 1)) * 100)}%</span>
+              {/* ── OPEN QUESTION MODE (anonymous only) ─────────────────── */}
+              {selectedMarket.isOpenQuestion ? (
+                <div className="p-4 px-5 pb-7">
+                  {answerSubmitted ? (
+                    <div className="flex flex-col items-center gap-3 py-6">
+                      <div className="text-[48px]">✅</div>
+                      <div className="text-[16px] font-black text-green">Antwort eingereicht!</div>
+                      <div className="text-[12px] text-muted">Wird nach Schluss aufgedeckt</div>
                     </div>
-                  ))}
-                  <div className="flex flex-col gap-0.5 text-right">
-                    <span className="font-mono text-[13px] font-bold text-white">{getMarketTotal(selectedMarket)}</span>
-                    <span className="text-[10px] text-muted font-bold">GESAMT</span>
-                  </div>
+                  ) : answers.find(a => a.marketId === selectedMarket.id && a.playerId === me.id) ? (
+                    <div className="flex flex-col items-center gap-3 py-6">
+                      <div className="text-[48px]">🕵️</div>
+                      <div className="text-[16px] font-black text-muted">Bereits geantwortet</div>
+                      <div className="text-[12px] text-muted">Deine Antwort wird nach Schluss aufgedeckt</div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Deine anonyme Antwort</div>
+                      <textarea
+                        value={openAnswerText}
+                        onChange={e => setOpenAnswerText(e.target.value)}
+                        placeholder="Schreib deine Antwort hier... (anonym)"
+                        rows={3}
+                        className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none transition-colors duration-200 focus:border-purple2 placeholder:text-muted placeholder:font-semibold resize-none mb-3"
+                      />
+                      <button
+                        onClick={handleSubmitOpenAnswer}
+                        disabled={!openAnswerText.trim()}
+                        className="w-full p-3.5 rounded-xl bg-gradient-to-br from-purple to-purple2 font-sans text-[14px] font-black text-white cursor-pointer shadow-[0_6px_24px_rgba(139,61,255,0.3)] transition-all duration-200 hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        🕵️ Anonym einreichen
+                      </button>
+                    </>
+                  )}
                 </div>
-              </div>
-
-              {/* Bets list */}
-              <div className="p-3.5 px-5 border-b border-border max-h-[140px] overflow-y-auto no-scrollbar">
-                <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Wer wettet was</div>
-                {bets.filter(b => b.marketId === selectedMarket.id).map(b => {
-                  const p = players.find(pl => pl.id === b.playerId);
-                  const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
-                  if (!p) return null;
-                  return (
-                    <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
-                      <div className="w-[34px] h-[34px] rounded-lg bg-card flex items-center justify-center shrink-0 overflow-hidden">
-                        {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <div className="w-full h-full bg-white/5" />}
+              ) : (
+                /* ── STANDARD BET MODE ────────────────────────────────── */
+                <>
+                  {/* Pool */}
+                  <div className="p-4 px-5 border-b border-border">
+                    <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Pool-Verteilung</div>
+                    <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
+                      {selectedMarket.options.map((opt, i) => (
+                        <div key={opt.id} className="h-full transition-all duration-500"
+                          style={{ width: `${(opt.pool / (getMarketTotal(selectedMarket) || 1)) * 100}%`, backgroundColor: OPT_HEX[i] }} />
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between">
+                      {selectedMarket.options.map((opt, i) => (
+                        <div key={opt.id} className="flex flex-col gap-0.5">
+                          <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{opt.pool} TKN</span>
+                          <span className="text-[10px] text-muted font-bold">{opt.label} — {Math.round((opt.pool / (getMarketTotal(selectedMarket) || 1)) * 100)}%</span>
+                        </div>
+                      ))}
+                      <div className="flex flex-col gap-0.5 text-right">
+                        <span className="font-mono text-[13px] font-bold text-white">{getMarketTotal(selectedMarket)}</span>
+                        <span className="text-[10px] text-muted font-bold">GESAMT</span>
                       </div>
-                      <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
-                      <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
-                      <span className="font-mono text-[12px] text-muted min-w-[52px] text-right">{b.amount} TKN</span>
                     </div>
-                  );
-                })}
-                {bets.filter(b => b.marketId === selectedMarket.id).length === 0 && (
-                  <div className="text-[12px] text-muted text-center py-2">Noch keine Einsätze</div>
-                )}
-              </div>
+                  </div>
 
-              {/* Slider */}
-              <div className="p-4 px-5 border-b border-border">
-                <div className="flex justify-between mb-2.5">
-                  <span className="text-[11px] font-black text-muted tracking-[0.1em] uppercase">Dein Einsatz</span>
-                  <span className="font-mono text-[18px] font-bold text-yellow">{betAmount} TOKEN</span>
-                </div>
-                <input type="range" min="1" max={Math.min(500, me.tokens)} value={betAmount} onChange={e => setBetAmount(parseInt(e.target.value))}
-                  className="w-full h-1.5 bg-input rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-blue [&::-webkit-slider-thumb]:to-purple [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg [&::-webkit-slider-thumb]:shadow-[0_0_12px_rgba(59,110,255,0.5)]"
-                />
-              </div>
+                  {/* Bets list */}
+                  <div className="p-3.5 px-5 border-b border-border max-h-[140px] overflow-y-auto no-scrollbar">
+                    <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Wer wettet was</div>
+                    {bets.filter(b => b.marketId === selectedMarket.id).map(b => {
+                      const p = players.find(pl => pl.id === b.playerId);
+                      const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                      if (!p) return null;
+                      return (
+                        <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
+                          <div className="w-[34px] h-[34px] rounded-lg bg-card flex items-center justify-center shrink-0 overflow-hidden">
+                            {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <div className="w-full h-full bg-white/5" />}
+                          </div>
+                          <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
+                          <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
+                          <span className="font-mono text-[12px] text-muted min-w-[52px] text-right">{b.amount} TKN</span>
+                        </div>
+                      );
+                    })}
+                    {bets.filter(b => b.marketId === selectedMarket.id).length === 0 && (
+                      <div className="text-[12px] text-muted text-center py-2">Noch keine Einsätze</div>
+                    )}
+                  </div>
 
-              {/* NEU: Dynamische Options-Buttons mit Payout-Anzeige */}
-              <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
-                {selectedMarket.options.map((opt, i) => {
-                  const payout = calcPayout(selectedMarket, opt.id, betAmount, jackpot);
-                  return (
-                    <button key={opt.id} onClick={() => handleBet(opt.id, opt.label)} disabled={me.tokens < betAmount}
-                      className={clsx('rounded-[18px] cursor-pointer font-sans border-2 transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 flex flex-col items-center justify-center py-3 px-2 gap-0.5',
-                        i === 0 ? `border-transparent bg-gradient-to-br from-green to-[#00A86E] text-bg ${OPT_SHADOW[0]}` : `bg-transparent ${OPT_TEXT[i]} ${OPT_BORDER[i]} ${OPT_HOVER[i]}`
-                      )}>
-                      <span className="text-[15px] font-black leading-none">{opt.label}</span>
-                      <span className={clsx('text-[10px] font-bold', i === 0 ? 'text-bg/70' : 'opacity-60')}>~{payout} TKN</span>
-                    </button>
-                  );
-                })}
-              </div>
+                  {/* Slider */}
+                  <div className="p-4 px-5 border-b border-border">
+                    <div className="flex justify-between mb-2.5">
+                      <span className="text-[11px] font-black text-muted tracking-[0.1em] uppercase">Dein Einsatz</span>
+                      <span className="font-mono text-[18px] font-bold text-yellow">{betAmount} TOKEN</span>
+                    </div>
+                    <input type="range" min="1" max={Math.min(500, me.tokens)} value={betAmount} onChange={e => setBetAmount(parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-input rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-blue [&::-webkit-slider-thumb]:to-purple [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg [&::-webkit-slider-thumb]:shadow-[0_0_12px_rgba(59,110,255,0.5)]"
+                    />
+                  </div>
+
+                  {/* Option Buttons */}
+                  <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
+                    {selectedMarket.options.map((opt, i) => {
+                      const payout = calcPayout(selectedMarket, opt.id, betAmount, jackpot);
+                      return (
+                        <button key={opt.id} onClick={() => handleBet(opt.id, opt.label)} disabled={me.tokens < betAmount}
+                          className={clsx('rounded-[18px] cursor-pointer font-sans border-2 transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 flex flex-col items-center justify-center py-3 px-2 gap-0.5',
+                            i === 0 ? `border-transparent bg-gradient-to-br from-green to-[#00A86E] text-bg ${OPT_SHADOW[0]}` : `bg-transparent ${OPT_TEXT[i]} ${OPT_BORDER[i]} ${OPT_HOVER[i]}`
+                          )}>
+                          <span className="text-[15px] font-black leading-none">{opt.label}</span>
+                          <span className={clsx('text-[10px] font-bold', i === 0 ? 'text-bg/70' : 'opacity-60')}>~{payout} TKN</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
