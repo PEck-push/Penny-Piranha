@@ -9,11 +9,19 @@ export default function Admin() {
   const [unlocked, setUnlocked] = useState(false);
   const [newMarketQuestion, setNewMarketQuestion] = useState('');
   const [newMarketType, setNewMarketType] = useState<'standard' | 'hot-take' | 'anonymous' | 'combo'>('standard');
-  // NEU: Binär-Toggle + Custom-Options
   const [isBinary, setIsBinary] = useState(true);
+  const [isOpenQuestion, setIsOpenQuestion] = useState(false); // NEW: for anonymous open questions
   const [customOptions, setCustomOptions] = useState<string[]>(['', '']);
   const [givePlayerId, setGivePlayerId] = useState('');
   const [giveAmount, setGiveAmount] = useState('20');
+
+  // NEW: confirmation state for market resolution
+  const [pendingResolution, setPendingResolution] = useState<{
+    marketId: string;
+    optionId: string;
+    optionLabel: string;
+    type: 'win' | 'rollover' | 'storno';
+  } | null>(null);
 
   const markets = useStore(s => s.markets);
   const jackpot = useStore(s => s.jackpot);
@@ -36,8 +44,8 @@ export default function Admin() {
     }
   };
 
-  // Options aufbauen (binär oder custom)
   const buildOptions = (): MarketOption[] => {
+    if (isOpenQuestion) return [{ id: 'open', label: 'Offene Antwort', pool: 0 }];
     if (isBinary) return [
       { id: 'yes', label: 'JA', pool: 0 },
       { id: 'no',  label: 'NEIN', pool: 0 },
@@ -47,7 +55,7 @@ export default function Admin() {
       .map(label => ({ id: Math.random().toString(36).substring(7), label: label.trim(), pool: 0 }));
   };
 
-  const validOptions = isBinary || customOptions.filter(o => o.trim() !== '').length >= 2;
+  const validOptions = isOpenQuestion || isBinary || customOptions.filter(o => o.trim() !== '').length >= 2;
   const canCreate = newMarketQuestion.trim() !== '' && validOptions;
 
   const handleCreateMarket = () => {
@@ -60,16 +68,28 @@ export default function Admin() {
       options: buildOptions(),
       winningOptionId: null,
       resolutionType: null,
+      isOpenQuestion: newMarketType === 'anonymous' ? isOpenQuestion : false,
       ...(newMarketType === 'hot-take' ? { expiresAt: Date.now() + 60000 } : {}),
     });
     setNewMarketQuestion('');
     setCustomOptions(['', '']);
     setIsBinary(true);
+    setIsOpenQuestion(false);
   };
 
   const handleGiveTokens = () => {
     const player = players.find(p => p.name.toLowerCase() === givePlayerId.toLowerCase() || p.id === givePlayerId);
     if (player && giveAmount) { giveTokens(player.id, parseInt(giveAmount)); setGivePlayerId(''); }
+  };
+
+  // NEW: execute confirmed resolution
+  const executeResolution = async () => {
+    if (!pendingResolution) return;
+    const { marketId, optionId, type } = pendingResolution;
+    if (type === 'win') await resolveMarket(marketId, optionId);
+    else if (type === 'rollover') await resolveRollover(marketId);
+    else if (type === 'storno') await resolveStorno(marketId);
+    setPendingResolution(null);
   };
 
   if (!unlocked) {
@@ -124,27 +144,46 @@ export default function Admin() {
               <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Markt-Typ</label>
               <div className="grid grid-cols-2 gap-1.5">
                 {(['standard','hot-take','anonymous','combo'] as const).map(t => (
-                  <div key={t} onClick={() => setNewMarketType(t)} className={clsx("bg-input border rounded-xl p-2.5 px-2 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", newMarketType === t ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
+                  <div key={t} onClick={() => { setNewMarketType(t); if (t !== 'anonymous') setIsOpenQuestion(false); }} className={clsx("bg-input border rounded-xl p-2.5 px-2 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", newMarketType === t ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
                     {t === 'standard' ? 'Standard' : t === 'hot-take' ? 'Hot Take ⚡' : t === 'anonymous' ? 'Anonym 🕵️' : 'Combo ×'}
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* NEU: Antwort-Modus */}
+            {/* Antwort-Modus */}
             <div className="mb-3">
               <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Antwort-Modus</label>
-              <div className="grid grid-cols-2 gap-1.5 mb-3">
-                <div onClick={() => setIsBinary(true)} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", isBinary ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
-                  Binär (JA/NEIN)
+
+              {/* NEW: Open question toggle only for anonymous markets */}
+              {newMarketType === 'anonymous' && (
+                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                  <div onClick={() => { setIsBinary(true); setIsOpenQuestion(false); }} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", isBinary && !isOpenQuestion ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
+                    Binär (JA/NEIN)
+                  </div>
+                  <div onClick={() => { setIsBinary(false); setIsOpenQuestion(false); }} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", !isBinary && !isOpenQuestion ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
+                    Custom
+                  </div>
+                  <div onClick={() => { setIsOpenQuestion(true); setIsBinary(false); }} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", isOpenQuestion ? "border-purple2/50 text-purple2 bg-purple/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
+                    Offene Frage ✏️
+                  </div>
                 </div>
-                <div onClick={() => setIsBinary(false)} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", !isBinary ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
-                  Custom (bis zu 5)
+              )}
+
+              {/* Standard binary/custom toggle for non-anonymous */}
+              {newMarketType !== 'anonymous' && (
+                <div className="grid grid-cols-2 gap-1.5 mb-3">
+                  <div onClick={() => setIsBinary(true)} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", isBinary ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
+                    Binär (JA/NEIN)
+                  </div>
+                  <div onClick={() => setIsBinary(false)} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all duration-150", !isBinary ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
+                    Custom (bis zu 5)
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Custom Options Builder */}
-              {!isBinary && (
+              {!isBinary && !isOpenQuestion && (
                 <div className="flex flex-col gap-1.5">
                   {customOptions.map((opt, i) => (
                     <div key={i} className="flex gap-2 items-center">
@@ -173,6 +212,13 @@ export default function Admin() {
                   )}
                 </div>
               )}
+
+              {/* Open question info */}
+              {isOpenQuestion && (
+                <div className="bg-purple/10 border border-purple2/30 rounded-xl p-3 text-[11px] text-purple2 font-bold">
+                  ✏️ Spieler können frei Text eingeben. Alle Antworten bleiben bis zur Auflösung anonym.
+                </div>
+              )}
             </div>
 
             <button onClick={handleCreateMarket} disabled={!canCreate} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-blue to-purple font-sans text-[14px] font-black text-white cursor-pointer shadow-[0_6px_24px_rgba(59,110,255,0.3)] transition-all duration-200 hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed">
@@ -191,18 +237,32 @@ export default function Admin() {
                     <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans transition-all duration-100 whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">LOCK</button>
                   )}
                 </div>
-                {/* NEU: Dynamische WIN-Buttons je nach Optionen */}
+                {/* Dynamische WIN-Buttons — click triggers confirmation popup */}
                 <div className="flex flex-wrap gap-1">
                   {m.options.map((opt, i) => {
                     const colors = ['text-green border-green/35 hover:bg-green/10','text-red border-red/35 hover:bg-red/10','text-blue2 border-blue2/35 hover:bg-blue/10','text-yellow border-yellow/35 hover:bg-yellow/10','text-purple2 border-purple2/35 hover:bg-purple/10'];
                     return (
-                      <button key={opt.id} onClick={() => resolveMarket(m.id, opt.id)} className={clsx("text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans transition-all duration-100 whitespace-nowrap", colors[i] ?? colors[0])}>
+                      <button
+                        key={opt.id}
+                        onClick={() => setPendingResolution({ marketId: m.id, optionId: opt.id, optionLabel: opt.label, type: 'win' })}
+                        className={clsx("text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans transition-all duration-100 whitespace-nowrap", colors[i] ?? colors[0])}
+                      >
                         ✓ {opt.label}
                       </button>
                     );
                   })}
-                  <button onClick={() => resolveRollover(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans transition-all duration-100 whitespace-nowrap text-purple2 border-purple2/35 hover:bg-purple2/10">🎰 ROLLOVER</button>
-                  <button onClick={() => resolveStorno(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans transition-all duration-100 whitespace-nowrap text-muted border-muted/35 hover:bg-muted/10">↩️ STORNO</button>
+                  <button
+                    onClick={() => setPendingResolution({ marketId: m.id, optionId: '', optionLabel: 'ROLLOVER', type: 'rollover' })}
+                    className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans transition-all duration-100 whitespace-nowrap text-purple2 border-purple2/35 hover:bg-purple2/10"
+                  >
+                    🎰 ROLLOVER
+                  </button>
+                  <button
+                    onClick={() => setPendingResolution({ marketId: m.id, optionId: '', optionLabel: 'STORNO', type: 'storno' })}
+                    className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans transition-all duration-100 whitespace-nowrap text-muted border-muted/35 hover:bg-muted/10"
+                  >
+                    ↩️ STORNO
+                  </button>
                 </div>
               </div>
             ))}
@@ -255,6 +315,38 @@ export default function Admin() {
           </div>
         </div>
       </div>
+
+      {/* ── RESOLUTION CONFIRMATION POPUP ────────────────────────────────────── */}
+      {pendingResolution && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
+          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <div className="w-16 h-16 rounded-full bg-red/10 border border-red/25 flex items-center justify-center text-[28px] mb-4">⚠️</div>
+            <div className="text-[20px] font-black text-white mb-2 leading-tight">Ergebnis bestätigen</div>
+            <div className="text-[14px] text-muted mb-2 leading-relaxed">
+              {pendingResolution.type === 'win' && <>Soll wirklich <b className="text-white">„{pendingResolution.optionLabel}"</b> als Gewinner eingetragen werden?</>}
+              {pendingResolution.type === 'rollover' && <>Soll wirklich ein <b className="text-purple2">ROLLOVER</b> durchgeführt werden?</>}
+              {pendingResolution.type === 'storno' && <>Soll der Markt wirklich <b className="text-muted">STORNIERT</b> werden?</>}
+            </div>
+            <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-6">
+              Diese Aktion kann nicht rückgängig gemacht werden!
+            </div>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => setPendingResolution(null)}
+                className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={executeResolution}
+                className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-red to-orange shadow-[0_0_15px_rgba(255,61,90,0.4)] hover:shadow-[0_0_25px_rgba(255,61,90,0.6)] transition-all"
+              >
+                Bestätigen ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
