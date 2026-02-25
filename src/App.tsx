@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { useStore } from './store';
+import { useStore, readSessionCookie } from './store';
 import { initFirebaseSync } from './services/db';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -9,9 +9,18 @@ import Cashout from './pages/Cashout';
 
 export default function App() {
   const currentUser = useStore(state => state.currentUser);
+  const login = useStore(state => state.login);
 
   useEffect(() => {
     initFirebaseSync();
+
+    // ── Restore session from cookie on page load / refresh ──
+    if (!useStore.getState().currentUser) {
+      const session = readSessionCookie();
+      if (session) {
+        login(session.playerId, session.avatar, session.avatarColor);
+      }
+    }
   }, []);
 
   return (
