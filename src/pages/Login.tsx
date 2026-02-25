@@ -3,37 +3,39 @@ import { useStore } from '../store';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 
+// NOTE: Filenames in /public/avatars/ are "1 Kopie.webp", "2 Kopie.webp" etc.
+// URL-encode the space so browsers correctly resolve the path.
 const AVATARS = [
-  { id: 'c1', n: 'BWL-Justus', r: 'STD', img: '/avatars/1.webp', color: '#ffb6c1' },
-  { id: 'c2', n: 'Krypto-Kevin', r: 'STD', img: '/avatars/2.webp', color: '#e0e0e0' },
-  { id: 'c3', n: 'Yoga-Yvonne', r: 'EPIC', img: '/avatars/3.webp', color: '#ffa500' },
-  { id: 'c4', n: 'Helikopter-Helga', r: 'STD', img: '/avatars/4.webp', color: '#8b4513' },
-  { id: 'c5', n: 'Vegan-Sören', r: 'RARE', img: '/avatars/5.webp', color: '#87ceeb' },
-  { id: 'c6', n: 'Fitness-Falko', r: 'EPIC', img: '/avatars/6.webp', color: '#ff4500' },
-  { id: 'c7', n: 'Tinder-Torsten', r: 'STD', img: '/avatars/7.webp', color: '#ffdab9' },
-  { id: 'c8', n: 'TikTok-Tamara', r: 'RARE', img: '/avatars/8.webp', color: '#8b4513' },
-  { id: 'c9', n: 'Insta-Ingo', r: 'STD', img: '/avatars/9.webp', color: '#8b4513' },
-  { id: 'c10', n: 'Boomer-Bernd', r: 'RARE', img: '/avatars/10.webp', color: '#a9a9a9' },
-  { id: 'c11', n: 'Alman-Achim', r: 'EPIC', img: '/avatars/11.webp', color: '#00bfff' },
-  { id: 'c12', n: 'Karen (will Manager)', r: 'RARE', img: '/avatars/12.webp', color: '#ff0000' },
-  { id: 'c13', n: 'Discord-Detlef', r: 'EPIC', img: '/avatars/13.webp', color: '#ffd700' },
-  { id: 'c14', n: 'Vape-Valentin', r: 'RARE', img: '/avatars/14.webp', color: '#8b4513' },
-  { id: 'c15', n: 'Matcha-Mandy', r: 'STD', img: '/avatars/15.webp', color: '#ffdab9' },
-  { id: 'c16', n: 'Glutenfrei-Gabi', r: 'RARE', img: '/avatars/16.webp', color: '#696969' },
-  { id: 'c17', n: 'Pilates-Petra', r: 'STD', img: '/avatars/17.webp', color: '#8b4513' },
-  { id: 'c18', n: 'Crossfit-Christian', r: 'RARE', img: '/avatars/18.webp', color: '#4169e1' },
-  { id: 'c19', n: 'StartUp-Sven', r: 'EPIC', img: '/avatars/19.webp', color: '#f0f8ff' },
-  { id: 'c20', n: 'Podcast-Pascal', r: 'RARE', img: '/avatars/20.webp', color: '#e0e0e0' },
-  { id: 'c21', n: 'LifeCoach-Lars', r: 'EPIC', img: '/avatars/21.webp', color: '#ffd700' },
-  { id: 'c22', n: 'Mindset-Manni', r: 'RARE', img: '/avatars/22.webp', color: '#b22222' },
-  { id: 'c23', n: 'Hustle-Holger', r: 'RARE', img: '/avatars/23.webp', color: '#f5f5dc' },
-  { id: 'c24', n: 'Gründer-Gerd', r: 'EPIC', img: '/avatars/24.webp', color: '#2f4f4f' },
-  { id: 'c25', n: 'Influencer-Ilona', r: 'EPIC', img: '/avatars/25.webp', color: '#708090' },
-  { id: 'c26', n: 'Gamer-Gerrit', r: 'EPIC', img: '/avatars/26.webp', color: '#000000' },
-  { id: 'c27', n: 'Otaku-Olaf', r: 'RARE', img: '/avatars/27.webp', color: '#b0c4de' },
-  { id: 'c28', n: 'Cosplay-Corinna', r: 'STD', img: '/avatars/28.webp', color: '#32cd32' },
-  { id: 'c29', n: 'Anime-Andreas', r: 'RARE', img: '/avatars/29.webp', color: '#3cb371' },
-  { id: 'c30', n: 'Zocker-Zeno', r: 'STD', img: '/avatars/30.webp', color: '#ffdab9' },
+  { id: 'c1',  n: 'BWL-Justus',          r: 'STD',  img: '/avatars/1%20Kopie.webp',  color: '#ffb6c1' },
+  { id: 'c2',  n: 'Krypto-Kevin',         r: 'STD',  img: '/avatars/2%20Kopie.webp',  color: '#e0e0e0' },
+  { id: 'c3',  n: 'Yoga-Yvonne',          r: 'EPIC', img: '/avatars/3%20Kopie.webp',  color: '#ffa500' },
+  { id: 'c4',  n: 'Helikopter-Helga',     r: 'STD',  img: '/avatars/4%20Kopie.webp',  color: '#8b4513' },
+  { id: 'c5',  n: 'Vegan-Sören',          r: 'RARE', img: '/avatars/5%20Kopie.webp',  color: '#87ceeb' },
+  { id: 'c6',  n: 'Fitness-Falko',        r: 'EPIC', img: '/avatars/6%20Kopie.webp',  color: '#ff4500' },
+  { id: 'c7',  n: 'Tinder-Torsten',       r: 'STD',  img: '/avatars/7%20Kopie.webp',  color: '#ffdab9' },
+  { id: 'c8',  n: 'TikTok-Tamara',        r: 'RARE', img: '/avatars/8%20Kopie.webp',  color: '#8b4513' },
+  { id: 'c9',  n: 'Insta-Ingo',           r: 'STD',  img: '/avatars/9%20Kopie.webp',  color: '#8b4513' },
+  { id: 'c10', n: 'Boomer-Bernd',         r: 'RARE', img: '/avatars/10%20Kopie.webp', color: '#a9a9a9' },
+  { id: 'c11', n: 'Alman-Achim',          r: 'EPIC', img: '/avatars/11%20Kopie.webp', color: '#00bfff' },
+  { id: 'c12', n: 'Karen (will Manager)', r: 'RARE', img: '/avatars/12%20Kopie.webp', color: '#ff0000' },
+  { id: 'c13', n: 'Discord-Detlef',       r: 'EPIC', img: '/avatars/13%20Kopie.webp', color: '#ffd700' },
+  { id: 'c14', n: 'Vape-Valentin',        r: 'RARE', img: '/avatars/14%20Kopie.webp', color: '#8b4513' },
+  { id: 'c15', n: 'Matcha-Mandy',         r: 'STD',  img: '/avatars/15%20Kopie.webp', color: '#ffdab9' },
+  { id: 'c16', n: 'Glutenfrei-Gabi',      r: 'RARE', img: '/avatars/16%20Kopie.webp', color: '#696969' },
+  { id: 'c17', n: 'Pilates-Petra',        r: 'STD',  img: '/avatars/17%20Kopie.webp', color: '#8b4513' },
+  { id: 'c18', n: 'Crossfit-Christian',   r: 'RARE', img: '/avatars/18%20Kopie.webp', color: '#4169e1' },
+  { id: 'c19', n: 'StartUp-Sven',         r: 'EPIC', img: '/avatars/19%20Kopie.webp', color: '#f0f8ff' },
+  { id: 'c20', n: 'Podcast-Pascal',       r: 'RARE', img: '/avatars/20%20Kopie.webp', color: '#e0e0e0' },
+  { id: 'c21', n: 'LifeCoach-Lars',       r: 'EPIC', img: '/avatars/21%20Kopie.webp', color: '#ffd700' },
+  { id: 'c22', n: 'Mindset-Manni',        r: 'RARE', img: '/avatars/22%20Kopie.webp', color: '#b22222' },
+  { id: 'c23', n: 'Hustle-Holger',        r: 'RARE', img: '/avatars/23%20Kopie.webp', color: '#f5f5dc' },
+  { id: 'c24', n: 'Gründer-Gerd',         r: 'EPIC', img: '/avatars/24%20Kopie.webp', color: '#2f4f4f' },
+  { id: 'c25', n: 'Influencer-Ilona',     r: 'EPIC', img: '/avatars/25%20Kopie.webp', color: '#708090' },
+  { id: 'c26', n: 'Gamer-Gerrit',         r: 'EPIC', img: '/avatars/26%20Kopie.webp', color: '#000000' },
+  { id: 'c27', n: 'Otaku-Olaf',           r: 'RARE', img: '/avatars/27%20Kopie.webp', color: '#b0c4de' },
+  { id: 'c28', n: 'Cosplay-Corinna',      r: 'STD',  img: '/avatars/28%20Kopie.webp', color: '#32cd32' },
+  { id: 'c29', n: 'Anime-Andreas',        r: 'RARE', img: '/avatars/29%20Kopie.webp', color: '#3cb371' },
+  { id: 'c30', n: 'Zocker-Zeno',          r: 'STD',  img: '/avatars/30%20Kopie.webp', color: '#ffdab9' },
 ];
 
 export default function Login() {
@@ -47,7 +49,6 @@ export default function Login() {
 
   const handleLogin = () => {
     if (selectedPlayerId) {
-      // In a real app we would update the player's avatar in the store here
       login(selectedPlayerId, selectedAvatar.img, selectedAvatar.color);
       navigate('/dashboard');
     }
