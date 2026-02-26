@@ -45,6 +45,11 @@ export default function Login() {
   const login = useStore(state => state.login);
   const navigate = useNavigate();
 
+  // Avatars already in use by other players
+  const takenAvatarUrls = new Set(
+    players.filter(p => p.avatar !== '').map(p => p.avatar)
+  );
+
   const handleLogin = () => {
     if (selectedPlayerId) {
       // In a real app we would update the player's avatar in the store here
@@ -78,29 +83,40 @@ export default function Login() {
           <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-2.5">11 Spieler</div>
           
           <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto no-scrollbar pb-32">
-            {players.map(p => (
-              <div 
-                key={p.id}
-                onClick={() => setSelectedPlayerId(p.id)}
-                className={clsx(
-                  "bg-white/5 border rounded-[14px] p-3 px-4 flex items-center gap-3 cursor-pointer transition-all duration-200 relative overflow-hidden group",
-                  selectedPlayerId === p.id 
-                    ? "border-green bg-green/10 shadow-[0_0_24px_rgba(0,214,143,0.1),inset_0_0_20px_rgba(0,214,143,0.04)]" 
-                    : "border-border hover:border-blue/40 hover:translate-x-1"
-                )}
-              >
-                <div className="flex-1">
-                  <div className="text-[15px] font-black text-white">{p.name}</div>
-                  <div className="font-mono text-[10px] text-muted mt-[1px]">Start: <b className="text-yellow">{p.tokens} Token</b></div>
+            {players.map(p => {
+              const taken = p.avatar !== '' && p.id !== selectedPlayerId;
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => !taken && setSelectedPlayerId(p.id)}
+                  className={clsx(
+                    "border rounded-[14px] p-3 px-4 flex items-center gap-3 transition-all duration-200 relative overflow-hidden",
+                    taken
+                      ? "bg-white/2 border-white/5 opacity-40 cursor-not-allowed"
+                      : selectedPlayerId === p.id
+                        ? "bg-green/10 border-green shadow-[0_0_24px_rgba(0,214,143,0.1)] cursor-pointer"
+                        : "bg-white/5 border-border hover:border-blue/40 hover:translate-x-1 cursor-pointer group"
+                  )}
+                >
+                  <div className="flex-1">
+                    <div className="text-[15px] font-black text-white">{p.name}</div>
+                    <div className="font-mono text-[10px] text-muted mt-[1px]">
+                      {taken
+                        ? <span className="text-red/60">🔒 Bereits vergeben</span>
+                        : <span>Start: <b className="text-yellow">{p.tokens} Token</b></span>
+                      }
+                    </div>
+                  </div>
+                  <div className={clsx(
+                    "w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center text-[11px] transition-all duration-200",
+                    taken ? "border-white/10 text-transparent" :
+                    selectedPlayerId === p.id ? "bg-green border-green text-bg font-black" : "border-border text-transparent"
+                  )}>
+                    {taken ? '🔒' : '✓'}
+                  </div>
                 </div>
-                <div className={clsx(
-                  "w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center text-[11px] transition-all duration-200",
-                  selectedPlayerId === p.id ? "bg-green border-green text-bg font-black" : "border-border text-transparent"
-                )}>
-                  ✓
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-12 pb-12 px-5 pointer-events-none">
@@ -155,28 +171,40 @@ export default function Login() {
       <div className="relative z-20 px-4 pt-2 flex-1 overflow-y-auto no-scrollbar">
         <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Alle 30 Charaktere — tippe zum Vorschauen</div>
         <div className="grid grid-cols-6 gap-1.5 pb-32">
-          {AVATARS.map((a, i) => (
-            <div key={i} className="flex flex-col items-center gap-[3px] cursor-pointer group" onClick={() => setSelectedAvatar(a)}>
-              <div className={clsx(
-                "w-12 h-12 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all duration-150 relative overflow-hidden",
-                selectedAvatar.id === a.id 
-                  ? "border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(0,214,143,0.35)] scale-110" 
-                  : "border-border group-hover:border-blue/50 group-hover:scale-110"
-              )}>
-                {a.img ? (
-                  <img src={a.img} alt={a.n} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-full h-full bg-white/5" />
-                )}
+          {AVATARS.map((a, i) => {
+            const avatarTaken = takenAvatarUrls.has(a.img) && selectedAvatar.id !== a.id;
+            return (
+              <div
+                key={i}
+                className={clsx("flex flex-col items-center gap-[3px]", avatarTaken ? "cursor-not-allowed opacity-35" : "cursor-pointer group")}
+                onClick={() => !avatarTaken && setSelectedAvatar(a)}
+              >
+                <div className={clsx(
+                  "w-12 h-12 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all duration-150 relative overflow-hidden",
+                  avatarTaken
+                    ? "border-white/5"
+                    : selectedAvatar.id === a.id
+                      ? "border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(0,214,143,0.35)] scale-110"
+                      : "border-border group-hover:border-blue/50 group-hover:scale-110"
+                )}>
+                  {a.img ? (
+                    <img src={a.img} alt={a.n} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-full h-full bg-white/5" />
+                  )}
+                  {avatarTaken && (
+                    <div className="absolute inset-0 bg-bg/60 flex items-center justify-center text-[14px]">🔒</div>
+                  )}
+                </div>
+                <div className={clsx(
+                  "text-[8px] font-bold text-center leading-[1.2]",
+                  avatarTaken ? "text-white/20" : selectedAvatar.id === a.id ? "text-green" : "text-muted"
+                )}>
+                  {a.n}
+                </div>
               </div>
-              <div className={clsx(
-                "text-[8px] font-bold text-center leading-[1.2]",
-                selectedAvatar.id === a.id ? "text-green" : "text-muted"
-              )}>
-                {a.n}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

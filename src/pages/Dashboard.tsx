@@ -152,7 +152,21 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, []);
 
-  const handleBet = (optionId: string, optionLabel: string) => {
+  const [secretTaps, setSecretTaps] = useState(0);
+  const secretTapRef = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSecretTap = () => {
+    const next = secretTaps + 1;
+    setSecretTaps(next);
+    if (secretTapRef[0]) clearTimeout(secretTapRef[0]);
+    if (next >= 5) {
+      setSecretTaps(0);
+      logout();
+      navigate('/');
+    } else {
+      secretTapRef[0] = setTimeout(() => setSecretTaps(0), 2000);
+    }
+  };
     if (selectedMarket && me && me.tokens >= betAmount && !selectedExpired)
       setConfirmBet({ optionId, optionLabel, amount: betAmount });
   };
@@ -440,11 +454,6 @@ export default function Dashboard() {
               <span className="text-[14px]">🎰</span>
               <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
             </div>
-            <button
-              onClick={() => { logout(); navigate('/'); }}
-              title="Charakter wechseln"
-              className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors text-[14px]"
-            >👤</button>
             <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
               <Lock className="w-3.5 h-3.5" />
             </button>
@@ -458,7 +467,7 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_60%,rgba(59,110,255,.25)_0%,transparent_65%)] animate-[flareMove_15s_ease-in-out_infinite]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[280px] h-[80px] rounded-full bg-blue/30 blur-[35px]" />
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
-            {me.avatar ? <img src={me.avatar} alt={me.name} className="w-[200px] h-[200px] object-contain" /> : <div className="w-[200px] h-[200px] rounded-full bg-white/5" />}
+            {me.avatar ? <img src={me.avatar} alt={me.name} onClick={handleSecretTap} className="w-[200px] h-[200px] object-contain cursor-default select-none" /> : <div className="w-[200px] h-[200px] rounded-full bg-white/5" />}
           </div>
           <div className="relative z-30 flex flex-col items-center gap-3 mt-[220px]">
             <div className="flex items-center gap-3">
