@@ -139,6 +139,7 @@ export default function Dashboard() {
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
   const placeBet = useStore(s => s.placeBet);
+  const logout = useStore(s => s.logout);
   const submitAnswer = useStore(s => s.submitAnswer);
   const me = players.find(p => p.id === currentUser);
 
@@ -439,6 +440,11 @@ export default function Dashboard() {
               <span className="text-[14px]">🎰</span>
               <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
             </div>
+            <button
+              onClick={() => { logout(); navigate('/'); }}
+              title="Charakter wechseln"
+              className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors text-[14px]"
+            >👤</button>
             <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
               <Lock className="w-3.5 h-3.5" />
             </button>
@@ -505,11 +511,11 @@ export default function Dashboard() {
 
       {/* ── BET MODAL ─────────────────────────────────────────────────────────── */}
       {selectedMarket && (
-        <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg rounded-t-[32px] flex flex-col relative overflow-hidden border-t border-border shadow-[0_-20px_50px_rgba(0,0,0,0.5)] max-h-[85vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-3 py-4">
+          <div className="bg-bg rounded-[28px] flex flex-col relative overflow-hidden border border-border shadow-[0_20px_60px_rgba(0,0,0,0.7)] w-full max-w-[430px] max-h-[90vh]">
             <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_-5%,rgba(0,214,143,.2)_0%,transparent_50%)]" />
             <div className="relative z-10 flex flex-col">
-              <div className="w-10 h-1 rounded-full bg-white/10 mx-auto mt-3.5" />
+              
 
               {/* Header */}
               <div className="p-4 px-5 border-b border-border flex justify-between items-start shrink-0">
