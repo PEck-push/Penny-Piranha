@@ -144,6 +144,13 @@ export default function Dashboard() {
 
   const { expired: selectedExpired } = useCountdown(selectedMarket?.expiresAt);
 
+  // Tick every second so the ticker re-evaluates when a Hot Take expires
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleBet = (optionId: string, optionLabel: string) => {
     if (selectedMarket && me && me.tokens >= betAmount && !selectedExpired)
       setConfirmBet({ optionId, optionLabel, amount: betAmount });
@@ -174,7 +181,7 @@ export default function Dashboard() {
   if (!me) return null;
 
   const openMarketsCount = markets.filter(m => m.status === 'open').length;
-  const hasActiveHotTake = markets.some(m => m.type === 'hot-take' && m.status === 'open' && !(m.expiresAt && Date.now() > m.expiresAt));
+  const hasActiveHotTake = markets.some(m => m.type === 'hot-take' && m.status === 'open' && !(m.expiresAt && now > m.expiresAt));
   const tickerItems = [
     `🟢 LIVE — ${openMarketsCount} Märkte offen`,
     ...(hasActiveHotTake ? ['⚡ HOT TAKE läuft'] : []),
