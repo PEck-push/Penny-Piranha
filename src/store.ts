@@ -246,6 +246,9 @@ export const useStore = create<AppState>()(
           if (!player || player.tokens < amount) return;
           const mkt = state.markets.find(m => m.id === marketId);
           if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return; // hot take expired
+          // ── One bet per player per market ──────────────────────────────────
+          const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === state.currentUser);
+          if (alreadyBet) return;
 
           const bet: Bet = { id: Math.random().toString(36).substring(7), marketId, playerId: state.currentUser, optionId, optionLabel, amount, timestamp: Date.now() };
           set(s => ({

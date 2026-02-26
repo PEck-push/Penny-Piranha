@@ -647,7 +647,23 @@ export default function Dashboard() {
                   )}
 
                   {/* Bet Buttons */}
-                  {!selectedExpired && (
+                  {!selectedExpired && (() => {
+                    const alreadyBet = bets.some(b => b.marketId === selectedMarket.id && b.playerId === me.id);
+                    if (alreadyBet) {
+                      const myBet = bets.find(b => b.marketId === selectedMarket.id && b.playerId === me.id);
+                      return (
+                        <div className="p-4 px-5 pb-7 text-center">
+                          <div className="bg-yellow/10 border border-yellow/25 rounded-2xl p-4">
+                            <div className="text-[20px] mb-1">🔒</div>
+                            <div className="text-[13px] font-black text-yellow">Bereits gewettet</div>
+                            <div className="text-[11px] text-muted mt-1">
+                              {myBet?.amount} TKN auf <b className="text-white">{myBet?.optionLabel}</b>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
                     <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
                       {selectedMarket.options.map((opt, i) => {
                         const payout = calcPayout(selectedMarket, opt.id, betAmount, jackpot);
@@ -661,7 +677,8 @@ export default function Dashboard() {
                         );
                       })}
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
             </div>
