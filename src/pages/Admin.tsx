@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useStore, INITIAL_PLAYERS, INITIAL_MARKETS, MarketOption, MarketComboLeg } from '../store';
+import { useStore, INITIAL_PLAYERS, INITIAL_MARKETS, MarketOption } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { resetToInitialState } from '../services/db';
@@ -16,10 +16,10 @@ export default function Admin() {
   const [customOptions, setCustomOptions] = useState<string[]>(['', '']);
   const [hotTakeMinutes, setHotTakeMinutes] = useState(5); // NEW: configurable timer
 
-  // Combo legs
-  const [comboLegs, setComboLegs] = useState<MarketComboLeg[]>([]);
-  const [comboLegMarketId, setComboLegMarketId] = useState('');
-  const [comboLegOptionId, setComboLegOptionId] = useState('');
+  // Combo legs — standalone, admin types them freely
+  const [comboLegs, setComboLegs] = useState<{ question: string; optionA: string; optionB: string }[]>([
+    { question: '', optionA: 'JA', optionB: 'NEIN' },
+  ]);
 
   // Token giving
   const [givePlayerId, setGivePlayerId] = useState('');
@@ -55,8 +55,8 @@ export default function Admin() {
   const buildOptions = (): MarketOption[] => {
     if (newMarketType === 'combo') {
       return [
-        { id: 'combo-win',  label: '✓ Alle richtig',          pool: 0 },
-        { id: 'combo-miss', label: '✗ Mind. 1 falsch',         pool: 0 },
+        { id: 'combo-win',  label: '✓ Alle richtig',  pool: 0 },
+        { id: 'combo-miss', label: '✗ Mind. 1 falsch', pool: 0 },
       ];
     }
     if (isOpenQuestion) return [{ id: 'open', label: 'Offene Antwort', pool: 0 }];
@@ -66,15 +66,28 @@ export default function Admin() {
     }));
   };
 
+  const validComboLegs = comboLegs.filter(l => l.question.trim() !== '');
   const validOptions = newMarketType === 'combo'
-    ? comboLegs.length >= 2
+    ? validComboLegs.length >= 2
     : isOpenQuestion || isBinary || customOptions.filter(o => o.trim()).length >= 2;
 
   const canCreate = newMarketQuestion.trim() !== '' && validOptions;
 
   const handleCreateMarket = () => {
     if (!canCreate) return;
-    const multiplier = comboLegs.length === 3 ? 6 : 3;
+    const filledLegs = comboLegs.filter(l => l.question.trim() !== '');
+    const multiplier = filledLegs.length === 3 ? 6 : 3;
+
+    // For combo: build MarketComboLeg[] from standalone inputs
+    const builtComboLegs = filledLegs.map(l => ({
+      marketId: '',  // standalone — not linked to another market
+      marketQuestion: l.question.trim(),
+      predictedOptionId: Math.random().toString(36).substring(7),
+      predictedOptionLabel: l.optionA.trim() || 'JA',
+      status: 'pending' as const,
+      optionB: l.optionB.trim() || 'NEIN',
+    }));
+
     createMarket({
       question: newMarketQuestion,
       type: newMarketType,
@@ -85,35 +98,14 @@ export default function Admin() {
       resolutionType: null,
       isOpenQuestion: newMarketType === 'anonymous' ? isOpenQuestion : false,
       ...(newMarketType === 'hot-take' ? { expiresAt: Date.now() + hotTakeMinutes * 60 * 1000 } : {}),
-      ...(newMarketType === 'combo' ? { comboLegs, multiplier } : {}),
+      ...(newMarketType === 'combo' ? { comboLegs: builtComboLegs, multiplier } : {}),
     });
     setNewMarketQuestion('');
     setCustomOptions(['', '']);
     setIsBinary(true);
     setIsOpenQuestion(false);
-    setComboLegs([]);
-    setComboLegMarketId('');
-    setComboLegOptionId('');
+    setComboLegs([{ question: '', optionA: 'JA', optionB: 'NEIN' }]);
     setHotTakeMinutes(5);
-  };
-
-  // ── Combo leg helpers ──────────────────────────────────────────────────────
-  const selectedLegMarket = markets.find(m => m.id === comboLegMarketId);
-
-  const addComboLeg = () => {
-    if (!selectedLegMarket || !comboLegOptionId) return;
-    if (comboLegs.find(l => l.marketId === comboLegMarketId)) return; // no duplicates
-    const opt = selectedLegMarket.options.find(o => o.id === comboLegOptionId);
-    if (!opt) return;
-    setComboLegs([...comboLegs, {
-      marketId: selectedLegMarket.id,
-      marketQuestion: selectedLegMarket.question,
-      predictedOptionId: opt.id,
-      predictedOptionLabel: opt.label,
-      status: 'pending',
-    }]);
-    setComboLegMarketId('');
-    setComboLegOptionId('');
   };
 
   const handleGiveTokens = () => {
@@ -156,11 +148,6 @@ export default function Admin() {
       </div>
     );
   }
-
-  // ── Available markets for combo legs (not already picked, open, not combo type) ──
-  const availableForCombo = markets.filter(
-    m => m.status === 'open' && m.type !== 'combo' && !comboLegs.find(l => l.marketId === m.id)
-  );
 
   // ── Admin Panel ────────────────────────────────────────────────────────────
   return (
@@ -218,103 +205,97 @@ export default function Admin() {
               </div>
             )}
 
-            {/* ── COMBO: Leg Builder ────────────────────────────── */}
+            {/* ── COMBO: Standalone Leg Builder ────────────────── */}
             {newMarketType === 'combo' && (
               <div className="mb-3">
                 <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2">
-                  Kombinierte Märkte ({comboLegs.length}/3)
-                  {comboLegs.length === 2 && <span className="text-green ml-1">· 3× Multiplikator</span>}
-                  {comboLegs.length === 3 && <span className="text-yellow ml-1">· 6× Multiplikator</span>}
+                  Combo-Fragen ({validComboLegs.length}/3)
+                  {validComboLegs.length === 2 && <span className="text-green ml-1">· 3× Multiplikator</span>}
+                  {validComboLegs.length === 3 && <span className="text-yellow ml-1">· 6× Multiplikator</span>}
                 </label>
 
-                {/* Existing legs */}
                 {comboLegs.map((leg, i) => (
-                  <div key={i} className="flex items-center gap-2 mb-1.5 bg-input rounded-xl p-2.5 px-3">
-                    <div className="w-5 h-5 rounded-md bg-green/20 border border-green/30 flex items-center justify-center text-[10px] font-black text-green shrink-0">{i+1}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-bold text-white truncate">{leg.marketQuestion}</div>
-                      <div className="text-[9px] text-green font-black">→ {leg.predictedOptionLabel}</div>
+                  <div key={i} className="bg-input border border-border rounded-xl p-3 mb-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-md bg-purple/20 border border-purple2/30 flex items-center justify-center text-[10px] font-black text-purple2 shrink-0">{i+1}</div>
+                      <input
+                        type="text"
+                        value={leg.question}
+                        onChange={e => { const n = [...comboLegs]; n[i] = { ...n[i], question: e.target.value }; setComboLegs(n); }}
+                        placeholder={`Frage ${i+1}…`}
+                        className="flex-1 bg-bg border border-border rounded-lg p-2 px-2.5 text-white font-sans text-[13px] font-bold outline-none focus:border-purple2 placeholder:text-muted"
+                      />
+                      {comboLegs.length > 1 && (
+                        <button onClick={() => setComboLegs(comboLegs.filter((_, idx) => idx !== i))}
+                          className="w-6 h-6 rounded-lg bg-red/10 border border-red/25 text-red text-[10px] flex items-center justify-center hover:bg-red/20 shrink-0">✕</button>
+                      )}
                     </div>
-                    <button onClick={() => setComboLegs(comboLegs.filter((_, idx) => idx !== i))}
-                      className="w-6 h-6 rounded-lg bg-red/10 border border-red/25 text-red text-[10px] flex items-center justify-center hover:bg-red/20 shrink-0">✕</button>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <div className="text-[9px] font-black text-green/70 uppercase tracking-wider mb-1">Option A</div>
+                        <input
+                          type="text"
+                          value={leg.optionA}
+                          onChange={e => { const n = [...comboLegs]; n[i] = { ...n[i], optionA: e.target.value }; setComboLegs(n); }}
+                          className="w-full bg-bg border border-green/25 rounded-lg p-2 px-2.5 text-green font-sans text-[12px] font-bold outline-none focus:border-green/60 placeholder:text-muted"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-[9px] font-black text-red/70 uppercase tracking-wider mb-1">Option B</div>
+                        <input
+                          type="text"
+                          value={leg.optionB}
+                          onChange={e => { const n = [...comboLegs]; n[i] = { ...n[i], optionB: e.target.value }; setComboLegs(n); }}
+                          className="w-full bg-bg border border-red/25 rounded-lg p-2 px-2.5 text-red font-sans text-[12px] font-bold outline-none focus:border-red/60 placeholder:text-muted"
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
 
-                {/* Add leg */}
-                {comboLegs.length < 3 && availableForCombo.length > 0 && (
-                  <div className="border border-dashed border-white/15 rounded-xl p-3 mt-1">
-                    <div className="text-[9px] font-black text-muted uppercase tracking-[0.1em] mb-2">Leg hinzufügen</div>
-                    <select value={comboLegMarketId} onChange={e => { setComboLegMarketId(e.target.value); setComboLegOptionId(''); }}
-                      className="w-full bg-input border border-border rounded-xl p-2.5 px-3 text-white font-sans text-[13px] font-bold outline-none focus:border-blue2 mb-2 appearance-none">
-                      <option value="">Markt wählen…</option>
-                      {availableForCombo.map(m => (
-                        <option key={m.id} value={m.id}>{m.question}</option>
-                      ))}
-                    </select>
-                    {selectedLegMarket && (
-                      <select value={comboLegOptionId} onChange={e => setComboLegOptionId(e.target.value)}
-                        className="w-full bg-input border border-border rounded-xl p-2.5 px-3 text-white font-sans text-[13px] font-bold outline-none focus:border-blue2 mb-2 appearance-none">
-                        <option value="">Vorhersage wählen…</option>
-                        {selectedLegMarket.options.map(o => (
-                          <option key={o.id} value={o.id}>{o.label}</option>
-                        ))}
-                      </select>
-                    )}
-                    <button onClick={addComboLeg} disabled={!comboLegMarketId || !comboLegOptionId}
-                      className="w-full p-2 rounded-xl bg-blue/20 border border-blue2/30 text-blue2 text-[11px] font-black hover:bg-blue/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                      + Leg hinzufügen
-                    </button>
-                  </div>
+                {comboLegs.length < 3 && (
+                  <button onClick={() => setComboLegs([...comboLegs, { question: '', optionA: 'JA', optionB: 'NEIN' }])}
+                    className="w-full p-2 border border-dashed border-white/15 rounded-xl text-[11px] font-black text-muted hover:text-white hover:border-purple2/40 transition-colors">
+                    + Frage hinzufügen
+                  </button>
                 )}
-                {availableForCombo.length === 0 && comboLegs.length < 2 && (
-                  <div className="text-[11px] text-red/70 font-bold mt-1">Zuerst mindestens 2 offene Standard/Hot-Take Märkte erstellen.</div>
-                )}
-                {comboLegs.length < 2 && (
-                  <div className="text-[10px] text-muted mt-1">Mindestens 2 Legs erforderlich.</div>
+                {validComboLegs.length < 2 && (
+                  <div className="text-[10px] text-muted mt-1.5">Mindestens 2 ausgefüllte Fragen erforderlich.</div>
                 )}
               </div>
             )}
 
-            {/* ── ANONYMOUS: Antwort-Modus ──────────────────────── */}
-            {newMarketType === 'anonymous' && (
+            {/* ── STANDARD / HOT-TAKE / ANONYMOUS: Antwort-Modus ── */}
+            {newMarketType !== 'combo' && (
               <div className="mb-3">
                 <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Antwort-Modus</label>
-                <div className="grid grid-cols-3 gap-1.5 mb-2">
-                  {[
-                    { key: 'binary', label: 'JA/NEIN', active: isBinary && !isOpenQuestion },
-                    { key: 'custom', label: 'Custom',  active: !isBinary && !isOpenQuestion },
-                    { key: 'open',   label: '✏️ Offen', active: isOpenQuestion },
-                  ].map(btn => (
-                    <div key={btn.key} onClick={() => { setIsOpenQuestion(btn.key === 'open'); setIsBinary(btn.key === 'binary'); }}
+                <div className={clsx("grid gap-1.5 mb-2", newMarketType === 'anonymous' ? 'grid-cols-3' : 'grid-cols-2')}>
+                  <div onClick={() => { setIsBinary(true); setIsOpenQuestion(false); }}
+                    className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
+                      isBinary && !isOpenQuestion ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40")}>
+                    Binär (JA/NEIN)
+                  </div>
+                  <div onClick={() => { setIsBinary(false); setIsOpenQuestion(false); }}
+                    className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
+                      !isBinary && !isOpenQuestion ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40")}>
+                    Custom
+                  </div>
+                  {newMarketType === 'anonymous' && (
+                    <div onClick={() => { setIsOpenQuestion(true); setIsBinary(false); }}
                       className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
-                        btn.active ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
-                      {btn.label}
+                        isOpenQuestion ? "border-purple2/50 text-purple2 bg-purple/10" : "border-border text-muted hover:border-blue/40")}>
+                      ✏️ Offen
                     </div>
-                  ))}
+                  )}
                 </div>
+
                 {isOpenQuestion && (
                   <div className="bg-purple/10 border border-purple2/30 rounded-xl p-2.5 text-[11px] text-purple2 font-bold">
                     ✏️ Spieler tippen frei. Antworten bleiben bis zur Auflösung anonym.
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* ── STANDARD / HOT-TAKE: Antwort-Modus ──────────── */}
-            {(newMarketType === 'standard' || newMarketType === 'hot-take') && (
-              <div className="mb-3">
-                <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Antwort-Modus</label>
-                <div className="grid grid-cols-2 gap-1.5 mb-2">
-                  <div onClick={() => setIsBinary(true)} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
-                    isBinary ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40")}>
-                    Binär (JA/NEIN)
-                  </div>
-                  <div onClick={() => setIsBinary(false)} className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
-                    !isBinary ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40")}>
-                    Custom (bis zu 5)
-                  </div>
-                </div>
-                {!isBinary && (
+                {!isBinary && !isOpenQuestion && (
                   <div className="flex flex-col gap-1.5">
                     {customOptions.map((opt, i) => (
                       <div key={i} className="flex gap-2 items-center">
@@ -323,14 +304,17 @@ export default function Admin() {
                           {i+1}
                         </div>
                         <input type="text" value={opt} onChange={e => { const n=[...customOptions]; n[i]=e.target.value; setCustomOptions(n); }}
-                          placeholder={`Option ${i+1}`} className="flex-1 bg-input border border-border rounded-xl p-2.5 px-3 text-white font-sans text-[13px] font-bold outline-none focus:border-blue2 placeholder:text-muted" />
+                          placeholder={`Option ${i+1}`}
+                          className="flex-1 bg-input border border-border rounded-xl p-2.5 px-3 text-white font-sans text-[13px] font-bold outline-none focus:border-blue2 placeholder:text-muted" />
                         {customOptions.length > 2 && (
-                          <button onClick={() => setCustomOptions(customOptions.filter((_,idx)=>idx!==i))} className="w-7 h-7 rounded-lg bg-red/10 border border-red/25 text-red text-[12px] flex items-center justify-center hover:bg-red/20">✕</button>
+                          <button onClick={() => setCustomOptions(customOptions.filter((_,idx)=>idx!==i))}
+                            className="w-7 h-7 rounded-lg bg-red/10 border border-red/25 text-red text-[12px] flex items-center justify-center hover:bg-red/20">✕</button>
                         )}
                       </div>
                     ))}
                     {customOptions.length < 5 && (
-                      <button onClick={() => setCustomOptions([...customOptions,''])} className="mt-1 w-full p-2 border border-dashed border-white/15 rounded-xl text-[11px] font-black text-muted hover:text-white hover:border-blue/40 transition-colors">
+                      <button onClick={() => setCustomOptions([...customOptions,''])}
+                        className="mt-1 w-full p-2 border border-dashed border-white/15 rounded-xl text-[11px] font-black text-muted hover:text-white hover:border-blue/40 transition-colors">
                         + Option hinzufügen
                       </button>
                     )}
