@@ -228,7 +228,15 @@ export const useStore = create<AppState>()(
           if (db) await setDoc(doc(db, 'players', playerId), { avatar, avatarColor }, { merge: true });
         },
 
-        logout: () => { clearSessionCookie(); set({ currentUser: null }); },
+        logout: () => {
+          clearSessionCookie();
+          const userId = get().currentUser;
+          set(s => ({
+            currentUser: null,
+            players: s.players.map(p => p.id === userId ? { ...p, avatar: '', avatarColor: '' } : p),
+          }));
+          if (db && userId) updateDoc(doc(db, 'players', userId), { avatar: '', avatarColor: '' }).catch(() => {});
+        },
 
         placeBet: async (marketId, optionId, optionLabel, amount) => {
           const state = get();
