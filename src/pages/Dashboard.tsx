@@ -446,8 +446,10 @@ export default function Dashboard() {
         <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between">
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <div className="w-5 h-5 bg-green rounded-full flex items-center justify-center text-[11px] shadow-[0_0_12px_rgba(0,214,143,0.5)]">🐼</div>
-              <span className="text-[13px] font-black text-white">Betpanda</span>
+              <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_12px_rgba(0,214,143,0.5)]">
+                <img src="/pp3.webp" alt="Penny Piranha" className="w-full h-full object-cover" />
+              </div>
+              <span className="text-[13px] font-black text-white">Penny Piranha</span>
             </div>
             <div className="text-[11px] text-muted mt-[1px]">Hey, <b className="text-green">{me.name}</b></div>
           </div>

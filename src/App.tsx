@@ -26,8 +26,8 @@ export default function App() {
         <div className="hidden sm:block text-center mb-6 shrink-0">
           <div className="font-mono text-[9px] text-[#2A3555] tracking-[0.3em] uppercase">The Prediction Pit</div>
           <div className="flex items-center justify-center gap-2 mt-1.5">
-            <div className="w-[32px] h-[32px] rounded-full bg-[radial-gradient(135deg,#00D68F,#00A86E)] flex items-center justify-center text-[16px] shadow-[0_0_20px_rgba(0,214,143,0.55)] animate-[breathe_3s_ease-in-out_infinite]">🐼</div>
-            <span className="text-[24px] font-black text-white tracking-[-1px]">BETPANDA</span>
+            <img src="/pp3.webp" alt="Penny Piranha" className="w-[32px] h-[32px] object-contain animate-[breathe_3s_ease-in-out_infinite]" />
+            <span className="text-[24px] font-black text-white tracking-[-1px]">PENNY PIRANHA</span>
           </div>
         </div>
         <div className="w-full h-[100dvh] sm:h-[812px] sm:max-w-[375px] mx-auto bg-bg sm:rounded-[46px] overflow-hidden sm:border sm:border-white/5 sm:shadow-[0_50px_120px_rgba(0,0,0,0.85)] flex flex-col relative shrink-0 transform-gpu">

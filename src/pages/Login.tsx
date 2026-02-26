@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
@@ -40,6 +40,7 @@ export default function Login() {
   const [step, setStep] = useState(1);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const players = useStore(state => state.players);
   const login = useStore(state => state.login);
@@ -49,6 +50,16 @@ export default function Login() {
   const takenAvatarUrls = new Set(
     players.filter(p => p.avatar !== '').map(p => p.avatar)
   );
+
+  // Loop.mp3 during login flow
+  useEffect(() => {
+    const audio = new Audio('/Loop.mp3');
+    audio.loop = true;
+    audio.volume = 0.35;
+    audioRef.current = audio;
+    audio.play().catch(() => {}); // browser may block until user interaction
+    return () => { audio.pause(); audio.src = ''; };
+  }, []);
 
   const handleLogin = () => {
     if (selectedPlayerId) {
@@ -65,7 +76,7 @@ export default function Login() {
         
         <div className="relative z-10 px-5 pt-5 flex-1 flex flex-col">
           <div className="text-center py-2 pb-4">
-            <div className="text-[64px] leading-none inline-block drop-shadow-[0_0_30px_rgba(0,214,143,0.7)] animate-[float_3s_ease-in-out_infinite]">🐼</div>
+            <img src="/pp4.webp" alt="Penny Piranha" className="h-28 w-auto mx-auto drop-shadow-[0_0_30px_rgba(0,214,143,0.5)] animate-[float_3s_ease-in-out_infinite]" />
           </div>
           
           <div className="text-[28px] font-black text-white leading-[1.1] mb-1 text-center">
