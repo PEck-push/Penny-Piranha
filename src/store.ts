@@ -322,7 +322,7 @@ export const useStore = create<AppState>()(
           if (db && player) await updateDoc(doc(db, 'players', playerId), { tokens: player.tokens + amount });
         },
 
-        resetState: () => set({ players: INITIAL_PLAYERS, markets: INITIAL_MARKETS, bets: [], answers: [], jackpot: 0 }),
+        resetState: () => { clearSessionCookie(); set({ players: INITIAL_PLAYERS, markets: INITIAL_MARKETS, bets: [], answers: [], jackpot: 0, currentUser: null }); },
       };
     },
     {
