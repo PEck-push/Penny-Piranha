@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore, Market, getMarketTotal } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
@@ -153,20 +153,22 @@ export default function Dashboard() {
   }, []);
 
   const [secretTaps, setSecretTaps] = useState(0);
-  const secretTapRef = useState<ReturnType<typeof setTimeout> | null>(null);
+  const secretTapRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSecretTap = () => {
     const next = secretTaps + 1;
     setSecretTaps(next);
-    if (secretTapRef[0]) clearTimeout(secretTapRef[0]);
+    if (secretTapRef.current) clearTimeout(secretTapRef.current);
     if (next >= 5) {
       setSecretTaps(0);
       logout();
       navigate('/');
     } else {
-      secretTapRef[0] = setTimeout(() => setSecretTaps(0), 2000);
+      secretTapRef.current = setTimeout(() => setSecretTaps(0), 2000);
     }
   };
+
+  const handleBet = (optionId: string, optionLabel: string) => {
     if (selectedMarket && me && me.tokens >= betAmount && !selectedExpired)
       setConfirmBet({ optionId, optionLabel, amount: betAmount });
   };
