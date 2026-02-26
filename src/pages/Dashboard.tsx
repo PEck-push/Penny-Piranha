@@ -58,7 +58,7 @@ function useCountdown(expiresAt?: number): { remaining: number; expired: boolean
 }
 
 // ── Hot Take Card with live countdown ──────────────────────────────────────────
-function HotTakeCard({ m, onClick, myBet }: { m: Market; onClick: () => void; myBet: any }) {
+function HotTakeCard({ m, onClick, myBet }: { m: Market; onClick: () => void; myBet: { amount: number; optionLabel: string } | undefined }) {
   const { expired, label } = useCountdown(m.expiresAt);
   return (
     <div className="mb-2.5">
@@ -90,7 +90,7 @@ function HotTakeCard({ m, onClick, myBet }: { m: Market; onClick: () => void; my
 }
 
 // ── Combo Market Card ───────────────────────────────────────────────────────────
-function ComboCard({ m, onClick, myBet }: { m: Market; onClick: () => void; myBet: any }) {
+function ComboCard({ m, onClick, myBet }: { m: Market; onClick: () => void; myBet: { amount: number; optionLabel: string } | undefined }) {
   const pendingLegs = m.comboLegs?.filter(l => l.status === 'pending').length ?? 0;
   const hitLegs = m.comboLegs?.filter(l => l.status === 'hit').length ?? 0;
   const anyMiss = m.comboLegs?.some(l => l.status === 'miss');
