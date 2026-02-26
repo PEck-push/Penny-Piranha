@@ -30,10 +30,16 @@ export default function Admin() {
     marketId: string; optionId: string; optionLabel: string; type: 'win' | 'rollover' | 'storno';
   } | null>(null);
 
+  // Open question resolution
+  const [openQModal, setOpenQModal] = useState<string | null>(null); // marketId
+  const [selectedWinners, setSelectedWinners] = useState<Set<string>>(new Set());
+
   const markets = useStore(s => s.markets);
+  const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
   const createMarket = useStore(s => s.createMarket);
   const resolveMarket = useStore(s => s.resolveMarket);
+  const resolveOpenQuestion = useStore(s => s.resolveOpenQuestion);
   const resolveRollover = useStore(s => s.resolveRollover);
   const resolveStorno = useStore(s => s.resolveStorno);
   const lockMarket = useStore(s => s.lockMarket);
@@ -128,7 +134,7 @@ export default function Admin() {
       <div className="flex-1 flex flex-col bg-bg relative">
         <div className="absolute inset-0 z-[100] bg-[#02040C]/95 backdrop-blur-2xl flex flex-col items-center justify-center">
           <button onClick={() => navigate('/dashboard')} className="absolute top-6 left-6 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">✕</button>
-          <div className="text-[70px] mb-3 animate-[float_3s_ease-in-out_infinite]">🐼</div>
+          <img src="/pp3.webp" alt="Penny Piranha" className="h-[70px] w-auto mb-3 animate-[float_3s_ease-in-out_infinite]" />
           <div className="text-[18px] font-black text-white mb-1">Admin-Zugang</div>
           <div className="text-[12px] text-muted mb-7">Nur für den Host · PIN: 1234</div>
           <div className="flex gap-3 mb-8">
@@ -155,7 +161,9 @@ export default function Admin() {
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,61,90,.12)_0%,transparent_40%)]" />
       <div className="relative z-10 flex flex-col flex-1">
         <div className="p-3.5 px-5 border-b border-border flex items-center justify-between shrink-0">
-          <div className="text-[17px] font-black text-white">🐼 Admin Panel</div>
+          <div className="text-[17px] font-black text-white flex items-center gap-2">
+            <img src="/pp3.webp" alt="" className="h-5 w-auto" /> Admin Panel
+          </div>
           <div className="text-[10px] font-black tracking-[0.1em] text-red bg-red/10 border border-red/30 rounded-lg px-2.5 py-1">HOST ONLY</div>
         </div>
 
@@ -341,16 +349,25 @@ export default function Admin() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {m.options.map((opt, i) => {
-                    const colors = ['text-green border-green/35 hover:bg-green/10','text-red border-red/35 hover:bg-red/10','text-blue2 border-blue2/35 hover:bg-blue/10','text-yellow border-yellow/35 hover:bg-yellow/10','text-purple2 border-purple2/35 hover:bg-purple/10'];
-                    return (
-                      <button key={opt.id}
-                        onClick={() => setPendingResolution({ marketId: m.id, optionId: opt.id, optionLabel: opt.label, type: 'win' })}
-                        className={clsx("text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap transition-all", colors[i] ?? colors[0])}>
-                        ✓ {opt.label}
-                      </button>
-                    );
-                  })}
+                  {m.isOpenQuestion ? (
+                    // Open question: single button opens answer picker
+                    <button
+                      onClick={() => { setOpenQModal(m.id); setSelectedWinners(new Set()); }}
+                      className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">
+                      ✏️ Antworten auswerten
+                    </button>
+                  ) : (
+                    m.options.map((opt, i) => {
+                      const colors = ['text-green border-green/35 hover:bg-green/10','text-red border-red/35 hover:bg-red/10','text-blue2 border-blue2/35 hover:bg-blue/10','text-yellow border-yellow/35 hover:bg-yellow/10','text-purple2 border-purple2/35 hover:bg-purple/10'];
+                      return (
+                        <button key={opt.id}
+                          onClick={() => setPendingResolution({ marketId: m.id, optionId: opt.id, optionLabel: opt.label, type: 'win' })}
+                          className={clsx("text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap transition-all", colors[i] ?? colors[0])}>
+                          ✓ {opt.label}
+                        </button>
+                      );
+                    })
+                  )}
                   {m.type !== 'combo' && (
                     <button onClick={() => setPendingResolution({ marketId: m.id, optionId: '', optionLabel: 'ROLLOVER', type: 'rollover' })}
                       className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-purple2 border-purple2/35 hover:bg-purple2/10">
@@ -423,7 +440,93 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* ── RESOLUTION CONFIRMATION ─────────────────────────────────── */}
+      {/* ── OPEN QUESTION RESOLUTION MODAL ──────────────────────────────────── */}
+      {openQModal && (() => {
+        const market = markets.find(m => m.id === openQModal);
+        if (!market) return null;
+        const marketAnswers = answers.filter(a => a.marketId === openQModal);
+        const prizePerWinner = selectedWinners.size > 0 ? Math.floor(jackpot / selectedWinners.size) : 0;
+        return (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+            <div className="bg-card border border-border rounded-[24px] w-full max-w-[360px] max-h-[85vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+              {/* Header */}
+              <div className="p-5 border-b border-border shrink-0">
+                <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-1">Offene Frage auswerten</div>
+                <div className="text-[15px] font-black text-white leading-snug">{market.question}</div>
+                <div className="text-[11px] text-muted mt-1.5">
+                  🎰 Jackpot: <b className="text-yellow">{jackpot} TKN</b>
+                  {selectedWinners.size > 0 && (
+                    <span className="text-green ml-2">→ je <b>{prizePerWinner} TKN</b> für {selectedWinners.size} Gewinner</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Answers list */}
+              <div className="flex-1 overflow-y-auto no-scrollbar p-4 flex flex-col gap-2">
+                {marketAnswers.length === 0 && (
+                  <div className="text-[12px] text-muted text-center py-6">Noch keine Antworten eingegangen.</div>
+                )}
+                {marketAnswers.map(ans => {
+                  const player = players.find(p => p.id === ans.playerId);
+                  const isWinner = selectedWinners.has(ans.playerId);
+                  return (
+                    <div
+                      key={ans.id}
+                      onClick={() => {
+                        const next = new Set(selectedWinners);
+                        if (next.has(ans.playerId)) next.delete(ans.playerId);
+                        else next.add(ans.playerId);
+                        setSelectedWinners(next);
+                      }}
+                      className={clsx(
+                        "flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                        isWinner
+                          ? "bg-green/10 border-green/50 shadow-[0_0_12px_rgba(0,214,143,0.2)]"
+                          : "bg-input border-border hover:border-blue/40"
+                      )}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-card border border-border shrink-0 overflow-hidden">
+                        {player?.avatar
+                          ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full bg-white/5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-black text-white">{player?.name ?? '?'}</div>
+                        <div className="text-[12px] text-muted leading-snug mt-0.5 break-words">{ans.text}</div>
+                      </div>
+                      <div className={clsx(
+                        "w-6 h-6 rounded-full border-2 flex items-center justify-center text-[11px] shrink-0 transition-all",
+                        isWinner ? "bg-green border-green text-bg font-black" : "border-border"
+                      )}>
+                        {isWinner && '✓'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Actions */}
+              <div className="p-4 border-t border-border flex gap-2.5 shrink-0">
+                <button onClick={() => setOpenQModal(null)}
+                  className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                  Abbrechen
+                </button>
+                <button
+                  onClick={async () => {
+                    await resolveOpenQuestion(openQModal, Array.from(selectedWinners));
+                    setOpenQModal(null);
+                    setSelectedWinners(new Set());
+                  }}
+                  className="flex-1 p-3 rounded-xl font-black text-white bg-gradient-to-r from-green to-[#00A86E] shadow-[0_0_15px_rgba(0,214,143,0.4)] transition-all">
+                  {selectedWinners.size === 0 ? 'Keine Gewinner' : `${selectedWinners.size} Gewinner bestätigen ✓`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── RESOLUTION CONFIRMATION ────────────────────────────────────────────── */}
       {pendingResolution && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
           <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">

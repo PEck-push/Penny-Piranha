@@ -109,6 +109,7 @@ interface AppState {
   placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
   submitAnswer: (marketId: string, text: string) => void;
   createMarket: (market: Omit<Market, 'id' | 'createdAt'>) => void;
+  resolveOpenQuestion: (marketId: string, winnerPlayerIds: string[]) => void;
   resolveMarket: (marketId: string, winningOptionId: string) => void;
   resolveRollover: (marketId: string) => void;
   resolveStorno: (marketId: string) => void;
@@ -258,6 +259,46 @@ export const useStore = create<AppState>()(
             batch.set(doc(db, 'bets', bet.id), bet);
             batch.update(doc(db, 'players', state.currentUser!), { tokens: player.tokens - amount });
             if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
+            await batch.commit();
+          }
+        },
+
+        resolveOpenQuestion: async (marketId, winnerPlayerIds) => {
+          const state = get();
+          const market = state.markets.find(m => m.id === marketId);
+          if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
+
+          const pUpdates: Record<string, number> = {};
+          let newJackpot = state.jackpot;
+
+          if (winnerPlayerIds.length > 0) {
+            // Split jackpot equally among winners
+            const prize = Math.floor(state.jackpot / winnerPlayerIds.length);
+            winnerPlayerIds.forEach(pid => { pUpdates[pid] = prize; });
+            newJackpot = Math.max(0, state.jackpot - prize * winnerPlayerIds.length);
+          }
+          // No winners → jackpot stays unchanged
+
+          set(s => ({
+            jackpot: newJackpot,
+            markets: s.markets.map(m => m.id === marketId
+              ? { ...m, status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' }
+              : m),
+            players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+          }));
+
+          if (db) {
+            const batch = writeBatch(db);
+            batch.update(doc(db, 'markets', marketId), {
+              status: 'resolved',
+              winningOptionId: winnerPlayerIds.join(',') || null,
+              resolutionType: 'normal',
+            });
+            batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
+            Object.entries(pUpdates).forEach(([pid, amt]) => {
+              const p = state.players.find(pl => pl.id === pid);
+              if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
+            });
             await batch.commit();
           }
         },
