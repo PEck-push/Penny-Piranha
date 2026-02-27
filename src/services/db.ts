@@ -14,14 +14,21 @@ export const initFirebaseSync = () => {
   const answersRef  = collection(db, 'answers');
   const appStateRef = doc(db, 'appState', 'global');
 
-  // Firebase is canonical truth, but don't overwrite current user's own session
-  // (they may have just logged in and Firebase hasn't caught up yet)
   onSnapshot(playersRef, snap => {
     const players = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
     if (players.length === 0) return;
     const currentUser = useStore.getState().currentUser;
+
+    // If Firebase shows current user is no longer loggedIn (e.g. after a reset),
+    // force logout so the cookie doesn't re-login them
     if (currentUser) {
-      // Preserve the local loggedIn/avatar state for the current user
+      const firebaseMe = players.find(p => p.id === currentUser);
+      if (firebaseMe && firebaseMe.loggedIn === false) {
+        useStore.getState().logout();
+        useStore.setState({ players });
+        return;
+      }
+      // Protect current user's fresh login data from being overwritten
       const localMe = useStore.getState().players.find(p => p.id === currentUser);
       const merged = players.map(p =>
         p.id === currentUser && localMe?.loggedIn

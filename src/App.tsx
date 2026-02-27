@@ -13,19 +13,23 @@ export default function App() {
 
   useEffect(() => {
     initFirebaseSync();
-    // Restore session from cookie after a tick so Firebase has time to sync
+    // Wait for first Firebase sync, then restore session only if Firebase confirms loggedIn
     setTimeout(() => {
       if (!useStore.getState().currentUser) {
         const session = readSessionCookie();
         if (session) {
-          // Find avatarId from the player's current avatar URL in store
           const players = useStore.getState().players;
           const player = players.find(p => p.id === session.playerId);
-          const avatarId = player?.avatarId ?? '';
-          login(session.playerId, session.avatar, session.avatarColor, avatarId);
+          // Only restore if Firebase still has this player as loggedIn
+          if (player?.loggedIn) {
+            login(session.playerId, session.avatar, session.avatarColor, player.avatarId ?? '');
+          } else {
+            // Reset was done — clear stale cookie
+            import('./store').then(m => m.clearSessionCookie());
+          }
         }
       }
-    }, 500);
+    }, 1200);
   }, []);
 
   return (
