@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
+// Firebase Konfiguration — Zugang nur für dein privates Gaming-Netz
 const firebaseConfig = {
   apiKey: "AIzaSyCQyd5Bd7-Wfo1lMVTtrUurR35_wVjZ61E",
   authDomain: "gaming-abend.firebaseapp.com",
