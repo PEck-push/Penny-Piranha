@@ -24,6 +24,7 @@ export interface Player {
   id: string;
   name: string;
   avatar: string;
+  avatarId: string;
   avatarColor: string;
   tokens: number;
   comboMalus: boolean;
@@ -82,17 +83,17 @@ export const clearSessionCookie = () => { document.cookie = 'betpanda_session=; 
 
 // ─── Initial Data ──────────────────────────────────────────────────────────────
 export const INITIAL_PLAYERS: Player[] = [
-  { id: 'p1',  name: 'Alex',    avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p2',  name: 'Neigi',   avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p3',  name: 'Michi',   avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p4',  name: 'Steindl', avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p5',  name: 'Paco',    avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p6',  name: 'Luigi',   avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p7',  name: 'Stefan',  avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p8',  name: 'Jakob',   avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p9',  name: 'Philipp', avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p10', name: 'Memo',    avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p11', name: 'Moz',     avatar: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p1',  name: 'Alex',    avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p2',  name: 'Neigi',   avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p3',  name: 'Michi',   avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p4',  name: 'Steindl', avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p5',  name: 'Paco',    avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p6',  name: 'Luigi',   avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p7',  name: 'Stefan',  avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p8',  name: 'Jakob',   avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p9',  name: 'Philipp', avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p10', name: 'Memo',    avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
+  { id: 'p11', name: 'Moz',     avatar: '', avatarId: '', avatarColor: '', tokens: 1000, comboMalus: false, badges: [] },
 ];
 export const INITIAL_MARKETS: Market[] = [];
 
@@ -104,7 +105,7 @@ interface AppState {
   jackpot: number;
   currentUser: string | null;
 
-  login: (playerId: string, avatar: string, avatarColor: string) => void;
+  login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
   logout: () => void;
   placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
   submitAnswer: (marketId: string, text: string) => void;
@@ -223,10 +224,10 @@ export const useStore = create<AppState>()(
         jackpot: 0,
         currentUser: null,
 
-        login: async (playerId, avatar, avatarColor) => {
-          set(s => ({ currentUser: playerId, players: s.players.map(p => p.id === playerId ? { ...p, avatar, avatarColor } : p) }));
+        login: async (playerId, avatar, avatarColor, avatarId) => {
+          set(s => ({ currentUser: playerId, players: s.players.map(p => p.id === playerId ? { ...p, avatar, avatarColor, avatarId } : p) }));
           saveSessionCookie(playerId, avatar, avatarColor);
-          if (db) await setDoc(doc(db, 'players', playerId), { avatar, avatarColor }, { merge: true });
+          if (db) await setDoc(doc(db, 'players', playerId), { avatar, avatarColor, avatarId }, { merge: true });
         },
 
         logout: () => {
@@ -234,9 +235,9 @@ export const useStore = create<AppState>()(
           const userId = get().currentUser;
           set(s => ({
             currentUser: null,
-            players: s.players.map(p => p.id === userId ? { ...p, avatar: '', avatarColor: '' } : p),
+            players: s.players.map(p => p.id === userId ? { ...p, avatar: '', avatarId: '', avatarColor: '' } : p),
           }));
-          if (db && userId) updateDoc(doc(db, 'players', userId), { avatar: '', avatarColor: '' }).catch(() => {});
+          if (db && userId) updateDoc(doc(db, 'players', userId), { avatar: '', avatarId: '', avatarColor: '' }).catch(() => {});
         },
 
         placeBet: async (marketId, optionId, optionLabel, amount) => {

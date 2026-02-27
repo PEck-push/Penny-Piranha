@@ -46,9 +46,9 @@ export default function Login() {
   const login = useStore(state => state.login);
   const navigate = useNavigate();
 
-  // Avatars already in use by other players
-  const takenAvatarUrls = new Set(
-    players.filter(p => p.avatar !== '').map(p => p.avatar)
+  // Avatar IDs already taken by logged-in players
+  const takenAvatarIds = new Set(
+    players.filter(p => p.avatarId && p.avatarId !== '').map(p => p.avatarId)
   );
 
   // Loop.mp3 during login flow
@@ -57,14 +57,13 @@ export default function Login() {
     audio.loop = true;
     audio.volume = 0.35;
     audioRef.current = audio;
-    audio.play().catch(() => {}); // browser may block until user interaction
+    audio.play().catch(() => {});
     return () => { audio.pause(); audio.src = ''; };
   }, []);
 
   const handleLogin = () => {
     if (selectedPlayerId) {
-      // In a real app we would update the player's avatar in the store here
-      login(selectedPlayerId, selectedAvatar.img, selectedAvatar.color);
+      login(selectedPlayerId, selectedAvatar.img, selectedAvatar.color, selectedAvatar.id);
       navigate('/dashboard');
     }
   };
@@ -183,7 +182,7 @@ export default function Login() {
         <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Alle 30 Charaktere — tippe zum Vorschauen</div>
         <div className="grid grid-cols-6 gap-1.5 pb-32">
           {AVATARS.map((a, i) => {
-            const avatarTaken = takenAvatarUrls.has(a.img) && selectedAvatar.id !== a.id;
+            const avatarTaken = takenAvatarIds.has(a.id) && selectedAvatar.id !== a.id;
             return (
               <div
                 key={i}
