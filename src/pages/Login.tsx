@@ -4,36 +4,42 @@ import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 
 const AVATARS = [
-  { id: 'c1', n: 'BWL-Justus', r: 'STD', img: '/avatars/1%20Kopie.webp', color: '#ffb6c1' },
-  { id: 'c2', n: 'Krypto-Kevin', r: 'STD', img: '/avatars/2%20Kopie.webp', color: '#e0e0e0' },
-  { id: 'c3', n: 'Yoga-Yvonne', r: 'EPIC', img: '/avatars/3%20Kopie.webp', color: '#ffa500' },
-  { id: 'c4', n: 'Helikopter-Helga', r: 'STD', img: '/avatars/4%20Kopie.webp', color: '#8b4513' },
-  { id: 'c5', n: 'Vegan-Sören', r: 'RARE', img: '/avatars/5%20Kopie.webp', color: '#87ceeb' },
-  { id: 'c6', n: 'Fitness-Falko', r: 'EPIC', img: '/avatars/6%20Kopie.webp', color: '#ff4500' },
-  { id: 'c7', n: 'Tinder-Torsten', r: 'STD', img: '/avatars/7%20Kopie.webp', color: '#ffdab9' },
-  { id: 'c8', n: 'TikTok-Tamara', r: 'RARE', img: '/avatars/8%20Kopie.webp', color: '#8b4513' },
-  { id: 'c9', n: 'Insta-Ingo', r: 'STD', img: '/avatars/9%20Kopie.webp', color: '#8b4513' },
-  { id: 'c10', n: 'Boomer-Bernd', r: 'RARE', img: '/avatars/10%20Kopie.webp', color: '#a9a9a9' },
-  { id: 'c11', n: 'Alman-Achim', r: 'EPIC', img: '/avatars/11%20Kopie.webp', color: '#00bfff' },
-  { id: 'c12', n: 'Karen (will Manager)', r: 'RARE', img: '/avatars/12%20Kopie.webp', color: '#ff0000' },
-  { id: 'c13', n: 'Discord-Detlef', r: 'EPIC', img: '/avatars/13%20Kopie.webp', color: '#ffd700' },
-  { id: 'c14', n: 'Vape-Valentin', r: 'RARE', img: '/avatars/14%20Kopie.webp', color: '#8b4513' },
-  { id: 'c15', n: 'Matcha-Mandy', r: 'STD', img: '/avatars/15%20Kopie.webp', color: '#ffdab9' },
-  { id: 'c16', n: 'Glutenfrei-Gabi', r: 'RARE', img: '/avatars/16%20Kopie.webp', color: '#696969' },
-  { id: 'c17', n: 'Pilates-Petra', r: 'STD', img: '/avatars/17%20Kopie.webp', color: '#8b4513' },
-  { id: 'c18', n: 'Crossfit-Christian', r: 'RARE', img: '/avatars/18%20Kopie.webp', color: '#4169e1' },
-  { id: 'c19', n: 'StartUp-Sven', r: 'EPIC', img: '/avatars/19%20Kopie.webp', color: '#f0f8ff' },
-  { id: 'c20', n: 'Podcast-Pascal', r: 'RARE', img: '/avatars/20%20Kopie.webp', color: '#e0e0e0' },
-  { id: 'c21', n: 'LifeCoach-Lars', r: 'EPIC', img: '/avatars/21%20Kopie.webp', color: '#ffd700' },
-  { id: 'c22', n: 'Mindset-Manni', r: 'RARE', img: '/avatars/22%20Kopie.webp', color: '#b22222' },
-  { id: 'c23', n: 'Hustle-Holger', r: 'RARE', img: '/avatars/23%20Kopie.webp', color: '#f5f5dc' },
-  { id: 'c24', n: 'Gründer-Gerd', r: 'EPIC', img: '/avatars/24%20Kopie.webp', color: '#2f4f4f' },
-  { id: 'c25', n: 'Influencer-Ilona', r: 'EPIC', img: '/avatars/25%20Kopie.webp', color: '#708090' },
-  { id: 'c26', n: 'Gamer-Gerrit', r: 'EPIC', img: '/avatars/26%20Kopie.webp', color: '#000000' },
-  { id: 'c27', n: 'Otaku-Olaf', r: 'RARE', img: '/avatars/27%20Kopie.webp', color: '#b0c4de' },
-  { id: 'c28', n: 'Cosplay-Corinna', r: 'STD', img: '/avatars/28%20Kopie.webp', color: '#32cd32' },
-  { id: 'c29', n: 'Anime-Andreas', r: 'RARE', img: '/avatars/29%20Kopie.webp', color: '#3cb371' },
-  { id: 'c30', n: 'Zocker-Zeno', r: 'STD', img: '/avatars/30%20Kopie.webp', color: '#ffdab9' },
+  { id: 'c1',  n: 'Detlev',        r: 'STD',  img: '/avatars/1%20Kopie.webp',  color: '#ffb6c1' },
+  { id: 'c2',  n: 'Uwe',           r: 'STD',  img: '/avatars/2%20Kopie.webp',  color: '#e0e0e0' },
+  { id: 'c3',  n: 'Holger',        r: 'EPIC', img: '/avatars/3%20Kopie.webp',  color: '#ffa500' },
+  { id: 'c4',  n: 'Torsten',       r: 'STD',  img: '/avatars/4%20Kopie.webp',  color: '#8b4513' },
+  { id: 'c5',  n: 'Knut',          r: 'RARE', img: '/avatars/5%20Kopie.webp',  color: '#87ceeb' },
+  { id: 'c6',  n: 'Sven',          r: 'EPIC', img: '/avatars/6%20Kopie.webp',  color: '#ff4500' },
+  { id: 'c7',  n: 'Björn',         r: 'STD',  img: '/avatars/7%20Kopie.webp',  color: '#ffdab9' },
+  { id: 'c8',  n: 'Jens',          r: 'RARE', img: '/avatars/8%20Kopie.webp',  color: '#8b4513' },
+  { id: 'c9',  n: 'Dierk',         r: 'STD',  img: '/avatars/9%20Kopie.webp',  color: '#8b4513' },
+  { id: 'c10', n: 'Sönke',         r: 'RARE', img: '/avatars/10%20Kopie.webp', color: '#a9a9a9' },
+  { id: 'c11', n: 'Horst',         r: 'EPIC', img: '/avatars/11%20Kopie.webp', color: '#00bfff' },
+  { id: 'c12', n: 'Günther',       r: 'RARE', img: '/avatars/12%20Kopie.webp', color: '#ff0000' },
+  { id: 'c13', n: 'Herbert',       r: 'EPIC', img: '/avatars/13%20Kopie.webp', color: '#ffd700' },
+  { id: 'c14', n: 'Fritz',         r: 'RARE', img: '/avatars/14%20Kopie.webp', color: '#8b4513' },
+  { id: 'c15', n: 'Franz',         r: 'STD',  img: '/avatars/15%20Kopie.webp', color: '#ffdab9' },
+  { id: 'c16', n: 'Seppl',         r: 'RARE', img: '/avatars/16%20Kopie.webp', color: '#696969' },
+  { id: 'c17', n: 'Hans',          r: 'STD',  img: '/avatars/17%20Kopie.webp', color: '#8b4513' },
+  { id: 'c18', n: 'Dieter',        r: 'RARE', img: '/avatars/18%20Kopie.webp', color: '#4169e1' },
+  { id: 'c19', n: 'Ralf',          r: 'EPIC', img: '/avatars/19%20Kopie.webp', color: '#f0f8ff' },
+  { id: 'c20', n: 'Volker',        r: 'RARE', img: '/avatars/20%20Kopie.webp', color: '#e0e0e0' },
+  { id: 'c21', n: 'Malte',         r: 'EPIC', img: '/avatars/21%20Kopie.webp', color: '#ffd700' },
+  { id: 'c22', n: 'Sören',         r: 'RARE', img: '/avatars/22%20Kopie.webp', color: '#b22222' },
+  { id: 'c23', n: 'Tillmann',      r: 'RARE', img: '/avatars/23%20Kopie.webp', color: '#f5f5dc' },
+  { id: 'c24', n: 'Gunnar',        r: 'EPIC', img: '/avatars/24%20Kopie.webp', color: '#2f4f4f' },
+  { id: 'c25', n: 'Hauke',         r: 'EPIC', img: '/avatars/25%20Kopie.webp', color: '#708090' },
+  { id: 'c26', n: 'Ansgar',        r: 'EPIC', img: '/avatars/26%20Kopie.webp', color: '#1a1a2e' },
+  { id: 'c27', n: 'Fynn',          r: 'RARE', img: '/avatars/27%20Kopie.webp', color: '#b0c4de' },
+  { id: 'c28', n: 'Rüdiger',       r: 'STD',  img: '/avatars/28%20Kopie.webp', color: '#32cd32' },
+  { id: 'c29', n: 'Hartmut',       r: 'RARE', img: '/avatars/29%20Kopie.webp', color: '#3cb371' },
+  { id: 'c30', n: 'Burkhard',      r: 'STD',  img: '/avatars/30%20Kopie.webp', color: '#ffdab9' },
+  { id: 'c31', n: 'Justus',        r: 'EPIC', img: '/avatars/31.webp',         color: '#6a0dad' },
+  { id: 'c32', n: 'Constantin',    r: 'RARE', img: '/avatars/32.webp',         color: '#c0392b' },
+  { id: 'c33', n: 'Momme-Mommsen', r: 'EPIC', img: '/avatars/33.webp',         color: '#2980b9' },
+  { id: 'c34', n: 'Leopold',       r: 'RARE', img: '/avatars/34.webp',         color: '#27ae60' },
+  { id: 'c35', n: 'Peer',          r: 'STD',  img: '/avatars/35.webp',         color: '#d35400' },
+  { id: 'c36', n: 'Golo',          r: 'EPIC', img: '/avatars/36.webp',         color: '#8e44ad' },
 ];
 
 export default function Login() {
@@ -182,7 +188,7 @@ export default function Login() {
       </div>
 
       <div className="relative z-20 px-4 pt-2 flex-1 overflow-y-auto no-scrollbar">
-        <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Alle 30 Charaktere — tippe zum Vorschauen</div>
+        <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Alle 36 Charaktere — tippe zum Vorschauen</div>
         <div className="grid grid-cols-6 gap-1.5 pb-32">
           {AVATARS.map((a, i) => {
             const avatarTaken = takenAvatarIds.has(a.id);
