@@ -46,12 +46,12 @@ export default function Login() {
   const login = useStore(state => state.login);
   const navigate = useNavigate();
 
-  // Use loggedIn flag — written directly to Firebase, synced in real-time
+  // A player is "taken" if loggedIn=true OR has an avatar set (backwards compat)
   const takenPlayerIds = new Set(
-    players.filter(p => p.loggedIn && p.id !== (useStore.getState().currentUser ?? '')).map(p => p.id)
+    players.filter(p => p.loggedIn === true || p.avatar !== '').map(p => p.id)
   );
   const takenAvatarIds = new Set(
-    players.filter(p => p.loggedIn && p.avatarId).map(p => p.avatarId)
+    players.filter(p => p.loggedIn === true || p.avatar !== '').map(p => p.avatarId).filter(Boolean)
   );
 
   // Loop.mp3 during login flow
