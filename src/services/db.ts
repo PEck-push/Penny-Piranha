@@ -32,8 +32,16 @@ export const resetToInitialState = async (initialPlayers: Player[], initialMarke
     snap.forEach(d => batch.delete(d.ref));
   }
 
-  // Write initial players
-  initialPlayers.forEach(p => batch.set(doc(db, 'players', p.id), p));
+  // Write initial players — completely overwrite each doc including loggedIn: false
+  initialPlayers.forEach(p => {
+    batch.set(doc(db, 'players', p.id), {
+      ...p,
+      avatar: '',
+      avatarId: '',
+      avatarColor: '',
+      loggedIn: false,
+    });
+  });
 
   // Write initial markets (empty array = no docs written, which is fine)
   initialMarkets.forEach(m => batch.set(doc(db, 'markets', m.id), m));

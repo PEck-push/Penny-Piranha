@@ -46,13 +46,12 @@ export default function Login() {
   const login = useStore(state => state.login);
   const navigate = useNavigate();
 
-  // Players who already have an avatar set = logged in
+  // Use loggedIn flag — written directly to Firebase, synced in real-time
   const takenPlayerIds = new Set(
-    players.filter(p => p.avatar && p.avatar !== '').map(p => p.id)
+    players.filter(p => p.loggedIn && p.id !== (useStore.getState().currentUser ?? '')).map(p => p.id)
   );
-  // Avatar IDs taken: find which AVATARS match logged-in players' avatar URLs
-  const takenAvatarImgs = new Set(
-    players.filter(p => p.avatar && p.avatar !== '').map(p => p.avatar)
+  const takenAvatarIds = new Set(
+    players.filter(p => p.loggedIn && p.avatarId).map(p => p.avatarId)
   );
 
   // Loop.mp3 during login flow
@@ -98,7 +97,7 @@ export default function Login() {
           
           <div className="flex flex-col gap-1.5 flex-1 overflow-y-auto no-scrollbar pb-32">
             {players.map(p => {
-              const taken = takenPlayerIds.has(p.id) && p.id !== selectedPlayerId;
+              const taken = takenPlayerIds.has(p.id);
               return (
                 <div
                   key={p.id}
@@ -186,7 +185,7 @@ export default function Login() {
         <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Alle 30 Charaktere — tippe zum Vorschauen</div>
         <div className="grid grid-cols-6 gap-1.5 pb-32">
           {AVATARS.map((a, i) => {
-            const avatarTaken = takenAvatarImgs.has(a.img) && a.img !== selectedAvatar.img;
+            const avatarTaken = takenAvatarIds.has(a.id);
             return (
               <div
                 key={i}
