@@ -13,11 +13,19 @@ export default function App() {
 
   useEffect(() => {
     initFirebaseSync();
-    // Restore session from cookie if zustand localStorage hydration missed it
-    if (!useStore.getState().currentUser) {
-      const session = readSessionCookie();
-      if (session) login(session.playerId, session.avatar, session.avatarColor);
-    }
+    // Restore session from cookie after a tick so Firebase has time to sync
+    setTimeout(() => {
+      if (!useStore.getState().currentUser) {
+        const session = readSessionCookie();
+        if (session) {
+          // Find avatarId from the player's current avatar URL in store
+          const players = useStore.getState().players;
+          const player = players.find(p => p.id === session.playerId);
+          const avatarId = player?.avatarId ?? '';
+          login(session.playerId, session.avatar, session.avatarColor, avatarId);
+        }
+      }
+    }, 500);
   }, []);
 
   return (

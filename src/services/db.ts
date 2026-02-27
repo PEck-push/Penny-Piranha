@@ -14,8 +14,25 @@ export const initFirebaseSync = () => {
   const answersRef  = collection(db, 'answers');
   const appStateRef = doc(db, 'appState', 'global');
 
-  // Firebase is the canonical truth; overwrite local state whenever it fires.
-  onSnapshot(playersRef,  snap => { const players = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player)); if (players.length > 0) useStore.setState({ players }); });
+  // Firebase is canonical truth, but don't overwrite current user's own session
+  // (they may have just logged in and Firebase hasn't caught up yet)
+  onSnapshot(playersRef, snap => {
+    const players = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+    if (players.length === 0) return;
+    const currentUser = useStore.getState().currentUser;
+    if (currentUser) {
+      // Preserve the local loggedIn/avatar state for the current user
+      const localMe = useStore.getState().players.find(p => p.id === currentUser);
+      const merged = players.map(p =>
+        p.id === currentUser && localMe?.loggedIn
+          ? { ...p, avatar: localMe.avatar, avatarId: localMe.avatarId, avatarColor: localMe.avatarColor, loggedIn: true }
+          : p
+      );
+      useStore.setState({ players: merged });
+    } else {
+      useStore.setState({ players });
+    }
+  });
   onSnapshot(marketsRef,  snap => { const markets = snap.docs.map(d => ({ id: d.id, ...d.data() } as Market)); useStore.setState({ markets }); });
   onSnapshot(betsRef,     snap => { const bets    = snap.docs.map(d => ({ id: d.id, ...d.data() } as Bet));    useStore.setState({ bets }); });
   onSnapshot(answersRef,  snap => { const answers = snap.docs.map(d => ({ id: d.id, ...d.data() } as Answer)); useStore.setState({ answers }); });
