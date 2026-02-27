@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { db } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
@@ -68,7 +67,7 @@ export interface Answer {
 
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
 
-// ─── Cookie helpers ───────────────────────────────────────────────────────────
+// ─── Cookie helpers (nur für currentUser Session) ─────────────────────────────
 export const saveSessionCookie = (playerId: string, avatar: string, avatarColor: string) => {
   const v = encodeURIComponent(JSON.stringify({ playerId, avatar, avatarColor }));
   document.cookie = `betpanda_session=${v}; max-age=604800; path=/`;
@@ -80,7 +79,9 @@ export const readSessionCookie = () => {
     return JSON.parse(decodeURIComponent(m.split('=')[1])) as { playerId: string; avatar: string; avatarColor: string };
   } catch { return null; }
 };
-export const clearSessionCookie = () => { document.cookie = 'betpanda_session=; max-age=0; path=/'; };
+export const clearSessionCookie = () => {
+  document.cookie = 'betpanda_session=; max-age=0; path=/';
+};
 
 // ─── Initial Data ─────────────────────────────────────────────────────────────
 export const INITIAL_PLAYERS: Player[] = [
@@ -120,409 +121,344 @@ interface AppState {
   resetState: () => void;
 }
 
-export const useStore = create<AppState>()(
-  persist(
-    (set, get) => {
-      // resolveMarket als Closure definiert, damit Combo-Auto-Resolution rekursiv funktioniert
-      const resolveMarket = async (marketId: string, winningOptionId: string) => {
-        const state = get();
-        const market = state.markets.find(m => m.id === marketId);
-        if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
+// ─── Store OHNE zustand/persist ───────────────────────────────────────────────
+// Das war der Hauptfehler: zustand/persist (localStorage) und Firebase haben
+// sich gegenseitig überschrieben. Beim Refresh hat Firebase die leeren
+// Collections zurückgeliefert und alles aus dem localStorage gelöscht.
+// Jetzt: Firebase ist die einzige Wahrheit. Daten überleben jeden Refresh.
+export const useStore = create<AppState>()((set, get) => {
+  const resolveMarket = async (marketId: string, winningOptionId: string) => {
+    const state = get();
+    const market = state.markets.find(m => m.id === marketId);
+    if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
 
-        const winOpt = market.options.find(o => o.id === winningOptionId);
-        const totalPool = getMarketTotal(market);
-        const winPool = winOpt?.pool ?? 0;
-        const allBets = state.bets.filter(b => b.marketId === marketId);
-        const winBets = allBets.filter(b => b.optionId === winningOptionId);
-        const pUpdates: Record<string, number> = {};
-        let newJackpot = state.jackpot;
-        let resType: ResolutionType;
+    const winOpt = market.options.find(o => o.id === winningOptionId);
+    const totalPool = getMarketTotal(market);
+    const winPool = winOpt?.pool ?? 0;
+    const allBets = state.bets.filter(b => b.marketId === marketId);
+    const winBets = allBets.filter(b => b.optionId === winningOptionId);
+    const pUpdates: Record<string, number> = {};
+    let newJackpot = state.jackpot;
+    let resType: ResolutionType;
 
-        if (market.type === 'combo') {
-          const multiplier = market.multiplier ?? 3;
-          if (winningOptionId === 'combo-win') {
-            resType = 'normal';
-            const winnerBets = allBets.filter(b => b.optionId === 'combo-win');
-            let totalPayout = 0;
-            winnerBets.forEach(b => {
-              const payout = b.amount * multiplier;
-              pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + payout;
-              totalPayout += payout;
-            });
-            newJackpot = Math.max(0, state.jackpot - Math.max(0, totalPayout - totalPool));
-          } else {
-            resType = 'no-winner';
-            newJackpot = state.jackpot + totalPool;
-          }
-        } else if (!winOpt || winPool === 0) {
-          resType = 'no-winner';
-          let refunded = 0;
-          allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-          newJackpot = state.jackpot + (totalPool - refunded);
-        } else if (winPool === totalPool) {
-          resType = 'all-same-side';
-          let jpPaid = 0;
-          winBets.forEach(b => { const share = state.jackpot > 0 ? Math.floor((b.amount / winPool) * state.jackpot) : 0; pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount + share; jpPaid += share; });
-          newJackpot = Math.max(0, state.jackpot - jpPaid);
-        } else {
-          resType = 'normal';
-          const eff = totalPool + state.jackpot;
-          let paid = 0;
-          winBets.forEach(b => { const p = Math.floor((b.amount / winPool) * eff); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
-          newJackpot = Math.max(0, eff - paid);
-        }
+    if (market.type === 'combo') {
+      const multiplier = market.multiplier ?? 3;
+      if (winningOptionId === 'combo-win') {
+        resType = 'normal';
+        const winnerBets = allBets.filter(b => b.optionId === 'combo-win');
+        let totalPayout = 0;
+        winnerBets.forEach(b => {
+          const payout = b.amount * multiplier;
+          pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + payout;
+          totalPayout += payout;
+        });
+        newJackpot = Math.max(0, state.jackpot - Math.max(0, totalPayout - totalPool));
+      } else {
+        resType = 'no-winner';
+        newJackpot = state.jackpot + totalPool;
+      }
+    } else if (!winOpt || winPool === 0) {
+      resType = 'no-winner';
+      let refunded = 0;
+      allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
+      newJackpot = state.jackpot + (totalPool - refunded);
+    } else if (winPool === totalPool) {
+      resType = 'all-same-side';
+      let jpPaid = 0;
+      winBets.forEach(b => { const share = state.jackpot > 0 ? Math.floor((b.amount / winPool) * state.jackpot) : 0; pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount + share; jpPaid += share; });
+      newJackpot = Math.max(0, state.jackpot - jpPaid);
+    } else {
+      resType = 'normal';
+      const eff = totalPool + state.jackpot;
+      let paid = 0;
+      winBets.forEach(b => { const p = Math.floor((b.amount / winPool) * eff); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
+      newJackpot = Math.max(0, eff - paid);
+    }
 
-        set(s => ({
-          jackpot: newJackpot,
-          markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: resType } : m),
-          players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-        }));
+    set(s => ({
+      jackpot: newJackpot,
+      markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: resType } : m),
+      players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+    }));
 
+    if (db) {
+      try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId, resolutionType: resType });
+        batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
+        Object.entries(pUpdates).forEach(([pid, amt]) => {
+          const p = state.players.find(pl => pl.id === pid);
+          if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
+        });
+        await batch.commit();
+      } catch (err) {
+        console.error('[Store] resolveMarket Fehler:', err);
+      }
+    }
+
+    if (market.type !== 'combo') {
+      const freshState = get();
+      const affectedCombos = freshState.markets.filter(
+        m => m.type === 'combo' &&
+        (m.status === 'open' || m.status === 'locked') &&
+        m.comboLegs?.some(l => l.marketId === marketId)
+      );
+      for (const combo of affectedCombos) {
+        const updatedLegs: MarketComboLeg[] = (combo.comboLegs ?? []).map(leg =>
+          leg.marketId === marketId
+            ? { ...leg, status: leg.predictedOptionId === winningOptionId ? 'hit' : 'miss' }
+            : leg
+        );
+        set(s => ({ markets: s.markets.map(m => m.id === combo.id ? { ...m, comboLegs: updatedLegs } : m) }));
         if (db) {
           try {
-            const batch = writeBatch(db);
-            batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId, resolutionType: resType });
-            batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-            Object.entries(pUpdates).forEach(([pid, amt]) => {
-              const p = state.players.find(pl => pl.id === pid);
-              if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-            });
-            await batch.commit();
+            await updateDoc(doc(db, 'markets', combo.id), { comboLegs: updatedLegs });
           } catch (err) {
-            console.error('[Store] resolveMarket Firestore-Fehler:', err);
+            console.error('[Store] Combo-Legs Fehler:', err);
           }
         }
-
-        // Nach einer normalen Auflösung: Combo-Märkte prüfen und ggf. auto-auflösen
-        if (market.type !== 'combo') {
-          const freshState = get();
-          const affectedCombos = freshState.markets.filter(
-            m => m.type === 'combo' &&
-            (m.status === 'open' || m.status === 'locked') &&
-            m.comboLegs?.some(l => l.marketId === marketId)
-          );
-          for (const combo of affectedCombos) {
-            const updatedLegs: MarketComboLeg[] = (combo.comboLegs ?? []).map(leg =>
-              leg.marketId === marketId
-                ? { ...leg, status: leg.predictedOptionId === winningOptionId ? 'hit' : 'miss' }
-                : leg
-            );
-            set(s => ({ markets: s.markets.map(m => m.id === combo.id ? { ...m, comboLegs: updatedLegs } : m) }));
-            if (db) {
-              try {
-                await updateDoc(doc(db, 'markets', combo.id), { comboLegs: updatedLegs });
-              } catch (err) {
-                console.error('[Store] Combo-Legs Update Fehler:', err);
-              }
-            }
-            if (updatedLegs.some(l => l.status === 'miss')) {
-              await resolveMarket(combo.id, 'combo-miss');
-            } else if (updatedLegs.every(l => l.status === 'hit')) {
-              await resolveMarket(combo.id, 'combo-win');
-            }
-          }
-        }
-      };
-
-      return {
-        players: INITIAL_PLAYERS,
-        markets: INITIAL_MARKETS,
-        bets: [],
-        answers: [],
-        jackpot: 0,
-        currentUser: null,
-
-        // ── LOGIN: Vollständiges Player-Dokument in Firestore schreiben ─────────
-        // BUG FIX: Vorher wurde nur { avatar, avatarColor, avatarId, loggedIn }
-        // gespeichert. Wenn Firebase dann zurücksynct, fehlten tokens, name etc.
-        // Jetzt: Das komplette Player-Objekt wird gespeichert.
-        login: async (playerId, avatar, avatarColor, avatarId) => {
-          const player = get().players.find(p => p.id === playerId);
-          set(s => ({
-            currentUser: playerId,
-            players: s.players.map(p =>
-              p.id === playerId ? { ...p, avatar, avatarColor, avatarId, loggedIn: true } : p
-            ),
-          }));
-          saveSessionCookie(playerId, avatar, avatarColor);
-          if (db && player) {
-            try {
-              // Vollständiges Dokument schreiben (KEIN merge:true), damit
-              // alle Felder korrekt in Firestore landen
-              await setDoc(doc(db, 'players', playerId), {
-                ...player,
-                avatar,
-                avatarColor,
-                avatarId,
-                loggedIn: true,
-              });
-            } catch (err) {
-              console.error('[Store] login Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        logout: () => {
-          clearSessionCookie();
-          const userId = get().currentUser;
-          set(s => ({
-            currentUser: null,
-            players: s.players.map(p =>
-              p.id === userId ? { ...p, avatar: '', avatarId: '', avatarColor: '', loggedIn: false } : p
-            ),
-          }));
-          if (db && userId) {
-            updateDoc(doc(db, 'players', userId), { avatar: '', avatarId: '', avatarColor: '', loggedIn: false })
-              .catch(err => console.error('[Store] logout Firestore-Fehler:', err));
-          }
-        },
-
-        placeBet: async (marketId, optionId, optionLabel, amount) => {
-          const state = get();
-          if (!state.currentUser) return;
-          const player = state.players.find(p => p.id === state.currentUser);
-          if (!player || player.tokens < amount) return;
-          const mkt = state.markets.find(m => m.id === marketId);
-          if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
-
-          // Nur eine Wette pro Spieler pro Markt
-          const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === state.currentUser);
-          if (alreadyBet) return;
-
-          const bet: Bet = {
-            id: Math.random().toString(36).substring(7),
-            marketId,
-            playerId: state.currentUser,
-            optionId,
-            optionLabel,
-            amount,
-            timestamp: Date.now(),
-          };
-
-          set(s => ({
-            bets: [...s.bets, bet],
-            players: s.players.map(p => p.id === s.currentUser ? { ...p, tokens: p.tokens - amount } : p),
-            markets: s.markets.map(m =>
-              m.id === marketId
-                ? { ...m, options: m.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) }
-                : m
-            ),
-          }));
-
-          if (db) {
-            try {
-              const updatedMkt = get().markets.find(m => m.id === marketId);
-              const batch = writeBatch(db);
-              batch.set(doc(db, 'bets', bet.id), bet);
-              batch.update(doc(db, 'players', state.currentUser!), { tokens: player.tokens - amount });
-              if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
-              await batch.commit();
-            } catch (err) {
-              console.error('[Store] placeBet Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        resolveOpenQuestion: async (marketId, winnerPlayerIds) => {
-          const state = get();
-          const market = state.markets.find(m => m.id === marketId);
-          if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-
-          const pUpdates: Record<string, number> = {};
-          let newJackpot = state.jackpot;
-
-          if (winnerPlayerIds.length > 0) {
-            const prize = Math.floor(state.jackpot / winnerPlayerIds.length);
-            winnerPlayerIds.forEach(pid => { pUpdates[pid] = prize; });
-            newJackpot = Math.max(0, state.jackpot - prize * winnerPlayerIds.length);
-          }
-
-          set(s => ({
-            jackpot: newJackpot,
-            markets: s.markets.map(m =>
-              m.id === marketId
-                ? { ...m, status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' }
-                : m
-            ),
-            players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-          }));
-
-          if (db) {
-            try {
-              const batch = writeBatch(db);
-              batch.update(doc(db, 'markets', marketId), {
-                status: 'resolved',
-                winningOptionId: winnerPlayerIds.join(',') || null,
-                resolutionType: 'normal',
-              });
-              batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-              Object.entries(pUpdates).forEach(([pid, amt]) => {
-                const p = state.players.find(pl => pl.id === pid);
-                if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-              });
-              await batch.commit();
-            } catch (err) {
-              console.error('[Store] resolveOpenQuestion Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        submitAnswer: async (marketId, text) => {
-          const state = get();
-          if (!state.currentUser) return;
-          const answer: Answer = {
-            id: Math.random().toString(36).substring(7),
-            marketId,
-            playerId: state.currentUser,
-            text: text.trim(),
-            timestamp: Date.now(),
-          };
-          set(s => ({ answers: [...s.answers, answer] }));
-          if (db) {
-            try {
-              await setDoc(doc(db, 'answers', answer.id), answer);
-            } catch (err) {
-              console.error('[Store] submitAnswer Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        createMarket: async (marketData) => {
-          const m: Market = {
-            ...marketData,
-            id: Math.random().toString(36).substring(7),
-            createdAt: Date.now(),
-            winningOptionId: null,
-            resolutionType: null,
-          };
-          set(s => ({ markets: [...s.markets, m] }));
-          if (db) {
-            try {
-              await setDoc(doc(db, 'markets', m.id), m);
-            } catch (err) {
-              console.error('[Store] createMarket Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        resolveMarket,
-
-        resolveRollover: async (marketId) => {
-          const state = get();
-          const market = state.markets.find(m => m.id === marketId);
-          if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-
-          const allBets = state.bets.filter(b => b.marketId === marketId);
-          const pUpdates: Record<string, number> = {};
-          let refunded = 0;
-          allBets.forEach(b => {
-            const r = Math.floor(b.amount * 0.5);
-            pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r;
-            refunded += r;
-          });
-          const newJackpot = state.jackpot + (getMarketTotal(market) - refunded);
-
-          set(s => ({
-            jackpot: newJackpot,
-            markets: s.markets.map(m =>
-              m.id === marketId ? { ...m, status: 'resolved', winningOptionId: null, resolutionType: 'rollover' } : m
-            ),
-            players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-          }));
-
-          if (db) {
-            try {
-              const batch = writeBatch(db);
-              batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: null, resolutionType: 'rollover' });
-              batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-              Object.entries(pUpdates).forEach(([pid, amt]) => {
-                const p = state.players.find(pl => pl.id === pid);
-                if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-              });
-              await batch.commit();
-            } catch (err) {
-              console.error('[Store] resolveRollover Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        resolveStorno: async (marketId) => {
-          const state = get();
-          const market = state.markets.find(m => m.id === marketId);
-          if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-
-          const pUpdates: Record<string, number> = {};
-          state.bets.filter(b => b.marketId === marketId).forEach(b => {
-            pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount;
-          });
-
-          set(s => ({
-            markets: s.markets.map(m =>
-              m.id === marketId ? { ...m, status: 'cancelled', resolutionType: 'storno' } : m
-            ),
-            players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-          }));
-
-          if (db) {
-            try {
-              const batch = writeBatch(db);
-              batch.update(doc(db, 'markets', marketId), { status: 'cancelled', resolutionType: 'storno' });
-              Object.entries(pUpdates).forEach(([pid, amt]) => {
-                const p = state.players.find(pl => pl.id === pid);
-                if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-              });
-              await batch.commit();
-            } catch (err) {
-              console.error('[Store] resolveStorno Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        lockMarket: async (marketId) => {
-          set(s => ({
-            markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'locked' } : m),
-          }));
-          if (db) {
-            try {
-              await updateDoc(doc(db, 'markets', marketId), { status: 'locked' });
-            } catch (err) {
-              console.error('[Store] lockMarket Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        // BUG FIX: Vorher wurde player.tokens VOR dem set() gelesen → stale Wert.
-        // Jetzt: set() zuerst, dann den frischen Wert aus dem Store lesen.
-        giveTokens: async (playerId, amount) => {
-          set(s => ({
-            players: s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens + amount } : p),
-          }));
-          const updatedPlayer = get().players.find(p => p.id === playerId);
-          if (db && updatedPlayer) {
-            try {
-              await updateDoc(doc(db, 'players', playerId), { tokens: updatedPlayer.tokens });
-            } catch (err) {
-              console.error('[Store] giveTokens Firestore-Fehler:', err);
-            }
-          }
-        },
-
-        resetState: () => {
-          clearSessionCookie();
-          set({ players: INITIAL_PLAYERS, markets: INITIAL_MARKETS, bets: [], answers: [], jackpot: 0, currentUser: null });
-        },
-      };
-    },
-    {
-      name: 'betpanda-storage',
-      partialize: (state) => ({
-        players: state.players,
-        markets: state.markets,
-        bets: state.bets,
-        answers: state.answers,
-        jackpot: state.jackpot,
-        currentUser: state.currentUser,
-      }),
+        if (updatedLegs.some(l => l.status === 'miss')) await resolveMarket(combo.id, 'combo-miss');
+        else if (updatedLegs.every(l => l.status === 'hit')) await resolveMarket(combo.id, 'combo-win');
+      }
     }
-  )
-);
+  };
+
+  return {
+    players: INITIAL_PLAYERS,
+    markets: [],
+    bets: [],
+    answers: [],
+    jackpot: 0,
+    currentUser: null,
+
+    login: async (playerId, avatar, avatarColor, avatarId) => {
+      const player = get().players.find(p => p.id === playerId);
+      set(s => ({
+        currentUser: playerId,
+        players: s.players.map(p =>
+          p.id === playerId ? { ...p, avatar, avatarColor, avatarId, loggedIn: true } : p
+        ),
+      }));
+      saveSessionCookie(playerId, avatar, avatarColor);
+      if (db && player) {
+        try {
+          await setDoc(doc(db, 'players', playerId), {
+            ...player, avatar, avatarColor, avatarId, loggedIn: true,
+          });
+        } catch (err) {
+          console.error('[Store] login Fehler:', err);
+        }
+      }
+    },
+
+    logout: () => {
+      clearSessionCookie();
+      const userId = get().currentUser;
+      set(s => ({
+        currentUser: null,
+        players: s.players.map(p =>
+          p.id === userId ? { ...p, avatar: '', avatarId: '', avatarColor: '', loggedIn: false } : p
+        ),
+      }));
+      if (db && userId) {
+        updateDoc(doc(db, 'players', userId), { avatar: '', avatarId: '', avatarColor: '', loggedIn: false })
+          .catch(err => console.error('[Store] logout Fehler:', err));
+      }
+    },
+
+    placeBet: async (marketId, optionId, optionLabel, amount) => {
+      const state = get();
+      if (!state.currentUser) return;
+      const player = state.players.find(p => p.id === state.currentUser);
+      if (!player || player.tokens < amount) return;
+      const mkt = state.markets.find(m => m.id === marketId);
+      if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
+      const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === state.currentUser);
+      if (alreadyBet) return;
+
+      const bet: Bet = {
+        id: Math.random().toString(36).substring(7),
+        marketId, playerId: state.currentUser, optionId, optionLabel, amount,
+        timestamp: Date.now(),
+      };
+      set(s => ({
+        bets: [...s.bets, bet],
+        players: s.players.map(p => p.id === s.currentUser ? { ...p, tokens: p.tokens - amount } : p),
+        markets: s.markets.map(m =>
+          m.id === marketId
+            ? { ...m, options: m.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) }
+            : m
+        ),
+      }));
+      if (db) {
+        try {
+          const updatedMkt = get().markets.find(m => m.id === marketId);
+          const batch = writeBatch(db);
+          batch.set(doc(db, 'bets', bet.id), bet);
+          batch.update(doc(db, 'players', state.currentUser!), { tokens: player.tokens - amount });
+          if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
+          await batch.commit();
+        } catch (err) {
+          console.error('[Store] placeBet Fehler:', err);
+        }
+      }
+    },
+
+    resolveOpenQuestion: async (marketId, winnerPlayerIds) => {
+      const state = get();
+      const market = state.markets.find(m => m.id === marketId);
+      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
+      const pUpdates: Record<string, number> = {};
+      let newJackpot = state.jackpot;
+      if (winnerPlayerIds.length > 0) {
+        const prize = Math.floor(state.jackpot / winnerPlayerIds.length);
+        winnerPlayerIds.forEach(pid => { pUpdates[pid] = prize; });
+        newJackpot = Math.max(0, state.jackpot - prize * winnerPlayerIds.length);
+      }
+      set(s => ({
+        jackpot: newJackpot,
+        markets: s.markets.map(m =>
+          m.id === marketId
+            ? { ...m, status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' }
+            : m
+        ),
+        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+      }));
+      if (db) {
+        try {
+          const batch = writeBatch(db);
+          batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' });
+          batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
+          Object.entries(pUpdates).forEach(([pid, amt]) => {
+            const p = state.players.find(pl => pl.id === pid);
+            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
+          });
+          await batch.commit();
+        } catch (err) {
+          console.error('[Store] resolveOpenQuestion Fehler:', err);
+        }
+      }
+    },
+
+    submitAnswer: async (marketId, text) => {
+      const state = get();
+      if (!state.currentUser) return;
+      const answer: Answer = {
+        id: Math.random().toString(36).substring(7),
+        marketId, playerId: state.currentUser, text: text.trim(), timestamp: Date.now(),
+      };
+      set(s => ({ answers: [...s.answers, answer] }));
+      if (db) {
+        try {
+          await setDoc(doc(db, 'answers', answer.id), answer);
+        } catch (err) {
+          console.error('[Store] submitAnswer Fehler:', err);
+        }
+      }
+    },
+
+    createMarket: async (marketData) => {
+      const m: Market = {
+        ...marketData, id: Math.random().toString(36).substring(7),
+        createdAt: Date.now(), winningOptionId: null, resolutionType: null,
+      };
+      set(s => ({ markets: [...s.markets, m] }));
+      if (db) {
+        try {
+          await setDoc(doc(db, 'markets', m.id), m);
+        } catch (err) {
+          console.error('[Store] createMarket Fehler:', err);
+        }
+      }
+    },
+
+    resolveMarket,
+
+    resolveRollover: async (marketId) => {
+      const state = get();
+      const market = state.markets.find(m => m.id === marketId);
+      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
+      const allBets = state.bets.filter(b => b.marketId === marketId);
+      const pUpdates: Record<string, number> = {};
+      let refunded = 0;
+      allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
+      const newJackpot = state.jackpot + (getMarketTotal(market) - refunded);
+      set(s => ({
+        jackpot: newJackpot,
+        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId: null, resolutionType: 'rollover' } : m),
+        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+      }));
+      if (db) {
+        try {
+          const batch = writeBatch(db);
+          batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: null, resolutionType: 'rollover' });
+          batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
+          Object.entries(pUpdates).forEach(([pid, amt]) => {
+            const p = state.players.find(pl => pl.id === pid);
+            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
+          });
+          await batch.commit();
+        } catch (err) {
+          console.error('[Store] resolveRollover Fehler:', err);
+        }
+      }
+    },
+
+    resolveStorno: async (marketId) => {
+      const state = get();
+      const market = state.markets.find(m => m.id === marketId);
+      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
+      const pUpdates: Record<string, number> = {};
+      state.bets.filter(b => b.marketId === marketId).forEach(b => {
+        pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount;
+      });
+      set(s => ({
+        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'cancelled', resolutionType: 'storno' } : m),
+        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+      }));
+      if (db) {
+        try {
+          const batch = writeBatch(db);
+          batch.update(doc(db, 'markets', marketId), { status: 'cancelled', resolutionType: 'storno' });
+          Object.entries(pUpdates).forEach(([pid, amt]) => {
+            const p = state.players.find(pl => pl.id === pid);
+            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
+          });
+          await batch.commit();
+        } catch (err) {
+          console.error('[Store] resolveStorno Fehler:', err);
+        }
+      }
+    },
+
+    lockMarket: async (marketId) => {
+      set(s => ({ markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'locked' } : m) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), { status: 'locked' });
+        } catch (err) {
+          console.error('[Store] lockMarket Fehler:', err);
+        }
+      }
+    },
+
+    giveTokens: async (playerId, amount) => {
+      set(s => ({
+        players: s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens + amount } : p),
+      }));
+      const updatedPlayer = get().players.find(p => p.id === playerId);
+      if (db && updatedPlayer) {
+        try {
+          await updateDoc(doc(db, 'players', playerId), { tokens: updatedPlayer.tokens });
+        } catch (err) {
+          console.error('[Store] giveTokens Fehler:', err);
+        }
+      }
+    },
+
+    resetState: () => {
+      clearSessionCookie();
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], jackpot: 0, currentUser: null });
+    },
+  };
+});
