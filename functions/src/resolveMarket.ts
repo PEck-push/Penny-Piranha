@@ -112,7 +112,7 @@ export async function resolveMarket(
     });
 
     // ── Update player tokens + streak + unseenResolutions ────────────────────
-    const allBettorIds = [...new Set(allBets.map((b: any) => b.playerId as string))];
+    const allBettorIds = [...new Set<string>(allBets.map((b: any) => String(b.playerId)))];
     const playerSnaps = await Promise.all(
       allBettorIds.map(pid => tx.get(firestore.collection('players').doc(pid))),
     );

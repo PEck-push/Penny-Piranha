@@ -3,6 +3,22 @@ import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
+export type FeedEventType =
+  | 'bet_placed' | 'market_resolved' | 'streak_on_fire' | 'streak_damn_hot'
+  | 'badge_unlocked' | 'underdog_win' | 'phase_winner' | 'jackpot_distribution'
+  | 'buyback' | 'market_locked';
+
+export interface FeedEvent {
+  id: string;
+  type: FeedEventType;
+  playerId?: string;
+  playerName?: string;
+  marketId?: string;
+  text: string;
+  creditsChange?: number;
+  ts: number; // Unix ms
+}
+
 export type Badge = 'MARKET MOVER' | 'THE WHALE' | 'BANKROTT' | 'STREAK';
 export type ResolutionType = 'normal' | 'rollover' | 'storno' | 'no-winner' | 'all-same-side';
 
@@ -174,6 +190,7 @@ interface AppState {
   markets: Market[];
   bets: Bet[];
   answers: Answer[];
+  feed: FeedEvent[];
   jackpot: number;
   currentUser: string | null;
 
@@ -301,6 +318,7 @@ export const useStore = create<AppState>()((set, get) => {
     markets: [],
     bets: [],
     answers: [],
+    feed: [],
     jackpot: 0,
     currentUser: null,
 

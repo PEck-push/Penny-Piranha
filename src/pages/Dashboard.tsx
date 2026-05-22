@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Trophy, Lock, Calendar } from 'lucide-react';
 import SpielplanTab from '../components/SpielplanTab';
 import RevealScreen from '../components/RevealScreen';
+import FeedWidget from '../components/FeedWidget';
 
 const OPT_HEX    = ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
@@ -299,12 +300,15 @@ export default function Dashboard() {
       )}
 
       {openMarketsCount === 0 && (
-        <div className="flex flex-col items-center gap-3 mt-12 text-center px-6">
+        <div className="flex flex-col items-center gap-3 mt-8 mb-6 text-center px-6">
           <div className="text-[48px]">🎲</div>
           <div className="text-[16px] font-black text-muted">Noch keine Märkte offen</div>
           <div className="text-[12px] text-muted/60">Der Admin kann neue Märkte erstellen</div>
         </div>
       )}
+
+      {/* Activity Feed Widget */}
+      <FeedWidget maxItems={5} className="mb-3" />
     </div>
   );
 
@@ -431,8 +435,19 @@ export default function Dashboard() {
               <div className="w-9 h-9 rounded-lg bg-input flex items-center justify-center border border-border shrink-0 overflow-hidden">
                 {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
               </div>
-              <div className="flex-1">
-                <div className="text-[14px] font-black text-white">{p.name} {p.id === me.id && <span className="text-[10px] text-green font-black">(Du)</span>}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[14px] font-black text-white truncate">{p.name}</span>
+                  {p.id === me.id && <span className="text-[10px] text-green font-black shrink-0">(Du)</span>}
+                </div>
+                {(p.streakLevel === 'damn_hot' || p.streakLevel === 'on_fire') && (
+                  <span className={clsx(
+                    'text-[9px] font-black',
+                    p.streakLevel === 'damn_hot' ? 'text-orange-400' : 'text-orange-300',
+                  )}>
+                    {p.streakLevel === 'damn_hot' ? '🔥🔥 DAMN HOT' : `🔥 ${p.currentStreak}er Streak`}
+                  </span>
+                )}
               </div>
               <span className={clsx("font-mono text-[15px] font-bold", p.tokens === 0 ? "text-red" : "text-white")}>{p.tokens}</span>
             </div>

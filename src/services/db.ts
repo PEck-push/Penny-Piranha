@@ -1,6 +1,6 @@
-import { collection, doc, getDocs, onSnapshot, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useStore, Player, Market, Bet, Answer } from '../store';
+import { useStore, Player, Market, Bet, Answer, FeedEvent } from '../store';
 
 let syncInitialized = false;
 
@@ -37,6 +37,20 @@ export const initFirebaseSync = () => {
       useStore.setState({ jackpot: data.jackpot ?? data.hausbank ?? 0 });
     }
   }, err => console.error('[Firebase] appState Fehler:', err));
+
+  // Feed: last 30 events, newest first
+  const feedQ = query(collection(db, 'feed'), orderBy('ts', 'desc'), limit(30));
+  onSnapshot(feedQ, snap => {
+    const feed = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        ts: data.ts?.toMillis?.() ?? data.ts ?? 0,
+      } as FeedEvent;
+    });
+    useStore.setState({ feed });
+  }, err => console.error('[Firebase] feed Fehler:', err));
 };
 
 // ── RESET: Märkte und Wetten leeren (Admin-Panel) ─────────────────────────────
