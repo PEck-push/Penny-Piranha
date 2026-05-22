@@ -100,6 +100,21 @@ export interface Market {
   isOpenQuestion?: boolean;
   comboLegs?: MarketComboLeg[];
   multiplier?: number;
+
+  // ── WM 2026 Felder ────────────────────────────────────────────────────────────
+  marketSubtype?: 'wm-match' | 'spezialwette' | 'milestone' | 'club-special';
+  matchId?: string;            // verknüpft mit WmMatch.matchId aus wm2026Schedule.ts
+  teamA?: string;
+  teamB?: string;
+  kickoffAt?: number;          // UTC ms — wann Markt automatisch sperrt
+  groupLabel?: string;
+  minBet?: number;
+  maxBet?: number;             // 0 = All-in (Finale)
+  autoDeductAmount?: number;
+  autoDeductProcessed?: boolean;
+  initialSeedCredits?: number;
+  lockedPoolSnapshot?: Record<string, number>;
+  winningOptionIds?: string[]; // für Multi-Winner (Milestone etc.)
 }
 
 export interface Bet {

@@ -3,10 +3,26 @@ import { useStore, INITIAL_PLAYERS, INITIAL_MARKETS, MarketOption } from '../sto
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { resetToInitialState } from '../services/db';
+import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
+
+const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+const toCEST = (ts: number) => {
+  const d = new Date(ts + 2 * 60 * 60 * 1000);
+  return `${d.getUTCDate().toString().padStart(2,'0')}.${(d.getUTCMonth()+1).toString().padStart(2,'0')}. ${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')} CEST`;
+};
 
 export default function Admin() {
   const [pin, setPin] = useState('');
   const [unlocked, setUnlocked] = useState(false);
+
+  // WM-Match market creation
+  const [wmGroup, setWmGroup] = useState('C');
+  const [wmMatchId, setWmMatchId] = useState('');
+  const [wmMinBet, setWmMinBet] = useState(10);
+  const [wmMaxBet, setWmMaxBet] = useState(150);
+  const [wmAutoDeduct, setWmAutoDeduct] = useState(10);
+  const [wmCreated, setWmCreated] = useState(false);
 
   // Market creation
   const [newMarketQuestion, setNewMarketQuestion] = useState('');
@@ -119,6 +135,40 @@ export default function Admin() {
     if (player && giveAmount) { giveTokens(player.id, parseInt(giveAmount)); setGivePlayerId(''); }
   };
 
+  const handleCreateWmMarket = () => {
+    const match = WM2026_GROUP_SCHEDULE.find(m => m.matchId === wmMatchId);
+    if (!match) return;
+    const alreadyExists = markets.some(m => m.matchId === wmMatchId);
+    if (alreadyExists) return;
+    createMarket({
+      question: `${match.teamA} vs. ${match.teamB}`,
+      type: 'standard',
+      status: 'open',
+      createdBy: 'admin',
+      options: [
+        { id: 'home', label: match.teamA, pool: 0 },
+        { id: 'draw', label: 'Unentschieden', pool: 0 },
+        { id: 'away', label: match.teamB, pool: 0 },
+      ],
+      winningOptionId: null,
+      resolutionType: null,
+      isOpenQuestion: false,
+      marketSubtype: 'wm-match',
+      matchId: match.matchId,
+      teamA: match.teamA,
+      teamB: match.teamB,
+      kickoffAt: match.kickoffAt,
+      groupLabel: match.groupLabel,
+      minBet: wmMinBet,
+      maxBet: wmMaxBet,
+      autoDeductAmount: wmAutoDeduct,
+      autoDeductProcessed: false,
+    });
+    setWmCreated(true);
+    setWmMatchId('');
+    setTimeout(() => setWmCreated(false), 3000);
+  };
+
   const executeResolution = async () => {
     if (!pendingResolution) return;
     const { marketId, optionId, type } = pendingResolution;
@@ -168,6 +218,89 @@ export default function Admin() {
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 px-4 pb-safe">
+
+          {/* ── WM MATCH MARKT ────────────────────────────────────── */}
+          <div className="bg-card border border-[#00D68F]/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-3.5">
+              <span className="text-[18px]">⚽</span>
+              <div className="text-[11px] font-black text-green tracking-[0.15em] uppercase">WM-Match Markt öffnen</div>
+            </div>
+
+            {wmCreated && (
+              <div className="bg-green/10 border border-green/30 rounded-xl px-4 py-2.5 text-[13px] text-green font-black text-center mb-3">
+                ✓ Markt erstellt!
+              </div>
+            )}
+
+            {/* Group tabs */}
+            <div className="mb-3">
+              <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">Gruppe</div>
+              <div className="flex gap-1.5 flex-wrap">
+                {GROUP_LABELS.map(g => (
+                  <button key={g} onClick={() => { setWmGroup(g); setWmMatchId(''); }}
+                    className={clsx('w-8 h-8 rounded-xl font-black text-[12px] border transition-all',
+                      wmGroup === g ? 'bg-green/15 border-green/50 text-green' : 'bg-white/5 border-white/10 text-muted hover:text-white')}>
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Match selector */}
+            <div className="mb-3">
+              <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">Spiel</div>
+              <div className="flex flex-col gap-1.5">
+                {WM2026_GROUP_SCHEDULE
+                  .filter(m => m.groupLabel === `Gruppe ${wmGroup}`)
+                  .map(match => {
+                    const exists = markets.some(m => m.matchId === match.matchId);
+                    return (
+                      <div key={match.matchId}
+                        onClick={() => !exists ? setWmMatchId(match.matchId) : undefined}
+                        className={clsx(
+                          'flex items-center gap-2.5 rounded-xl p-2.5 border text-[12px] transition-all',
+                          exists ? 'border-green/20 bg-green/5 opacity-60 cursor-not-allowed' :
+                          wmMatchId === match.matchId
+                            ? 'border-green/50 bg-green/10 cursor-pointer'
+                            : 'border-border bg-input cursor-pointer hover:border-blue2/40',
+                        )}
+                      >
+                        <span className="font-black text-white flex-1 truncate">
+                          {match.teamA} vs. {match.teamB}
+                        </span>
+                        <span className="text-[10px] text-muted shrink-0">{toCEST(match.kickoffAt)}</span>
+                        {exists && <span className="text-[10px] font-black text-green shrink-0">✓</span>}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Min/Max/AutoDeduct */}
+            {wmMatchId && (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {([['Min', wmMinBet, setWmMinBet], ['Max', wmMaxBet, setWmMaxBet], ['Auto-Abzug', wmAutoDeduct, setWmAutoDeduct]] as [string, number, (v: number) => void][]).map(([label, val, setter]) => (
+                  <div key={label}>
+                    <div className="text-[9px] font-black text-muted uppercase tracking-[0.08em] mb-1">{label}</div>
+                    <input
+                      type="number"
+                      value={val}
+                      onChange={e => setter(parseInt(e.target.value) || 0)}
+                      className="w-full bg-input border border-border rounded-lg p-2 text-white font-mono text-[13px] font-bold outline-none focus:border-green/60 text-center"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={handleCreateWmMarket}
+              disabled={!wmMatchId || markets.some(m => m.matchId === wmMatchId)}
+              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(0,214,143,0.3)] transition-all hover:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ⚽ WM-Markt öffnen
+            </button>
+          </div>
 
           {/* ── CREATE MARKET ─────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">

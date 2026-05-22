@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useStore, Market, getMarketTotal } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Target, Trophy, Lock } from 'lucide-react';
+import { LayoutDashboard, Target, Trophy, Lock, Calendar } from 'lucide-react';
+import SpielplanTab from '../components/SpielplanTab';
 
 const OPT_HEX    = ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
@@ -124,7 +125,7 @@ function ComboCard({ m, onClick, myBet }: { m: Market; onClick: () => void; myBe
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'my-bets' | 'leaderboard'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'spielplan' | 'my-bets' | 'leaderboard'>('dashboard');
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [betAmount, setBetAmount] = useState(20);
   const [confirmBet, setConfirmBet] = useState<{ optionId: string; optionLabel: string; amount: number } | null>(null);
@@ -436,10 +437,15 @@ export default function Dashboard() {
   // ─── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col bg-bg relative">
-      {activeTab === 'dashboard'
-        ? <div className="absolute top-0 left-0 right-0 h-[290px] z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(59,110,255,.35)_0%,transparent_60%)]" />
-        : <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,212,71,.18)_0%,transparent_40%)]" />
-      }
+      {activeTab === 'dashboard' && (
+        <div className="absolute top-0 left-0 right-0 h-[290px] z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(59,110,255,.35)_0%,transparent_60%)]" />
+      )}
+      {activeTab === 'leaderboard' && (
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,212,71,.18)_0%,transparent_40%)]" />
+      )}
+      {activeTab === 'spielplan' && (
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(0,214,143,.12)_0%,transparent_50%)]" />
+      )}
 
       {/* Top Bar */}
       {activeTab === 'dashboard' && (
@@ -506,17 +512,27 @@ export default function Dashboard() {
       )}
 
       {activeTab === 'dashboard' && renderDashboard()}
+      {activeTab === 'spielplan' && <SpielplanTab />}
       {activeTab === 'my-bets' && renderMyBets()}
       {activeTab === 'leaderboard' && renderLeaderboard()}
 
       {/* Bottom Nav */}
-      <div className="bg-[#050912]/95 backdrop-blur-xl border-t border-border px-2 pb-3 shrink-0 sticky bottom-0 z-40">
-        <div className="grid grid-cols-3">
-          {([['dashboard','Dashboard',LayoutDashboard],['my-bets','My Bets',Target],['leaderboard','Ranking',Trophy]] as const).map(([tab,label,Icon]) => (
-            <div key={tab} onClick={() => setActiveTab(tab)} className="flex flex-col items-center px-2 pt-3 pb-3 gap-1.5 cursor-pointer relative">
-              <Icon className={clsx("w-6 h-6", activeTab === tab ? "text-green" : "text-muted")} strokeWidth={2} />
-              <span className={clsx("text-[10px] font-black tracking-[0.08em] uppercase", activeTab === tab ? "text-green" : "text-muted")}>{label}</span>
-              {activeTab === tab && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-sm bg-green shadow-[0_0_10px_rgba(0,214,143,0.5)]" />}
+      <div className="bg-[#050912]/95 backdrop-blur-xl border-t border-border px-1 pb-3 shrink-0 sticky bottom-0 z-40">
+        <div className="grid grid-cols-4">
+          {([
+            ['dashboard', 'Home',      LayoutDashboard],
+            ['spielplan', 'Spielplan', Calendar],
+            ['my-bets',   'Wetten',    Target],
+            ['leaderboard','Liga',     Trophy],
+          ] as const).map(([tab, label, Icon]) => (
+            <div key={tab} onClick={() => setActiveTab(tab)} className="flex flex-col items-center px-1 pt-3 pb-3 gap-1.5 cursor-pointer relative">
+              <Icon className={clsx('w-5 h-5', activeTab === tab ? 'text-green' : 'text-muted')} strokeWidth={2} />
+              <span className={clsx('text-[9px] font-black tracking-[0.06em] uppercase', activeTab === tab ? 'text-green' : 'text-muted')}>
+                {label}
+              </span>
+              {activeTab === tab && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-b-sm bg-green shadow-[0_0_10px_rgba(0,214,143,0.5)]" />
+              )}
             </div>
           ))}
         </div>
