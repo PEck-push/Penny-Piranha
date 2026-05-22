@@ -13,14 +13,12 @@ export interface WmMatch {
 // WM 2026 (USA / Kanada / Mexiko), 11. Juni – 19. Juli 2026.
 // 48 Teams, 12 Gruppen (A–L) à 4 Teams = 72 Gruppenspiele.
 //
-// HINWEIS: Die echte Gruppenauslosung findet erst statt — die Teamnamen hier
-// sind realistische Platzhalter (Gastgeber + wahrscheinliche Qualifikanten).
-// Der Admin aktualisiert Teams + Anstoßzeiten sobald die Auslosung feststeht.
-// Österreich ist bewusst in Gruppe C platziert (Österreich-Spezialwetten).
+// HINWEIS: Nur Offline-Fallback — wird angezeigt wenn Firestore leer ist.
+// Den echten Spielplan über Admin → "Spielplan von API laden" importieren.
 const GROUPS: Record<string, [string, string, string, string]> = {
   A: ['Mexiko', 'Polen', 'Südkorea', 'Katar'],
   B: ['Kanada', 'Belgien', 'Ägypten', 'Neuseeland'],
-  C: ['USA', 'Österreich', 'Uruguay', 'Saudi-Arabien'],
+  C: ['USA', 'Uruguay', 'Saudi-Arabien', 'Panama'],
   D: ['Argentinien', 'Kroatien', 'Nigeria', 'Panama'],
   E: ['Frankreich', 'Senegal', 'Iran', 'Honduras'],
   F: ['Brasilien', 'Schweiz', 'Kamerun', 'Jordanien'],

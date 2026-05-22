@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { clsx } from 'clsx';
 import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
@@ -8,22 +8,98 @@ type WmMatch = ScheduleMatch;
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
 const COUNTRY_FLAGS: Record<string, string> = {
-  'Mexiko': '🇲🇽', 'Polen': '🇵🇱', 'Südkorea': '🇰🇷', 'Katar': '🇶🇦',
-  'Kanada': '🇨🇦', 'Belgien': '🇧🇪', 'Ägypten': '🇪🇬', 'Neuseeland': '🇳🇿',
-  'USA': '🇺🇸', 'Österreich': '🇦🇹', 'Uruguay': '🇺🇾', 'Saudi-Arabien': '🇸🇦',
-  'Argentinien': '🇦🇷', 'Kroatien': '🇭🇷', 'Nigeria': '🇳🇬', 'Panama': '🇵🇦',
-  'Frankreich': '🇫🇷', 'Senegal': '🇸🇳', 'Iran': '🇮🇷', 'Honduras': '🇭🇳',
-  'Brasilien': '🇧🇷', 'Schweiz': '🇨🇭', 'Kamerun': '🇨🇲', 'Jordanien': '🇯🇴',
-  'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Niederlande': '🇳🇱', 'Ghana': '🇬🇭', 'Curacao': '🇨🇼',
-  'Spanien': '🇪🇸', 'Japan': '🇯🇵', 'Marokko': '🇲🇦', 'Costa Rica': '🇨🇷',
-  'Deutschland': '🇩🇪', 'Kolumbien': '🇨🇴', 'Australien': '🇦🇺', 'Usbekistan': '🇺🇿',
-  'Portugal': '🇵🇹', 'Elfenbeinküste': '🇨🇮', 'Kap Verde': '🇨🇻',
-  'Italien': '🇮🇹', 'Ecuador': '🇪🇨', 'Tunesien': '🇹🇳', 'Jamaika': '🇯🇲',
-  'Algerien': '🇩🇿', 'Bolivien': '🇧🇴',
+  // Europa
+  'Österreich': '🇦🇹', 'Austria': '🇦🇹',
+  'Deutschland': '🇩🇪', 'Germany': '🇩🇪',
+  'Frankreich': '🇫🇷', 'France': '🇫🇷',
+  'Spanien': '🇪🇸', 'Spain': '🇪🇸',
+  'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'Portugal': '🇵🇹',
+  'Niederlande': '🇳🇱', 'Netherlands': '🇳🇱',
+  'Belgien': '🇧🇪', 'Belgium': '🇧🇪',
+  'Italien': '🇮🇹', 'Italy': '🇮🇹',
+  'Kroatien': '🇭🇷', 'Croatia': '🇭🇷',
+  'Schweiz': '🇨🇭', 'Switzerland': '🇨🇭',
+  'Dänemark': '🇩🇰', 'Denmark': '🇩🇰',
+  'Polen': '🇵🇱', 'Poland': '🇵🇱',
+  'Serbien': '🇷🇸', 'Serbia': '🇷🇸',
+  'Ukraine': '🇺🇦',
+  'Türkei': '🇹🇷', 'Turkey': '🇹🇷',
+  'Schottland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  'Ungarn': '🇭🇺', 'Hungary': '🇭🇺',
+  'Rumänien': '🇷🇴', 'Romania': '🇷🇴',
+  'Slowakei': '🇸🇰', 'Slovakia': '🇸🇰',
+  'Griechenland': '🇬🇷', 'Greece': '🇬🇷',
+  'Georgien': '🇬🇪', 'Georgia': '🇬🇪',
+  'Tschechien': '🇨🇿', 'Czech Republic': '🇨🇿', 'Czechia': '🇨🇿',
+  'Albanien': '🇦🇱', 'Albania': '🇦🇱',
+  'Slowenien': '🇸🇮', 'Slovenia': '🇸🇮',
+  'Finnland': '🇫🇮', 'Finland': '🇫🇮',
+  'Kosovo': '🇽🇰',
+  'Nordmazedonien': '🇲🇰', 'North Macedonia': '🇲🇰',
+  // Nord-/Mittelamerika & Karibik
+  'USA': '🇺🇸',
+  'Mexiko': '🇲🇽', 'Mexico': '🇲🇽',
+  'Kanada': '🇨🇦', 'Canada': '🇨🇦',
+  'Costa Rica': '🇨🇷',
+  'Panama': '🇵🇦',
+  'Honduras': '🇭🇳',
+  'Jamaika': '🇯🇲', 'Jamaica': '🇯🇲',
+  'El Salvador': '🇸🇻',
+  'Kuba': '🇨🇺', 'Cuba': '🇨🇺',
+  'Guatemala': '🇬🇹',
+  'Trinidad and Tobago': '🇹🇹',
+  'Curacao': '🇨🇼', 'Curaçao': '🇨🇼',
+  // Südamerika
+  'Brasilien': '🇧🇷', 'Brazil': '🇧🇷',
+  'Argentinien': '🇦🇷', 'Argentina': '🇦🇷',
+  'Kolumbien': '🇨🇴', 'Colombia': '🇨🇴',
+  'Ecuador': '🇪🇨',
+  'Uruguay': '🇺🇾',
+  'Chile': '🇨🇱',
+  'Peru': '🇵🇪',
+  'Paraguay': '🇵🇾',
+  'Bolivien': '🇧🇴', 'Bolivia': '🇧🇴',
+  'Venezuela': '🇻🇪',
+  // Afrika
+  'Marokko': '🇲🇦', 'Morocco': '🇲🇦',
+  'Senegal': '🇸🇳',
+  'Nigeria': '🇳🇬',
+  'Kamerun': '🇨🇲', 'Cameroon': '🇨🇲',
+  'Ghana': '🇬🇭',
+  'Mali': '🇲🇱',
+  'Ägypten': '🇪🇬', 'Egypt': '🇪🇬',
+  'Algerien': '🇩🇿', 'Algeria': '🇩🇿',
+  'Tunesien': '🇹🇳', 'Tunisia': '🇹🇳',
+  'Südafrika': '🇿🇦', 'South Africa': '🇿🇦',
+  'Elfenbeinküste': '🇨🇮', "Côte d'Ivoire": '🇨🇮', 'Ivory Coast': '🇨🇮',
+  'Kap Verde': '🇨🇻', 'Cape Verde': '🇨🇻',
+  'Angola': '🇦🇴',
+  'Kongo DR': '🇨🇩', 'DR Congo': '🇨🇩', 'Congo': '🇨🇬',
+  'Tansania': '🇹🇿', 'Tanzania': '🇹🇿',
+  // Asien & Ozeanien
+  'Japan': '🇯🇵',
+  'Südkorea': '🇰🇷', 'South Korea': '🇰🇷', 'Korea Republic': '🇰🇷',
+  'Iran': '🇮🇷',
+  'Saudi-Arabien': '🇸🇦', 'Saudi Arabia': '🇸🇦',
+  'Australien': '🇦🇺', 'Australia': '🇦🇺',
+  'Neuseeland': '🇳🇿', 'New Zealand': '🇳🇿',
+  'Usbekistan': '🇺🇿', 'Uzbekistan': '🇺🇿',
+  'Katar': '🇶🇦', 'Qatar': '🇶🇦',
+  'Jordanien': '🇯🇴', 'Jordan': '🇯🇴',
+  'Irak': '🇮🇶', 'Iraq': '🇮🇶',
+  'China': '🇨🇳', 'China PR': '🇨🇳',
+  'Indonesien': '🇮🇩', 'Indonesia': '🇮🇩',
+  'Oman': '🇴🇲', 'Bahrain': '🇧🇭', 'Kuwait': '🇰🇼',
+  // Fallback-Platzhalter
   'Mexiko B': '🇲🇽', 'Niederlande B': '🇳🇱', 'USA B': '🇺🇸',
 };
 
 const flag = (team: string) => COUNTRY_FLAGS[team] ?? '🏴';
+
+const isAustriaTeam = (name: string) =>
+  name === 'Österreich' || name.toLowerCase() === 'austria';
 
 // Convert UTC timestamp to CEST display (UTC+2, no DST handling needed — all matches in summer)
 const toCEST = (ts: number) => {
@@ -42,7 +118,8 @@ const OPT_BG     = ['bg-blue/10', 'bg-yellow/10', 'bg-red/10'];
 const OPT_BORDER = ['border-blue2/40', 'border-yellow/40', 'border-red/40'];
 
 export default function SpielplanTab() {
-  const [activeGroup, setActiveGroup] = useState('C'); // Österreich-Gruppe
+  const [activeGroup, setActiveGroup] = useState('A');
+  const autoSwitched = useRef(false);
   const [selectedMatch, setSelectedMatch] = useState<WmMatch | null>(null);
   const [betAmount, setBetAmount] = useState(50);
   const [confirmBet, setConfirmBet] = useState<{
@@ -65,6 +142,19 @@ export default function SpielplanTab() {
 
   // Use live schedule from Firestore (API import); fall back to placeholder.
   const schedule: WmMatch[] = liveSchedule.length > 0 ? liveSchedule : WM2026_GROUP_SCHEDULE;
+
+  // Find the group containing Austria dynamically — works with both German and English team names.
+  const austriaGroupLetter = GROUP_LABELS.find(g =>
+    schedule.some(m => m.groupLabel === `Gruppe ${g}` && (isAustriaTeam(m.teamA) || isAustriaTeam(m.teamB)))
+  );
+
+  // Auto-switch to Austria's group once schedule is loaded (only once, not on manual navigation).
+  useEffect(() => {
+    if (!autoSwitched.current && austriaGroupLetter) {
+      setActiveGroup(austriaGroupLetter);
+      autoSwitched.current = true;
+    }
+  }, [austriaGroupLetter]);
 
   const groupMatches = schedule
     .filter(m => m.groupLabel === `Gruppe ${activeGroup}`)
@@ -108,7 +198,7 @@ export default function SpielplanTab() {
     const isOpen   = market?.status === 'open';
     const isLocked = market?.status === 'locked';
     const isResolved = market?.status === 'resolved';
-    const isAustria = match.teamA === 'Österreich' || match.teamB === 'Österreich';
+    const isAustria = isAustriaTeam(match.teamA) || isAustriaTeam(match.teamB);
 
     return (
       <div
@@ -272,13 +362,13 @@ export default function SpielplanTab() {
           {GROUP_LABELS.map(g => (
             <button
               key={g}
-              onClick={() => setActiveGroup(g)}
+              onClick={() => { autoSwitched.current = true; setActiveGroup(g); }}
               className={clsx(
                 'flex-col items-center justify-center shrink-0 w-9 h-9 rounded-xl font-black text-[13px] transition-all border flex',
                 activeGroup === g
                   ? 'bg-blue/20 border-blue2/60 text-blue2 shadow-[0_0_14px_rgba(59,110,255,0.3)]'
                   : 'bg-white/5 border-white/10 text-muted hover:text-white',
-                g === 'C' && activeGroup !== g ? 'border-[#EF3340]/35' : '',
+                g === austriaGroupLetter && activeGroup !== g ? 'border-[#EF3340]/35' : '',
               )}
             >
               {g}
@@ -293,9 +383,9 @@ export default function SpielplanTab() {
           <span className="text-[10px] font-black text-muted tracking-[0.1em] uppercase">
             Gruppe {activeGroup}
           </span>
-          {activeGroup === 'C' && (
+          {activeGroup === austriaGroupLetter && austriaGroupLetter && (
             <span className="text-[10px] font-black text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/25 rounded-full px-2 py-0.5">
-              🇦🇹 AUT
+              🇦🇹 ÖSTERREICH
             </span>
           )}
           {groupTeams.map(t => (
