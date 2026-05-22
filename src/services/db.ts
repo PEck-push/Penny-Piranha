@@ -34,7 +34,10 @@ export const initFirebaseSync = () => {
   onSnapshot(doc(db, 'appState', 'global'), snap => {
     if (snap.exists()) {
       const data = snap.data();
-      useStore.setState({ jackpot: data.jackpot ?? data.hausbank ?? 0 });
+      useStore.setState({
+        jackpot: data.jackpot ?? data.hausbank ?? 0,
+        currentPhase: data.currentPhase ?? 'gruppenphase',
+      });
     }
   }, err => console.error('[Firebase] appState Fehler:', err));
 

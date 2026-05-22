@@ -523,6 +523,24 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Buyback / Low-Balance Banner */}
+      {activeTab === 'dashboard' && !me.buybackUsed && me.tokens < 25 && (
+        <div className="relative z-30 mx-4 mb-2">
+          <div className="bg-red/10 border border-red/35 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <span className="text-[24px] shrink-0">💸</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-black text-red leading-tight">Guthaben fast aufgebraucht!</div>
+              <div className="text-[11px] text-muted/80 mt-0.5">
+                {me.tokens === 0
+                  ? 'Du bist bankrott. Buyback beim Admin möglich.'
+                  : `Nur noch ${me.tokens} Cr. — Überlebensmodus aktiv.`}
+              </div>
+            </div>
+            <span className="text-[10px] font-black text-red/70 shrink-0">Buyback?</span>
+          </div>
+        </div>
+      )}
+
       {/* Ticker */}
       {activeTab === 'dashboard' && openMarketsCount > 0 && (
         <div className="bg-gradient-to-r from-blue via-purple to-blue bg-[length:200%_100%] animate-[gradMove_4s_linear_infinite] py-1.5 overflow-hidden shrink-0 relative z-30">

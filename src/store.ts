@@ -192,6 +192,7 @@ interface AppState {
   answers: Answer[];
   feed: FeedEvent[];
   jackpot: number;
+  currentPhase: string; // Phase string from appState/global
   currentUser: string | null;
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
@@ -208,6 +209,7 @@ interface AppState {
   resolveStorno: (marketId: string) => void;
   lockMarket: (marketId: string) => void;
   giveTokens: (playerId: string, amount: number) => void;
+  executeBuyback: (playerId: string) => Promise<void>;
   resetState: () => void;
 }
 
@@ -320,6 +322,7 @@ export const useStore = create<AppState>()((set, get) => {
     answers: [],
     feed: [],
     jackpot: 0,
+    currentPhase: 'gruppenphase',
     currentUser: null,
 
     login: async (playerId, avatar, avatarColor, avatarId) => {
@@ -547,9 +550,26 @@ export const useStore = create<AppState>()((set, get) => {
       }
     },
 
+    executeBuyback: async (playerId) => {
+      const state = get();
+      const player = state.players.find(p => p.id === playerId);
+      if (!player || player.buybackUsed) return;
+      const newTokens = 800 + (player.tokens ?? 0);
+      set(s => ({
+        players: s.players.map(p => p.id === playerId ? { ...p, tokens: newTokens, buybackUsed: true } : p),
+      }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'players', playerId), { tokens: newTokens, buybackUsed: true });
+        } catch (err) {
+          console.error('[Store] executeBuyback Fehler:', err);
+        }
+      }
+    },
+
     resetState: () => {
       clearSessionCookie();
-      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], jackpot: 0, currentUser: null });
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], jackpot: 0, currentPhase: 'gruppenphase', currentUser: null });
     },
 
     setCurrentUser: (uid) => set({ currentUser: uid }),

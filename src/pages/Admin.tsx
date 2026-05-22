@@ -60,6 +60,7 @@ export default function Admin() {
   const resolveStorno = useStore(s => s.resolveStorno);
   const lockMarket = useStore(s => s.lockMarket);
   const giveTokens = useStore(s => s.giveTokens);
+  const executeBuyback = useStore(s => s.executeBuyback);
   const resetState = useStore(s => s.resetState);
   const players = useStore(s => s.players);
   const navigate = useNavigate();
@@ -532,6 +533,39 @@ export default function Admin() {
               <div className="text-[12px] text-muted text-center py-2">Keine aktiven Märkte</div>
             )}
           </div>
+
+          {/* ── BUYBACK ─────────────────────────────────────────── */}
+          {(() => {
+            const buybackEligible = players.filter(p =>
+              !p.buybackUsed && p.tokens < 25
+            );
+            if (buybackEligible.length === 0) return null;
+            return (
+              <div className="bg-card border border-red/25 rounded-2xl p-4 mb-2.5">
+                <div className="text-[11px] font-black text-red tracking-[0.15em] uppercase mb-3.5">
+                  🔄 Buyback bestätigen
+                </div>
+                <div className="text-[10px] text-muted mb-3">
+                  Nach Bestätigung erhält der Spieler 800 + aktuelles Guthaben Credits.
+                  Nur möglich bis Ende Sechzehntelfinale.
+                </div>
+                {buybackEligible.map(p => (
+                  <div key={p.id} className="flex items-center gap-3 bg-input rounded-xl p-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-black text-white truncate">{p.name}</div>
+                      <div className="text-[10px] text-muted">Guthaben: <b className="text-yellow">{p.tokens} Cr.</b> → nach Buyback: <b className="text-green">{800 + (p.tokens ?? 0)} Cr.</b></div>
+                    </div>
+                    <button
+                      onClick={() => executeBuyback(p.id)}
+                      className="shrink-0 px-3 py-2 rounded-xl bg-green/15 border border-green/40 text-green font-black text-[12px] hover:bg-green/25 transition-colors cursor-pointer font-sans"
+                    >
+                      ✓ Bestätigen
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* ── GIVE TOKENS ─────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
