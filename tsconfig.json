@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["functions", "dist", "node_modules"]
+  "exclude": ["functions", "netlify", "dist", "node_modules"]
 }

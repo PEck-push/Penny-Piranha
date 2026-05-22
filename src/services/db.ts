@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, onSnapshot, query, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useStore, Player, Market, Bet, Answer, FeedEvent } from '../store';
+import { useStore, Player, Market, Bet, Answer, FeedEvent, ScheduleMatch } from '../store';
 
 let syncInitialized = false;
 
@@ -54,6 +54,12 @@ export const initFirebaseSync = () => {
     });
     useStore.setState({ feed });
   }, err => console.error('[Firebase] feed Fehler:', err));
+
+  // Schedule: WM 2026 matches imported from the football-data.org API
+  onSnapshot(collection(db, 'schedule'), snap => {
+    const schedule = snap.docs.map(d => ({ matchId: d.id, ...d.data() } as ScheduleMatch));
+    useStore.setState({ schedule });
+  }, err => console.error('[Firebase] schedule Fehler:', err));
 };
 
 // ── RESET: Märkte und Wetten leeren (Admin-Panel) ─────────────────────────────

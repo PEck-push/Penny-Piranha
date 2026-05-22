@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { resetToInitialState } from '../services/db';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
+import type { ScheduleMatch } from '../store';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
@@ -15,6 +16,10 @@ const toCEST = (ts: number) => {
 export default function Admin() {
   const [pin, setPin] = useState('');
   const [unlocked, setUnlocked] = useState(false);
+
+  // Schedule import from football-data.org API (via Netlify Function)
+  const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [importMsg, setImportMsg] = useState('');
 
   // WM-Match market creation
   const [wmGroup, setWmGroup] = useState('C');
@@ -61,6 +66,7 @@ export default function Admin() {
   const lockMarket = useStore(s => s.lockMarket);
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
+  const liveSchedule = useStore(s => s.schedule);
   const resetState = useStore(s => s.resetState);
   const players = useStore(s => s.players);
   const navigate = useNavigate();
@@ -136,8 +142,25 @@ export default function Admin() {
     if (player && giveAmount) { giveTokens(player.id, parseInt(giveAmount)); setGivePlayerId(''); }
   };
 
+  const handleImportSchedule = async () => {
+    setImportStatus('loading');
+    setImportMsg('');
+    try {
+      const res = await fetch('/.netlify/functions/import-schedule', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setImportStatus('ok');
+      setImportMsg(`${data.imported} Spiele importiert.`);
+    } catch (err: any) {
+      setImportStatus('error');
+      setImportMsg(err.message || 'Import fehlgeschlagen');
+    }
+  };
+
+  const scheduleSource: ScheduleMatch[] = liveSchedule.length > 0 ? liveSchedule : WM2026_GROUP_SCHEDULE;
+
   const handleCreateWmMarket = () => {
-    const match = WM2026_GROUP_SCHEDULE.find(m => m.matchId === wmMatchId);
+    const match = scheduleSource.find(m => m.matchId === wmMatchId);
     if (!match) return;
     const alreadyExists = markets.some(m => m.matchId === wmMatchId);
     if (alreadyExists) return;
@@ -220,6 +243,33 @@ export default function Admin() {
 
         <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 px-4 pb-safe">
 
+          {/* ── SPIELPLAN-IMPORT (API) ─────────────────────────────── */}
+          <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🌐</span>
+              <div className="text-[11px] font-black text-blue2 tracking-[0.15em] uppercase">Spielplan von API laden</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Holt alle WM-2026-Spiele (Teams + Anstoßzeiten) live von football-data.org
+              und schreibt sie in die Datenbank. Aktuell im Spielplan: <b className="text-white">{liveSchedule.length}</b> Spiele.
+            </div>
+            {importStatus !== 'idle' && (
+              <div className={clsx('rounded-xl px-3 py-2 text-[12px] font-bold text-center mb-3',
+                importStatus === 'ok' ? 'bg-green/10 border border-green/30 text-green' :
+                importStatus === 'error' ? 'bg-red/10 border border-red/30 text-red' :
+                'bg-blue/10 border border-blue2/30 text-blue2')}>
+                {importStatus === 'loading' ? 'Lädt…' : importMsg}
+              </div>
+            )}
+            <button
+              onClick={handleImportSchedule}
+              disabled={importStatus === 'loading'}
+              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-blue to-purple font-sans text-[13px] font-black text-white cursor-pointer shadow-[0_4px_18px_rgba(59,110,255,0.3)] transition-all hover:-translate-y-px disabled:opacity-50"
+            >
+              🌐 Spielplan jetzt laden
+            </button>
+          </div>
+
           {/* ── WM MATCH MARKT ────────────────────────────────────── */}
           <div className="bg-card border border-[#00D68F]/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-3.5">
@@ -251,7 +301,7 @@ export default function Admin() {
             <div className="mb-3">
               <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">Spiel</div>
               <div className="flex flex-col gap-1.5">
-                {WM2026_GROUP_SCHEDULE
+                {scheduleSource
                   .filter(m => m.groupLabel === `Gruppe ${wmGroup}`)
                   .map(match => {
                     const exists = markets.some(m => m.matchId === match.matchId);

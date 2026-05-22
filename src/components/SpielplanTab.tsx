@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { clsx } from 'clsx';
-import { useStore, Market, getMarketTotal } from '../store';
-import { WM2026_GROUP_SCHEDULE, WmMatch } from '../data/wm2026Schedule';
+import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
+import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
+
+type WmMatch = ScheduleMatch;
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
@@ -54,15 +56,19 @@ export default function SpielplanTab() {
   const jackpot     = useStore(s => s.jackpot);
   const placeBet    = useStore(s => s.placeBet);
   const logoutAuth  = useStore(s => s.logoutAuth);
+  const liveSchedule = useStore(s => s.schedule);
   const me          = players.find(p => p.id === currentUser);
 
   const [showProfile, setShowProfile] = useState(false);
 
   const now = Date.now();
 
-  const groupMatches = WM2026_GROUP_SCHEDULE
+  // Use live schedule from Firestore (API import); fall back to placeholder.
+  const schedule: WmMatch[] = liveSchedule.length > 0 ? liveSchedule : WM2026_GROUP_SCHEDULE;
+
+  const groupMatches = schedule
     .filter(m => m.groupLabel === `Gruppe ${activeGroup}`)
-    .sort((a, b) => a.matchday - b.matchday || a.kickoffAt - b.kickoffAt);
+    .sort((a, b) => (a.matchday ?? 0) - (b.matchday ?? 0) || a.kickoffAt - b.kickoffAt);
 
   const getMarket = (match: WmMatch): Market | undefined =>
     markets.find(m => m.matchId === match.matchId);
@@ -314,6 +320,20 @@ export default function SpielplanTab() {
             </div>
           );
         })}
+
+        {/* Matches without a matchday (e.g. raw API import) */}
+        {(() => {
+          const noMd = groupMatches.filter(m => !m.matchday || m.matchday < 1 || m.matchday > 3);
+          if (noMd.length === 0) return null;
+          return (
+            <div>
+              <div className="text-[11px] font-black text-muted uppercase tracking-[0.1em] mb-2 mt-1">
+                Weitere Spiele
+              </div>
+              {noMd.map(match => <MatchCard key={match.matchId} match={match} />)}
+            </div>
+          );
+        })()}
 
         {groupMatches.length === 0 && (
           <div className="flex flex-col items-center gap-3 mt-12 text-center px-6">

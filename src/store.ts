@@ -151,6 +151,21 @@ export interface Answer {
   timestamp: number;
 }
 
+// WM 2026 Spielplan-Eintrag (aus Firestore `schedule`, befüllt via API-Import).
+export interface ScheduleMatch {
+  matchId: string;
+  footballDataOrgId?: number;
+  phase: string;
+  groupLabel: string;
+  teamA: string;
+  teamB: string;
+  kickoffAt: number; // UTC ms
+  matchday?: number;
+  status?: 'scheduled' | 'live' | 'finished';
+  scoreA?: number | null;
+  scoreB?: number | null;
+}
+
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
 
 // ─── Cookie helpers (nur für currentUser Session) ─────────────────────────────
@@ -191,6 +206,7 @@ interface AppState {
   bets: Bet[];
   answers: Answer[];
   feed: FeedEvent[];
+  schedule: ScheduleMatch[];
   jackpot: number;
   currentPhase: string; // Phase string from appState/global
   currentUser: string | null;
@@ -321,6 +337,7 @@ export const useStore = create<AppState>()((set, get) => {
     bets: [],
     answers: [],
     feed: [],
+    schedule: [],
     jackpot: 0,
     currentPhase: 'gruppenphase',
     currentUser: null,
@@ -569,7 +586,7 @@ export const useStore = create<AppState>()((set, get) => {
 
     resetState: () => {
       clearSessionCookie();
-      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], jackpot: 0, currentPhase: 'gruppenphase', currentUser: null });
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], jackpot: 0, currentPhase: 'gruppenphase', currentUser: null });
     },
 
     setCurrentUser: (uid) => set({ currentUser: uid }),
