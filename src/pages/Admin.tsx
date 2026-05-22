@@ -153,7 +153,12 @@ export default function Admin() {
     setImportStatus('loading');
     setImportMsg('');
     try {
-      const res = await fetch('/.netlify/functions/import-schedule', { method: 'POST' });
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt. Bitte als Admin anmelden.');
+      const res = await fetch('/.netlify/functions/import-schedule', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setImportStatus('ok');

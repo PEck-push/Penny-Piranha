@@ -1,5 +1,6 @@
 import type { Context } from '@netlify/functions';
 import { getDb, getAdminAuth, FieldValue } from './_lib/firebaseAdmin';
+import { verifyAdmin, adminEmails } from './_lib/adminAuth';
 
 // "Live gehen" — beendet den Testmodus und setzt alle Daten zurück.
 // Löscht alle Nicht-Admin-User (Firebase Auth + Firestore players) sowie
@@ -8,41 +9,16 @@ import { getDb, getAdminAuth, FieldValue } from './_lib/firebaseAdmin';
 //
 // Aufruf vom Admin-Panel via POST mit Header:
 //   Authorization: Bearer <Firebase ID Token des eingeloggten Admins>
-//
-// Autorisierung: Der Token muss zu einer E-Mail aus ADMIN_EMAILS gehören.
-
-const FALLBACK_ADMIN_EMAILS = ['marketing@gwt.at', 'philipp_eckhardt@live.de'];
-
-function adminEmails(): string[] {
-  const fromEnv = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-  const all = [...FALLBACK_ADMIN_EMAILS.map(e => e.toLowerCase()), ...fromEnv];
-  return Array.from(new Set(all));
-}
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
-  // 1. Auth-Token verifizieren
-  const authHeader = req.headers.get('authorization') ?? '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  if (!token) return json({ error: 'Kein Auth-Token übermittelt.' }, 401);
+  const authResult = await verifyAdmin(req);
+  if (!authResult.ok) return json({ error: authResult.error }, authResult.status ?? 401);
 
   const admins = adminEmails();
-  let callerEmail: string | undefined;
-  try {
-    const decoded = await getAdminAuth().verifyIdToken(token);
-    callerEmail = decoded.email?.toLowerCase();
-  } catch {
-    return json({ error: 'Ungültiger oder abgelaufener Token.' }, 401);
-  }
-  if (!callerEmail || !admins.includes(callerEmail)) {
-    return json({ error: 'Nicht autorisiert. Nur Admins dürfen live gehen.' }, 403);
-  }
 
-  // 2. Reset durchführen
+  // Reset durchführen
   try {
     const db = getDb();
     const auth = getAdminAuth();

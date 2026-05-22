@@ -1,24 +1,24 @@
 import type { Context } from '@netlify/functions';
 import { getDb } from './_lib/firebaseAdmin';
+import { verifyAdmin } from './_lib/adminAuth';
 import { fetchMatches, normalizeGroup, stageToPhase, mapStatus } from './_lib/footballData';
 
 // HTTP endpoint, triggered by the admin from inside the app.
 // Fetches the full WM 2026 fixture list from football-data.org and writes
 // each match into the Firestore `schedule` collection.
 //
-// Protected by a shared secret: send header `x-admin-secret: <ADMIN_SECRET>`
-// or query param `?secret=<ADMIN_SECRET>`.
+// Authorisation: send header `Authorization: Bearer <Firebase ID Token>`
+// of a logged-in admin (email must be in the admin list).
 export default async (req: Request, _context: Context) => {
-  const secret = process.env.ADMIN_SECRET;
-  const url = new URL(req.url);
-  const provided = req.headers.get('x-admin-secret') ?? url.searchParams.get('secret');
-  if (secret && provided !== secret) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
+  const authResult = await verifyAdmin(req);
+  if (!authResult.ok) {
+    return new Response(JSON.stringify({ error: authResult.error }), {
+      status: authResult.status ?? 401,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
+  const url = new URL(req.url);
   const competition = url.searchParams.get('competition') ?? 'WC';
 
   try {
