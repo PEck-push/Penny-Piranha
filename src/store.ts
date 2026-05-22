@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 
 export type Badge = 'MARKET MOVER' | 'THE WHALE' | 'BANKROTT' | 'STREAK';
 export type ResolutionType = 'normal' | 'rollover' | 'storno' | 'no-winner' | 'all-same-side';
@@ -163,6 +164,9 @@ interface AppState {
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
   logout: () => void;
+  setCurrentUser: (uid: string | null) => void;
+  registerPlayer: (uid: string, data: Omit<Player, 'id'>) => Promise<void>;
+  logoutAuth: () => Promise<void>;
   placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
   submitAnswer: (marketId: string, text: string) => void;
   createMarket: (market: Omit<Market, 'id' | 'createdAt'>) => void;
@@ -513,6 +517,32 @@ export const useStore = create<AppState>()((set, get) => {
     resetState: () => {
       clearSessionCookie();
       set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], jackpot: 0, currentUser: null });
+    },
+
+    setCurrentUser: (uid) => set({ currentUser: uid }),
+
+    registerPlayer: async (uid, data) => {
+      const player: Player = { id: uid, ...data };
+      set(s => ({
+        players: [...s.players.filter(p => p.id !== uid), player],
+        currentUser: uid,
+      }));
+      if (db) {
+        try {
+          await setDoc(doc(db, 'players', uid), { id: uid, ...data });
+        } catch (err) {
+          console.error('[Store] registerPlayer Fehler:', err);
+        }
+      }
+    },
+
+    logoutAuth: async () => {
+      set({ currentUser: null });
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.error('[Store] logoutAuth Fehler:', err);
+      }
     },
   };
 });

@@ -1,36 +1,37 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
-import { useStore, readSessionCookie } from './store';
+import { useEffect, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase';
+import { useStore } from './store';
 import { initFirebaseSync } from './services/db';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import Cashout from './pages/Cashout';
 
 export default function App() {
   const currentUser = useStore(state => state.currentUser);
-  const login = useStore(state => state.login);
+  const setCurrentUser = useStore(state => state.setCurrentUser);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     initFirebaseSync();
-    // Wait for first Firebase sync, then restore session only if Firebase confirms loggedIn
-    setTimeout(() => {
-      if (!useStore.getState().currentUser) {
-        const session = readSessionCookie();
-        if (session) {
-          const players = useStore.getState().players;
-          const player = players.find(p => p.id === session.playerId);
-          // Only restore if Firebase still has this player as loggedIn
-          if (player?.loggedIn) {
-            login(session.playerId, session.avatar, session.avatarColor, player.avatarId ?? '');
-          } else {
-            // Reset was done — clear stale cookie
-            import('./store').then(m => m.clearSessionCookie());
-          }
-        }
-      }
-    }, 1200);
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setCurrentUser(firebaseUser?.uid ?? null);
+      setAuthLoading(false);
+    });
+    return unsubscribe;
   }, []);
+
+  if (authLoading) {
+    return (
+      <div className="w-full h-[100dvh] flex items-center justify-center bg-bg">
+        <div className="w-8 h-8 border-2 border-green border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
@@ -47,6 +48,8 @@ export default function App() {
           <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col relative">
             <Routes>
               <Route path="/" element={currentUser ? <Navigate to="/dashboard" /> : <Login />} />
+              <Route path="/login" element={currentUser ? <Navigate to="/dashboard" /> : <Login />} />
+              <Route path="/register" element={currentUser ? <Navigate to="/dashboard" /> : <Register />} />
               <Route path="/dashboard" element={currentUser ? <Dashboard /> : <Navigate to="/" />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/cashout" element={<Cashout />} />
