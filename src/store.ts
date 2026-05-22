@@ -5,6 +5,34 @@ import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 export type Badge = 'MARKET MOVER' | 'THE WHALE' | 'BANKROTT' | 'STREAK';
 export type ResolutionType = 'normal' | 'rollover' | 'storno' | 'no-winner' | 'all-same-side';
 
+// WM 2026: Badge-IDs für PNG-Overlay-System (Achievements).
+export type BadgeId =
+  | 'on_fire'
+  | 'damn_hot'
+  | 'whale'
+  | 'bankrupt'
+  | 'phoenix'
+  | 'underdog'
+  | 'phasekoenig'
+  | 'tageskoenig'
+  | 'arschkarte'
+  | 'wunderteam';
+
+export const BADGE_LABELS: Record<BadgeId, string> = {
+  on_fire:     'ON FIRE 🔥',
+  damn_hot:    'DAMN HOT 🔥🔥',
+  whale:       'THE WHALE 🐳',
+  bankrupt:    'BANKROTT 💀',
+  phoenix:     'PHOENIX 🦅',
+  underdog:    'UNDERDOG-CHAMPION 💪',
+  phasekoenig: 'PHASENKÖNIG 👑',
+  tageskoenig: 'SPIELTAGSKÖNIG 🏆',
+  arschkarte:  'ARSCHKARTE 🃏',
+  wunderteam:  'WUNDERTEAM 🇦🇹',
+};
+
+export type StreakLevel = 'none' | 'on_fire' | 'damn_hot';
+
 export interface MarketComboLeg {
   marketId: string;
   marketQuestion: string;
@@ -29,6 +57,32 @@ export interface Player {
   tokens: number;
   comboMalus: boolean;
   badges: Badge[];
+
+  // ── WM 2026 (alle optional → bestehende Daten bleiben gültig) ──────────────
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  // Charakter (nach Registrierung gesperrt)
+  headId?: string;
+  bodyId?: string;
+  characterLocked?: boolean;
+  // PNG-Overlays
+  unlockedOverlays?: string[];
+  activeAccessoryId?: string | null;
+  activeBadgeId?: BadgeId | null;
+  // Credits / Buyback
+  buybackUsed?: boolean;
+  // Streak
+  currentStreak?: number;
+  bestStreak?: number;
+  streakLevel?: StreakLevel;
+  streakHistory?: { length: number; from: string; to: string }[];
+  // Counter für Badges
+  austriaSpecialCorrect?: number;
+  underdogCorrect?: number;
+  dailyNetGain?: number;
+  // Reveal-Queue für nächtliche Ergebnisse
+  unseenResolutions?: string[];
 }
 
 export interface Market {
