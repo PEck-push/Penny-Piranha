@@ -11,7 +11,7 @@ import { getDb, getAdminAuth, FieldValue } from './_lib/firebaseAdmin';
 //
 // Autorisierung: Der Token muss zu einer E-Mail aus ADMIN_EMAILS gehören.
 
-const FALLBACK_ADMIN_EMAILS = ['marketing@gwt.at'];
+const FALLBACK_ADMIN_EMAILS = ['marketing@gwt.at', 'philipp_eckhardt@live.de'];
 
 function adminEmails(): string[] {
   const fromEnv = (process.env.ADMIN_EMAILS ?? '')
