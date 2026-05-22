@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { resetToInitialState } from '../services/db';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import type { ScheduleMatch } from '../store';
+import { auth } from '../firebase';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
@@ -55,9 +56,15 @@ export default function Admin() {
   const [openQModal, setOpenQModal] = useState<string | null>(null); // marketId
   const [selectedWinners, setSelectedWinners] = useState<Set<string>>(new Set());
 
+  // Go-Live (Testmodus beenden)
+  const [goLiveModal, setGoLiveModal] = useState(false);
+  const [goLiveStatus, setGoLiveStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [goLiveMsg, setGoLiveMsg] = useState('');
+
   const markets = useStore(s => s.markets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
+  const testMode = useStore(s => s.testMode);
   const createMarket = useStore(s => s.createMarket);
   const resolveMarket = useStore(s => s.resolveMarket);
   const resolveOpenQuestion = useStore(s => s.resolveOpenQuestion);
@@ -193,6 +200,30 @@ export default function Admin() {
     setTimeout(() => setWmCreated(false), 3000);
   };
 
+  const handleGoLive = async () => {
+    setGoLiveStatus('loading');
+    setGoLiveMsg('');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt. Bitte als Admin anmelden.');
+      const res = await fetch('/.netlify/functions/go-live', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setGoLiveStatus('ok');
+      setGoLiveMsg(
+        `${data.message} (${data.deletedPlayers} Spieler gelöscht, Märkte & Wetten geleert.)`,
+      );
+      setGoLiveModal(false);
+    } catch (err: any) {
+      setGoLiveStatus('error');
+      setGoLiveMsg(err.message || 'Live gehen fehlgeschlagen.');
+      setGoLiveModal(false);
+    }
+  };
+
   const executeResolution = async () => {
     if (!pendingResolution) return;
     const { marketId, optionId, type } = pendingResolution;
@@ -242,6 +273,53 @@ export default function Admin() {
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 px-4 pb-safe">
+
+          {/* ── TESTMODUS / LIVE GEHEN ─────────────────────────────── */}
+          <div className={clsx(
+            'border rounded-2xl p-4 mb-2.5',
+            testMode ? 'bg-yellow/10 border-yellow/30' : 'bg-green/10 border-green/30',
+          )}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">{testMode ? '🧪' : '🟢'}</span>
+              <div className={clsx('text-[11px] font-black tracking-[0.15em] uppercase', testMode ? 'text-yellow' : 'text-green')}>
+                {testMode ? 'Testmodus aktiv' : 'Live-Modus'}
+              </div>
+            </div>
+            {testMode ? (
+              <>
+                <div className="text-[10px] text-muted mb-3">
+                  Die App läuft im <b className="text-yellow">Testmodus</b>. Du kannst beliebig
+                  Spieler anlegen, wetten und auflösen. Beim <b className="text-white">Live gehen</b>{' '}
+                  werden <b className="text-red">alle Daten zurückgesetzt</b> und alle Spieler
+                  gelöscht — <b className="text-white">außer ausgewiesene Admins</b>. Der Spielplan
+                  und der Invite-Code bleiben erhalten.
+                </div>
+                {goLiveStatus !== 'idle' && (
+                  <div className={clsx('rounded-xl px-3 py-2 text-[12px] font-bold text-center mb-3',
+                    goLiveStatus === 'ok' ? 'bg-green/10 border border-green/30 text-green' :
+                    goLiveStatus === 'error' ? 'bg-red/10 border border-red/30 text-red' :
+                    'bg-blue/10 border border-blue2/30 text-blue2')}>
+                    {goLiveStatus === 'loading' ? 'Setze zurück…' : goLiveMsg}
+                  </div>
+                )}
+                <button
+                  onClick={() => setGoLiveModal(true)}
+                  disabled={goLiveStatus === 'loading'}
+                  className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(0,214,143,0.3)] transition-all hover:-translate-y-px disabled:opacity-50"
+                >
+                  🟢 Testmodus beenden & live gehen
+                </button>
+              </>
+            ) : (
+              <div className="text-[10px] text-muted">
+                Die App ist <b className="text-green">live</b>. Alle Spielerdaten zählen jetzt für
+                das echte Turnier.
+                {goLiveStatus === 'ok' && goLiveMsg && (
+                  <div className="mt-2 text-green font-bold">{goLiveMsg}</div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* ── SPIELPLAN-IMPORT (API) ─────────────────────────────── */}
           <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
@@ -742,6 +820,28 @@ export default function Admin() {
           </div>
         );
       })()}
+
+      {/* ── GO-LIVE CONFIRMATION ───────────────────────────────────────────────── */}
+      {goLiveModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
+          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[340px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <div className="w-16 h-16 rounded-full bg-red/10 border border-red/25 flex items-center justify-center text-[28px] mb-4">⚠️</div>
+            <div className="text-[20px] font-black text-white mb-2">Live gehen?</div>
+            <div className="text-[13px] text-muted mb-2 leading-relaxed">
+              Dies <b className="text-red">löscht alle Testdaten unwiderruflich</b>:
+              alle Spieler (außer Admins), alle Märkte, Wetten, Antworten, den Feed und die Hausbank.
+            </div>
+            <div className="text-[12px] text-muted mb-2 leading-relaxed">
+              Erhalten bleiben: <b className="text-white">Spielplan</b>, <b className="text-white">Invite-Code</b> und <b className="text-white">Admin-Accounts</b> (auf 1.000 Credits zurückgesetzt).
+            </div>
+            <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-5">Kann nicht rückgängig gemacht werden!</div>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => setGoLiveModal(false)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
+              <button onClick={handleGoLive} className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-green to-[#00A86E] shadow-[0_0_15px_rgba(0,214,143,0.4)] transition-all">Live gehen ✓</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── RESOLUTION CONFIRMATION ────────────────────────────────────────────── */}
       {pendingResolution && (

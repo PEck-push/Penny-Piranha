@@ -209,6 +209,7 @@ interface AppState {
   schedule: ScheduleMatch[];
   jackpot: number;
   currentPhase: string; // Phase string from appState/global
+  testMode: boolean; // per Default true; via "Live gehen" deaktiviert
   currentUser: string | null;
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
@@ -340,6 +341,7 @@ export const useStore = create<AppState>()((set, get) => {
     schedule: [],
     jackpot: 0,
     currentPhase: 'gruppenphase',
+    testMode: true,
     currentUser: null,
 
     login: async (playerId, avatar, avatarColor, avatarId) => {
@@ -586,7 +588,7 @@ export const useStore = create<AppState>()((set, get) => {
 
     resetState: () => {
       clearSessionCookie();
-      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], jackpot: 0, currentPhase: 'gruppenphase', currentUser: null });
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], jackpot: 0, currentPhase: 'gruppenphase', testMode: true, currentUser: null });
     },
 
     setCurrentUser: (uid) => set({ currentUser: uid }),
