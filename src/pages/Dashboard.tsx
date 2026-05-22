@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Trophy, Lock, Calendar } from 'lucide-react';
 import SpielplanTab from '../components/SpielplanTab';
+import RevealScreen from '../components/RevealScreen';
 
 const OPT_HEX    = ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
@@ -140,9 +141,10 @@ export default function Dashboard() {
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
   const placeBet = useStore(s => s.placeBet);
-  const logout = useStore(s => s.logout);
+  const logoutAuth = useStore(s => s.logoutAuth);
   const submitAnswer = useStore(s => s.submitAnswer);
   const me = players.find(p => p.id === currentUser);
+  const [revealDone, setRevealDone] = useState(false);
 
   const { expired: selectedExpired } = useCountdown(selectedMarket?.expiresAt);
 
@@ -162,8 +164,7 @@ export default function Dashboard() {
     if (secretTapRef.current) clearTimeout(secretTapRef.current);
     if (next >= 5) {
       setSecretTaps(0);
-      logout();
-      navigate('/');
+      logoutAuth().then(() => navigate('/'));
     } else {
       secretTapRef.current = setTimeout(() => setSecretTaps(0), 2000);
     }
@@ -197,6 +198,13 @@ export default function Dashboard() {
   };
 
   if (!me) return null;
+
+  // Show result-reveal sequence if there are unseen resolutions
+  const unseenIds = me.unseenResolutions ?? [];
+  const shouldReveal = !revealDone && unseenIds.length > 0;
+  if (shouldReveal) {
+    return <RevealScreen marketIds={unseenIds} onDone={() => setRevealDone(true)} />;
+  }
 
   const openMarketsCount = markets.filter(m => m.status === 'open').length;
   const hasActiveHotTake = markets.some(m => m.type === 'hot-take' && m.status === 'open' && !(m.expiresAt && now > m.expiresAt));
