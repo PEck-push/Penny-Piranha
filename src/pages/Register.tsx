@@ -105,6 +105,9 @@ export default function Register() {
   // Step 4
   const [selectedBody, setSelectedBody] = useState(BODY_STYLES[0]);
 
+  // Step 5: finale Bestätigung
+  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
+
   const displayName = [firstName, lastName].filter(Boolean).join(' ');
 
   // ── Step 1: Invite code validation ──────────────────────────────────────────
@@ -185,6 +188,7 @@ export default function Register() {
 
       navigate('/dashboard');
     } catch (err: any) {
+      setShowFinalConfirm(false);
       switch (err.code) {
         case 'auth/email-already-in-use':
           setError('Diese E-Mail ist bereits registriert. Bitte melde dich an.');
@@ -582,13 +586,56 @@ export default function Register() {
         )}
 
         <button
-          onClick={handleConfirm}
+          onClick={() => setShowFinalConfirm(true)}
           disabled={loading}
           className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Konto wird erstellt…' : '✓ Registrieren & Spielen'}
         </button>
+
+        <button
+          onClick={() => { setStep(3); setError(null); }}
+          className="w-full mt-3 text-[13px] font-bold text-muted underline underline-offset-2 bg-transparent border-none cursor-pointer"
+        >
+          Charakter doch noch ändern
+        </button>
       </div>
+
+      {/* ── Finale Bestätigung (letzte Rückzugsmöglichkeit) ─────────────────────── */}
+      {showFinalConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
+          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[340px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <img
+              src={selectedAvatar.img}
+              alt={selectedAvatar.n}
+              className="h-[90px] w-auto object-contain mb-3"
+            />
+            <div className="text-[20px] font-black text-white mb-2">Wirklich festlegen?</div>
+            <div className="text-[13px] text-muted mb-2 leading-relaxed">
+              <b className="text-white">{displayName}</b> als <b className="text-white">{selectedAvatar.n}</b> ({selectedBody.label}).
+            </div>
+            <div className="text-[11px] text-yellow font-bold uppercase tracking-wider mb-5">
+              Charakter & Name sind danach dauerhaft gesperrt!
+            </div>
+            <div className="flex flex-col gap-2.5 w-full">
+              <button
+                onClick={handleConfirm}
+                disabled={loading}
+                className="w-full p-3.5 rounded-xl font-black text-bg bg-gradient-to-r from-green to-[#00A86E] shadow-[0_0_15px_rgba(0,214,143,0.4)] transition-all disabled:opacity-50"
+              >
+                {loading ? 'Konto wird erstellt…' : '✓ Ja, jetzt registrieren'}
+              </button>
+              <button
+                onClick={() => setShowFinalConfirm(false)}
+                disabled={loading}
+                className="w-full p-3.5 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                ‹ Zurück — noch ändern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
