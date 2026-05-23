@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { clsx } from 'clsx';
 import { auth, db } from '../firebase';
@@ -162,8 +162,21 @@ export default function Register() {
     setError(null);
     setLoading(true);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const uid = cred.user.uid;
+      // Falls der Auth-Account noch existiert (z.B. nach einem Reset, der nur
+      // das Spieler-Dokument gelöscht hat), melden wir uns an und legen das
+      // Profil neu an — statt mit "E-Mail bereits vergeben" zu scheitern.
+      let uid: string;
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        uid = cred.user.uid;
+      } catch (createErr: any) {
+        if (createErr.code === 'auth/email-already-in-use') {
+          const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          uid = cred.user.uid;
+        } else {
+          throw createErr;
+        }
+      }
 
       await registerPlayer(uid, {
         name: displayName,
@@ -201,6 +214,10 @@ export default function Register() {
           break;
         case 'auth/invalid-email':
           setError('Ungültige E-Mail-Adresse.');
+          break;
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password':
+          setError('Diese E-Mail existiert bereits, aber das Passwort stimmt nicht. Nutze dein bisheriges Passwort oder „Passwort vergessen?" beim Login.');
           break;
         case 'auth/weak-password':
           setError('Passwort muss mindestens 8 Zeichen haben.');

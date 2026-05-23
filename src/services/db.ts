@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, onSnapshot, query, orderBy, limit, writeBatch, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet, Answer, FeedEvent, ScheduleMatch } from '../store';
 
@@ -61,23 +61,4 @@ export const initFirebaseSync = () => {
     const schedule = snap.docs.map(d => ({ matchId: d.id, ...d.data() } as ScheduleMatch));
     useStore.setState({ schedule });
   }, err => console.error('[Firebase] schedule Fehler:', err));
-};
-
-// ── RESET: Märkte und Wetten leeren (Admin-Panel) ─────────────────────────────
-export const resetToInitialState = async (initialPlayers: Player[], initialMarkets: Market[]) => {
-  if (!db) return;
-  try {
-    const batch = writeBatch(db);
-    for (const colName of ['bets', 'markets', 'answers']) {
-      const snap = await getDocs(collection(db, colName));
-      snap.forEach(d => batch.delete(d.ref));
-    }
-    initialMarkets.forEach(m => batch.set(doc(db, 'markets', m.id), m));
-    batch.set(doc(db, 'appState', 'global'), { jackpot: 0 }, { merge: true });
-    await batch.commit();
-    console.log('[Firebase] Reset erfolgreich ✓');
-    void initialPlayers; // kept for API compatibility
-  } catch (err) {
-    console.error('[Firebase] Reset Fehler:', err);
-  }
 };

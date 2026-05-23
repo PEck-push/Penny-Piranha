@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db, auth } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export type FeedEventType =
@@ -100,6 +100,8 @@ export interface Player {
   dailyNetGain?: number;
   // Reveal-Queue für nächtliche Ergebnisse
   unseenResolutions?: string[];
+  // Test-Spieler (erfundene Mitspieler, nur im Testmodus) — beim Reset gelöscht
+  isTestPlayer?: boolean;
 }
 
 export interface Market {
@@ -118,7 +120,7 @@ export interface Market {
   multiplier?: number;
 
   // ── WM 2026 Felder ────────────────────────────────────────────────────────────
-  marketSubtype?: 'wm-match' | 'spezialwette' | 'milestone' | 'club-special';
+  marketSubtype?: 'wm-match' | 'spezialwette' | 'milestone' | 'club-special' | 'jackpot';
   matchId?: string;            // verknüpft mit WmMatch.matchId aus wm2026Schedule.ts
   teamA?: string;
   teamB?: string;
@@ -209,6 +211,10 @@ export const INITIAL_PLAYERS: Player[] = [
 ];
 export const INITIAL_MARKETS: Market[] = [];
 
+// Namen & Farben für erfundene Test-Spieler (Testmodus).
+const TEST_NAMES = ['Bot-Kevin', 'Bot-Sandra', 'Bot-Hugo', 'Bot-Lena', 'Bot-Mario', 'Bot-Nina', 'Bot-Otto', 'Bot-Resi', 'Bot-Toni', 'Bot-Vera'];
+const TEST_COLORS = ['#ff4500', '#00bfff', '#ffd700', '#32cd32', '#8b3dff', '#ff3d5a', '#00d68f'];
+
 interface AppState {
   players: Player[];
   markets: Market[];
@@ -227,7 +233,12 @@ interface AppState {
   registerPlayer: (uid: string, data: Omit<Player, 'id'>) => Promise<void>;
   logoutAuth: () => Promise<void>;
   placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
+  placeBetAs: (playerId: string, marketId: string, optionId: string, optionLabel: string, amount: number) => Promise<void>;
   placeTip: (marketId: string, optionId: string, optionLabel: string) => void;
+  placeTipAs: (playerId: string, marketId: string, optionId: string, optionLabel: string) => Promise<void>;
+  createTestPlayer: (name?: string) => Promise<void>;
+  autoBetTestPlayers: () => Promise<void>;
+  fullReset: () => Promise<void>;
   submitAnswer: (marketId: string, text: string) => void;
   createMarket: (market: Omit<Market, 'id' | 'createdAt'>) => void;
   resolveOpenQuestion: (marketId: string, winnerPlayerIds: string[]) => void;
@@ -406,23 +417,30 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     placeBet: async (marketId, optionId, optionLabel, amount) => {
+      const { currentUser, placeBetAs } = get();
+      if (!currentUser) return;
+      await placeBetAs(currentUser, marketId, optionId, optionLabel, amount);
+    },
+
+    // Platziert eine Wette im Namen eines beliebigen Spielers (für Test-Spieler
+    // und das manuelle Befüllen von Pools im Admin-Panel).
+    placeBetAs: async (playerId, marketId, optionId, optionLabel, amount) => {
       const state = get();
-      if (!state.currentUser) return;
-      const player = state.players.find(p => p.id === state.currentUser);
+      const player = state.players.find(p => p.id === playerId);
       if (!player || player.tokens < amount) return;
       const mkt = state.markets.find(m => m.id === marketId);
       if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
-      const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === state.currentUser);
+      const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
       if (alreadyBet) return;
 
       const bet: Bet = {
         id: Math.random().toString(36).substring(7),
-        marketId, playerId: state.currentUser, optionId, optionLabel, amount,
+        marketId, playerId, optionId, optionLabel, amount,
         timestamp: Date.now(),
       };
       set(s => ({
         bets: [...s.bets, bet],
-        players: s.players.map(p => p.id === s.currentUser ? { ...p, tokens: p.tokens - amount } : p),
+        players: s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens - amount } : p),
         markets: s.markets.map(m =>
           m.id === marketId
             ? { ...m, options: m.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) }
@@ -434,11 +452,11 @@ export const useStore = create<AppState>()((set, get) => {
           const updatedMkt = get().markets.find(m => m.id === marketId);
           const batch = writeBatch(db);
           batch.set(doc(db, 'bets', bet.id), bet);
-          batch.update(doc(db, 'players', state.currentUser!), { tokens: player.tokens - amount });
+          batch.update(doc(db, 'players', playerId), { tokens: player.tokens - amount });
           if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
           await batch.commit();
         } catch (err) {
-          console.error('[Store] placeBet Fehler:', err);
+          console.error('[Store] placeBetAs Fehler:', err);
         }
       }
     },
@@ -446,16 +464,21 @@ export const useStore = create<AppState>()((set, get) => {
     // Einsatzfreier Gratis-Tipp für Jackpot-Sonderrunden: kein Token-Abzug,
     // kein Pool-Aufbau — wird als Bet mit amount: 0 gespeichert.
     placeTip: async (marketId, optionId, optionLabel) => {
+      const { currentUser, placeTipAs } = get();
+      if (!currentUser) return;
+      await placeTipAs(currentUser, marketId, optionId, optionLabel);
+    },
+
+    placeTipAs: async (playerId, marketId, optionId, optionLabel) => {
       const state = get();
-      if (!state.currentUser) return;
       const mkt = state.markets.find(m => m.id === marketId);
       if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
-      const alreadyTipped = state.bets.some(b => b.marketId === marketId && b.playerId === state.currentUser);
+      const alreadyTipped = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
       if (alreadyTipped) return;
 
       const bet: Bet = {
         id: Math.random().toString(36).substring(7),
-        marketId, playerId: state.currentUser, optionId, optionLabel, amount: 0,
+        marketId, playerId, optionId, optionLabel, amount: 0,
         timestamp: Date.now(),
       };
       set(s => ({ bets: [...s.bets, bet] }));
@@ -463,7 +486,7 @@ export const useStore = create<AppState>()((set, get) => {
         try {
           await setDoc(doc(db, 'bets', bet.id), bet);
         } catch (err) {
-          console.error('[Store] placeTip Fehler:', err);
+          console.error('[Store] placeTipAs Fehler:', err);
         }
       }
     },
@@ -638,6 +661,81 @@ export const useStore = create<AppState>()((set, get) => {
     resetState: () => {
       clearSessionCookie();
       set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], jackpot: 0, currentPhase: 'gruppenphase', testMode: true, currentUser: null });
+    },
+
+    // Erfundener Mitspieler (nur Testmodus). Wird in Firestore gespeichert, damit
+    // er bei Wetten/Pools/Auflösung wie ein echter Spieler mitzählt.
+    createTestPlayer: async (name) => {
+      const id = `test-${Math.random().toString(36).substring(2, 9)}`;
+      const finalName = name?.trim() || `${TEST_NAMES[Math.floor(Math.random() * TEST_NAMES.length)]} ${Math.floor(Math.random() * 90 + 10)}`;
+      const color = TEST_COLORS[Math.floor(Math.random() * TEST_COLORS.length)];
+      const player: Player = {
+        id, name: finalName, avatar: '', avatarId: '', avatarColor: color,
+        loggedIn: false, tokens: 1000, comboMalus: false, badges: [],
+        currentStreak: 0, bestStreak: 0, streakLevel: 'none', isTestPlayer: true,
+      };
+      set(s => ({ players: [...s.players, player] }));
+      if (db) {
+        try {
+          await setDoc(doc(db, 'players', id), player);
+        } catch (err) {
+          console.error('[Store] createTestPlayer Fehler:', err);
+        }
+      }
+    },
+
+    // Verteilt für alle Test-Spieler zufällige Wetten/Tipps auf offene Märkte,
+    // die sie noch nicht getippt haben. Füllt Pools für realistische Tests.
+    autoBetTestPlayers: async () => {
+      const { players, markets } = get();
+      const testPlayers = players.filter(p => p.isTestPlayer);
+      const openMarkets = markets.filter(m => m.status === 'open');
+      for (const tp of testPlayers) {
+        for (const m of openMarkets) {
+          if (m.expiresAt && Date.now() > m.expiresAt) continue;
+          if (!m.options.length) continue;
+          const opt = m.options[Math.floor(Math.random() * m.options.length)];
+          if (m.marketSubtype === 'jackpot' || m.noStake) {
+            await get().placeTipAs(tp.id, m.id, opt.id, opt.label);
+          } else {
+            const amount = Math.floor(Math.random() * 5 + 1) * 20; // 20–100 TKN
+            await get().placeBetAs(tp.id, m.id, opt.id, opt.label, amount);
+          }
+        }
+      }
+    },
+
+    // Vollständiger Reset (Testmodus): leert ALLE Spieldaten inkl. Test-Spieler.
+    // Admin-Accounts, Spielplan und Invite-Code bleiben erhalten.
+    fullReset: async () => {
+      clearSessionCookie();
+      // Lokalen Zustand sofort leeren (Admin-Spieler bleiben erhalten).
+      set(s => ({
+        markets: [], bets: [], answers: [], feed: [], jackpot: 0,
+        currentPhase: 'gruppenphase', testMode: true,
+        players: s.players.filter(p => !p.isTestPlayer),
+      }));
+      if (!db) return;
+      try {
+        // Sammlungen in Chunks von 400 löschen (Firestore-Batch-Limit: 500).
+        const deleteAll = async (colName: string, filter?: (data: any) => boolean) => {
+          const snap = await getDocs(collection(db, colName));
+          const docsToDelete = filter ? snap.docs.filter(d => filter(d.data())) : snap.docs;
+          for (let i = 0; i < docsToDelete.length; i += 400) {
+            const batch = writeBatch(db);
+            docsToDelete.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+            await batch.commit();
+          }
+        };
+        await deleteAll('bets');
+        await deleteAll('markets');
+        await deleteAll('answers');
+        await deleteAll('feed');
+        await deleteAll('players', (d) => d.isTestPlayer === true);
+        await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true }, { merge: true });
+      } catch (err) {
+        console.error('[Store] fullReset Fehler:', err);
+      }
     },
 
     setCurrentUser: (uid) => set({ currentUser: uid }),

@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useStore, INITIAL_PLAYERS, INITIAL_MARKETS, MarketOption } from '../store';
+import { useStore, MarketOption } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { resetToInitialState } from '../services/db';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import type { ScheduleMatch } from '../store';
 import { auth, db } from '../firebase';
@@ -67,6 +66,14 @@ export default function Admin() {
   const [newInviteCode, setNewInviteCode] = useState('');
   const [inviteCodeStatus, setInviteCodeStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
 
+  // Test-Spieler & manuelle Wetten
+  const [testPlayerName, setTestPlayerName] = useState('');
+  const [autoBetBusy, setAutoBetBusy] = useState(false);
+  const [betAsPlayer, setBetAsPlayer] = useState('');
+  const [betAsMarket, setBetAsMarket] = useState('');
+  const [betAsOption, setBetAsOption] = useState('');
+  const [betAsAmount, setBetAsAmount] = useState('50');
+
   const markets = useStore(s => s.markets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
@@ -80,7 +87,11 @@ export default function Admin() {
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
-  const resetState = useStore(s => s.resetState);
+  const fullReset = useStore(s => s.fullReset);
+  const createTestPlayer = useStore(s => s.createTestPlayer);
+  const autoBetTestPlayers = useStore(s => s.autoBetTestPlayers);
+  const placeBetAs = useStore(s => s.placeBetAs);
+  const placeTipAs = useStore(s => s.placeTipAs);
   const players = useStore(s => s.players);
   const navigate = useNavigate();
 
@@ -341,6 +352,19 @@ export default function Admin() {
       setTimeout(() => setInviteCodeStatus('idle'), 2000);
     } catch {
       setInviteCodeStatus('error');
+    }
+  };
+
+  const handleManualBet = async () => {
+    const mkt = markets.find(m => m.id === betAsMarket);
+    const opt = mkt?.options.find(o => o.id === betAsOption);
+    if (!betAsPlayer || !mkt || !opt) return;
+    if (mkt.marketSubtype === 'jackpot' || mkt.noStake) {
+      await placeTipAs(betAsPlayer, mkt.id, opt.id, opt.label);
+    } else {
+      const amt = parseInt(betAsAmount) || 0;
+      if (amt <= 0) return;
+      await placeBetAs(betAsPlayer, mkt.id, opt.id, opt.label, amt);
     }
   };
 
@@ -998,18 +1022,128 @@ export default function Admin() {
             )}
           </div>
 
+          {/* ── TEST-SPIELER ────────────────────────────────────── */}
+          {testMode && (
+            <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[16px]">🧪</span>
+                <div className="text-[11px] font-black text-yellow tracking-[0.15em] uppercase">Test-Spieler</div>
+              </div>
+              <div className="text-[10px] text-muted mb-3">
+                Erfundene Mitspieler zum Testen. Zählen bei Wetten, Pools & Auflösung wie echte Spieler. Werden beim „Auf null stellen" gelöscht.
+              </div>
+
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={testPlayerName}
+                  onChange={e => setTestPlayerName(e.target.value)}
+                  placeholder="Name (optional)…"
+                  className="flex-1 bg-white/5 border border-border rounded-xl px-3 py-2 text-[13px] text-white placeholder:text-muted/40 outline-none focus:border-yellow/60"
+                />
+                <button
+                  onClick={async () => { await createTestPlayer(testPlayerName); setTestPlayerName(''); }}
+                  className="px-4 py-2 rounded-xl bg-yellow/20 border border-yellow/40 text-yellow text-[12px] font-black"
+                >
+                  + Spieler
+                </button>
+              </div>
+
+              {(() => {
+                const testPlayers = players.filter(p => p.isTestPlayer);
+                if (testPlayers.length === 0) return <div className="text-[11px] text-muted/60 italic mb-2">Noch keine Test-Spieler.</div>;
+                return (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {testPlayers.map(p => (
+                      <span key={p.id} className="text-[10px] font-bold text-white bg-white/5 border border-border rounded-full px-2 py-1">
+                        {p.name} · {p.tokens} TKN
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              <button
+                onClick={async () => { setAutoBetBusy(true); try { await autoBetTestPlayers(); } finally { setAutoBetBusy(false); } }}
+                disabled={autoBetBusy || players.filter(p => p.isTestPlayer).length === 0}
+                className="w-full p-2.5 mb-3 rounded-xl bg-blue/15 border border-blue2/40 text-blue2 text-[12px] font-black disabled:opacity-40"
+              >
+                {autoBetBusy ? 'Verteile…' : '🎲 Auto-Wetten auf offene Märkte verteilen'}
+              </button>
+
+              {/* Manuelle Wette im Namen eines Test-Spielers */}
+              <div className="border-t border-border pt-3">
+                <div className="text-[10px] font-black text-muted tracking-[0.1em] uppercase mb-2">Manuelle Wette platzieren</div>
+                <div className="flex flex-col gap-2">
+                  <select
+                    value={betAsPlayer}
+                    onChange={e => setBetAsPlayer(e.target.value)}
+                    className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-green/60"
+                  >
+                    <option value="">Spieler wählen…</option>
+                    {players.filter(p => p.isTestPlayer).map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.tokens} TKN)</option>
+                    ))}
+                  </select>
+                  <select
+                    value={betAsMarket}
+                    onChange={e => { setBetAsMarket(e.target.value); setBetAsOption(''); }}
+                    className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-green/60"
+                  >
+                    <option value="">Markt wählen…</option>
+                    {markets.filter(m => m.status === 'open').map(m => (
+                      <option key={m.id} value={m.id}>{m.question}</option>
+                    ))}
+                  </select>
+                  {betAsMarket && (
+                    <select
+                      value={betAsOption}
+                      onChange={e => setBetAsOption(e.target.value)}
+                      className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-green/60"
+                    >
+                      <option value="">Option wählen…</option>
+                      {markets.find(m => m.id === betAsMarket)?.options.map(o => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                  {(() => {
+                    const mkt = markets.find(m => m.id === betAsMarket);
+                    const isFree = mkt?.marketSubtype === 'jackpot' || mkt?.noStake;
+                    if (isFree) return null;
+                    return (
+                      <input
+                        type="number"
+                        value={betAsAmount}
+                        onChange={e => setBetAsAmount(e.target.value)}
+                        placeholder="Einsatz (TKN)"
+                        className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white placeholder:text-muted/40 outline-none focus:border-green/60"
+                      />
+                    );
+                  })()}
+                  <button
+                    onClick={handleManualBet}
+                    disabled={!betAsPlayer || !betAsMarket || !betAsOption}
+                    className="w-full p-2.5 rounded-xl bg-green/20 border border-green/40 text-green text-[12px] font-black disabled:opacity-40"
+                  >
+                    Wette platzieren
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── SESSION ─────────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Session</div>
             <button onClick={() => navigate('/cashout')} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-red to-orange font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(255,61,90,0.3)] transition-all hover:-translate-y-px mb-3">💰 CASHOUT ÖFFNEN</button>
             <button onClick={async () => {
-              if (window.confirm('Wirklich alles zurücksetzen?')) {
-                resetState();
-                try { await resetToInitialState(INITIAL_PLAYERS, INITIAL_MARKETS); alert('Zurückgesetzt!'); }
-                catch (e) { console.error(e); alert('Fehler.'); }
+              if (window.confirm('Wirklich ALLES auf null stellen? Märkte, Wetten, Antworten, Feed, Jackpot und alle Test-Spieler werden gelöscht. Admin-Accounts, Spielplan und Invite-Code bleiben.')) {
+                try { await fullReset(); alert('Auf null gestellt ✓'); }
+                catch (e) { console.error(e); alert('Fehler beim Zurücksetzen.'); }
               }
             }} className="w-full p-3.5 border border-red/40 rounded-xl bg-red/10 font-sans text-[14px] font-black text-red cursor-pointer transition-all hover:bg-red/20">
-              ⚠️ ALLES ZURÜCKSETZEN
+              ⚠️ ALLES AUF NULL STELLEN
             </button>
           </div>
 
