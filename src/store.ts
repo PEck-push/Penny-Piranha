@@ -709,12 +709,22 @@ export const useStore = create<AppState>()((set, get) => {
     // Admin-Accounts, Spielplan und Invite-Code bleiben erhalten.
     fullReset: async () => {
       clearSessionCookie();
-      // Lokalen Zustand sofort leeren (Admin-Spieler bleiben erhalten).
-      set(s => ({
+      const state = get();
+      // Verbleibende (Admin-)Spieler auf Startzustand zurücksetzen.
+      const keptPlayers = state.players.filter(p => !p.isTestPlayer);
+      const resetFields = {
+        tokens: 1000, buybackUsed: false, comboMalus: false, badges: [],
+        currentStreak: 0, bestStreak: 0, streakLevel: 'none' as StreakLevel,
+        streakHistory: [], austriaSpecialCorrect: 0, underdogCorrect: 0,
+        dailyNetGain: 0, unlockedOverlays: [], activeAccessoryId: null,
+        activeBadgeId: null, unseenResolutions: [],
+      };
+      // Lokalen Zustand sofort leeren (Admin-Spieler bleiben, Tokens zurück).
+      set({
         markets: [], bets: [], answers: [], feed: [], jackpot: 0,
         currentPhase: 'gruppenphase', testMode: true,
-        players: s.players.filter(p => !p.isTestPlayer),
-      }));
+        players: keptPlayers.map(p => ({ ...p, ...resetFields })),
+      });
       if (!db) return;
       try {
         // Sammlungen in Chunks von 400 löschen (Firestore-Batch-Limit: 500).
@@ -732,6 +742,10 @@ export const useStore = create<AppState>()((set, get) => {
         await deleteAll('answers');
         await deleteAll('feed');
         await deleteAll('players', (d) => d.isTestPlayer === true);
+        // Verbleibende Spieler in Firestore auf Startguthaben zurücksetzen.
+        for (const p of keptPlayers) {
+          await updateDoc(doc(db, 'players', p.id), resetFields);
+        }
         await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true }, { merge: true });
       } catch (err) {
         console.error('[Store] fullReset Fehler:', err);
