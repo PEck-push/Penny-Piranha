@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { resetToInitialState } from '../services/db';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import type { ScheduleMatch } from '../store';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, AUSTRIA_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
@@ -60,6 +61,11 @@ export default function Admin() {
   const [goLiveModal, setGoLiveModal] = useState(false);
   const [goLiveStatus, setGoLiveStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [goLiveMsg, setGoLiveMsg] = useState('');
+
+  // Einladungscode verwalten
+  const [currentInviteCode, setCurrentInviteCode] = useState<string | null>(null);
+  const [newInviteCode, setNewInviteCode] = useState('');
+  const [inviteCodeStatus, setInviteCodeStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
 
   const markets = useStore(s => s.markets);
   const answers = useStore(s => s.answers);
@@ -309,6 +315,33 @@ export default function Admin() {
     });
     setSpecialMsg(`„${tpl.title}" als Jackpot-Runde erstellt.`);
     setTimeout(() => setSpecialMsg(''), 3000);
+  };
+
+  const handleLoadInviteCode = async () => {
+    setInviteCodeStatus('loading');
+    try {
+      const snap = await getDoc(doc(db, 'appState', 'global'));
+      const code = snap.data()?.inviteCode as string | undefined;
+      setCurrentInviteCode(code ?? '(nicht gesetzt)');
+      setInviteCodeStatus('idle');
+    } catch {
+      setCurrentInviteCode('Fehler beim Laden');
+      setInviteCodeStatus('error');
+    }
+  };
+
+  const handleSetInviteCode = async () => {
+    if (!newInviteCode.trim()) return;
+    setInviteCodeStatus('loading');
+    try {
+      await setDoc(doc(db, 'appState', 'global'), { inviteCode: newInviteCode.trim() }, { merge: true });
+      setCurrentInviteCode(newInviteCode.trim());
+      setNewInviteCode('');
+      setInviteCodeStatus('ok');
+      setTimeout(() => setInviteCodeStatus('idle'), 2000);
+    } catch {
+      setInviteCodeStatus('error');
+    }
   };
 
   const handleGoLive = async () => {
@@ -925,6 +958,44 @@ export default function Admin() {
               <div className="font-mono text-[40px] font-bold text-yellow drop-shadow-[0_0_30px_rgba(255,212,71,0.4)]">🪙 {jackpot}</div>
               <div className="text-[11px] text-muted mt-1">Wird beim nächsten Gewinn ausgezahlt</div>
             </div>
+          </div>
+
+          {/* ── EINLADUNGSCODE ──────────────────────────────────── */}
+          <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
+            <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3">Einladungscode</div>
+            <div className="text-[10px] text-muted mb-3">
+              Spieler brauchen diesen Code zur Registrierung. Wird beim lokalen Reset nicht mehr gelöscht.
+            </div>
+            {currentInviteCode !== null && (
+              <div className="bg-white/5 border border-border rounded-xl px-3 py-2 font-mono text-[14px] text-white text-center mb-3">
+                {currentInviteCode}
+              </div>
+            )}
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={newInviteCode}
+                onChange={e => setNewInviteCode(e.target.value)}
+                placeholder="Neuer Code…"
+                className="flex-1 bg-white/5 border border-border rounded-xl px-3 py-2 text-[13px] text-white placeholder:text-muted/40 outline-none focus:border-green/60"
+              />
+              <button
+                onClick={handleSetInviteCode}
+                disabled={!newInviteCode.trim() || inviteCodeStatus === 'loading'}
+                className="px-4 py-2 rounded-xl bg-green/20 border border-green/40 text-green text-[12px] font-black disabled:opacity-40"
+              >
+                {inviteCodeStatus === 'ok' ? '✓' : inviteCodeStatus === 'loading' ? '…' : 'Setzen'}
+              </button>
+            </div>
+            <button
+              onClick={handleLoadInviteCode}
+              className="w-full text-[11px] text-muted underline underline-offset-2 text-center bg-transparent border-none cursor-pointer"
+            >
+              Aktuellen Code anzeigen
+            </button>
+            {inviteCodeStatus === 'error' && (
+              <div className="text-[11px] text-red text-center mt-2">Fehler. Bitte Firebase prüfen.</div>
+            )}
           </div>
 
           {/* ── SESSION ─────────────────────────────────────────── */}

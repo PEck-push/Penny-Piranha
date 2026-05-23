@@ -203,8 +203,24 @@ export default function Dashboard() {
 
   if (!me) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-bg">
-        <div className="w-8 h-8 border-2 border-green border-t-transparent rounded-full animate-spin" />
+      <div className="flex-1 flex flex-col items-center justify-center bg-bg px-8 gap-5 text-center">
+        <div className="text-[40px]">🦈</div>
+        <div className="text-[18px] font-black text-white">Kein Spielerprofil gefunden</div>
+        <div className="text-[13px] text-muted leading-relaxed">
+          Dein Account wurde möglicherweise zurückgesetzt.<br />Bitte neu registrieren.
+        </div>
+        <button
+          onClick={() => { logoutAuth(); navigate('/register'); }}
+          className="w-full max-w-[260px] p-3.5 rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-black text-[15px] text-bg shadow-[0_6px_24px_rgba(0,214,143,0.4)]"
+        >
+          Jetzt registrieren
+        </button>
+        <button
+          onClick={() => logoutAuth()}
+          className="text-[12px] text-muted underline underline-offset-2"
+        >
+          Abmelden
+        </button>
       </div>
     );
   }

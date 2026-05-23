@@ -117,7 +117,13 @@ export default function Register() {
     try {
       const snap = await getDoc(doc(db, 'appState', 'global'));
       const code = snap.data()?.inviteCode as string | undefined;
-      if (!code || inviteCode.trim().toLowerCase() !== code.toLowerCase()) {
+      if (!code) {
+        // No invite code configured yet — only blocked if Firestore returns something unexpected.
+        // Admin can set the code via Admin-Panel (PIN: 1234 → Einladungscode).
+        setError('Kein Anmeldecode konfiguriert. Admin: Code im Admin-Panel (Pin 1234) setzen, dann neu versuchen.');
+        return;
+      }
+      if (inviteCode.trim().toLowerCase() !== code.toLowerCase()) {
         setError('Ungültiger Einladungscode. Bitte frage beim Admin nach.');
         return;
       }

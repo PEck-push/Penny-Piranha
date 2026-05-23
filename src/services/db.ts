@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, onSnapshot, query, orderBy, limit, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, orderBy, limit, writeBatch, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet, Answer, FeedEvent, ScheduleMatch } from '../store';
 
@@ -73,7 +73,7 @@ export const resetToInitialState = async (initialPlayers: Player[], initialMarke
       snap.forEach(d => batch.delete(d.ref));
     }
     initialMarkets.forEach(m => batch.set(doc(db, 'markets', m.id), m));
-    batch.set(doc(db, 'appState', 'global'), { jackpot: 0 });
+    batch.set(doc(db, 'appState', 'global'), { jackpot: 0 }, { merge: true });
     await batch.commit();
     console.log('[Firebase] Reset erfolgreich ✓');
     void initialPlayers; // kept for API compatibility
