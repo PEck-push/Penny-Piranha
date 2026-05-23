@@ -266,7 +266,7 @@ export default function Dashboard() {
         <HotTakeCard key={m.id} m={m} onClick={() => openMarketModal(m)} myBet={bets.find(b => b.marketId === m.id && b.playerId === me.id)} />
       ))}
 
-      {/* Combos */}
+      {/* Old-style combos (backwards compat) */}
       {markets.filter(m => m.type === 'combo' && m.status === 'open').length > 0 && (
         <>
           <div className="flex items-center justify-between mb-2.5 mt-1">
@@ -278,6 +278,62 @@ export default function Dashboard() {
           ))}
         </>
       )}
+
+      {/* New combo groups — each leg is individually bettable */}
+      {(() => {
+        const groupIds = [...new Set(
+          markets.filter(m => m.comboGroupId && m.status === 'open').map(m => m.comboGroupId!)
+        )];
+        if (groupIds.length === 0) return null;
+        return (
+          <>
+            <div className="flex items-center justify-between mb-2.5 mt-1">
+              <span className="text-[12px] font-black text-muted uppercase tracking-[0.1em]">🔗 Combo-Wetten</span>
+              <span className="text-[12px] font-bold text-purple2">{groupIds.length} aktiv</span>
+            </div>
+            {groupIds.map(groupId => {
+              const groupMarkets = markets.filter(m => m.comboGroupId === groupId && m.status === 'open');
+              const groupLabel = groupMarkets[0]?.comboGroupLabel ?? 'Combo';
+              return (
+                <div key={groupId} className="mb-3 bg-card border border-purple2/30 rounded-[20px] overflow-hidden relative">
+                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple via-purple2 to-blue" />
+                  <div className="p-3.5 px-4 border-b border-purple2/20">
+                    <span className="text-[10px] font-black text-purple2 bg-purple/15 border border-purple2/30 rounded-full px-2.5 py-1 tracking-[0.1em]">🔗 COMBO</span>
+                    <div className="text-[14px] font-black text-white mt-1.5">{groupLabel}</div>
+                  </div>
+                  {groupMarkets.map((m, i) => {
+                    const myBet = bets.find(b => b.marketId === m.id && b.playerId === me.id);
+                    return (
+                      <div key={m.id} onClick={() => openMarketModal(m)}
+                        className={clsx('p-3.5 px-4 cursor-pointer hover:bg-white/5 transition-all',
+                          i < groupMarkets.length - 1 && 'border-b border-purple2/15')}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[10px] font-black text-muted w-4 text-center shrink-0">{i + 1}</span>
+                          <span className="text-[13px] font-black text-white flex-1 leading-tight">{m.question}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 ml-6">
+                          {m.options.map(opt => (
+                            <span key={opt.id} className="text-[10px] font-bold text-muted bg-white/5 border border-white/10 rounded-md px-2 py-0.5">
+                              {opt.label}{opt.pool > 0 ? ` · ${opt.pool}` : ''}
+                            </span>
+                          ))}
+                        </div>
+                        {myBet && (
+                          <div className="mt-1.5 ml-6">
+                            <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">
+                              🪙 {myBet.amount} auf {myBet.optionLabel}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </>
+        );
+      })()}
 
       {/* Spezialwetten (international) */}
       {markets.filter(m => m.marketSubtype === 'spezialwette' && !m.austriaBlock && m.status === 'open').length > 0 && (
@@ -304,13 +360,13 @@ export default function Dashboard() {
       )}
 
       {/* Standard (eigene Custom-Märkte; WM-Matches laufen im Spielplan) */}
-      {markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype).length > 0 && (
+      {markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype && !m.comboGroupId).length > 0 && (
         <div className="flex items-center justify-between mb-2.5 mt-1">
           <span className="text-[12px] font-black text-muted uppercase tracking-[0.1em]">Aktive Märkte</span>
-          <span className="text-[12px] font-bold text-blue2">{markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype).length} offen</span>
+          <span className="text-[12px] font-bold text-blue2">{markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype && !m.comboGroupId).length} offen</span>
         </div>
       )}
-      {markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype).map(m => {
+      {markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype && !m.comboGroupId).map(m => {
         const myBet = bets.find(b => b.marketId === m.id && b.playerId === me.id);
         return (
           <div key={m.id} onClick={() => openMarketModal(m)} className="bg-card border border-border rounded-[18px] p-4 mb-2.5 cursor-pointer transition-all hover:border-blue/40 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] relative overflow-hidden">
@@ -658,7 +714,11 @@ export default function Dashboard() {
               <div className="p-4 px-5 border-b border-border flex justify-between items-start shrink-0">
                 <div className="flex-1 min-w-0 pr-3">
                   <div className="text-[10px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">
-                    {selectedMarket.type === 'combo' ? `🔗 COMBO · ${selectedMarket.multiplier}× Multiplikator` : `${selectedMarket.type} · Markt`}
+                    {selectedMarket.type === 'combo'
+                      ? `🔗 COMBO · ${selectedMarket.multiplier}× Multiplikator`
+                      : selectedMarket.comboGroupId
+                        ? `🔗 COMBO · ${selectedMarket.comboGroupLabel ?? 'Combo'}`
+                        : `${selectedMarket.type} · Markt`}
                   </div>
                   <div className="text-[18px] font-black text-white leading-[1.2]">{selectedMarket.question}</div>
                 </div>

@@ -111,31 +111,41 @@ export default function Admin() {
 
   const handleCreateMarket = () => {
     if (!canCreate) return;
-    const filledLegs = comboLegs.filter(l => l.question.trim() !== '');
-    const multiplier = filledLegs.length === 3 ? 6 : 3;
 
-    // For combo: build MarketComboLeg[] from standalone inputs
-    const builtComboLegs = filledLegs.map(l => ({
-      marketId: '',  // standalone — not linked to another market
-      marketQuestion: l.question.trim(),
-      predictedOptionId: Math.random().toString(36).substring(7),
-      predictedOptionLabel: l.optionA.trim() || 'JA',
-      status: 'pending' as const,
-      optionB: l.optionB.trim() || 'NEIN',
-    }));
+    if (newMarketType === 'combo') {
+      const filledLegs = comboLegs.filter(l => l.question.trim() !== '');
+      const groupId = Math.random().toString(36).substring(7);
+      filledLegs.forEach(leg => {
+        createMarket({
+          question: leg.question.trim(),
+          type: 'standard',
+          status: 'open',
+          createdBy: 'admin',
+          options: [
+            { id: 'a', label: leg.optionA.trim() || 'JA', pool: 0 },
+            { id: 'b', label: leg.optionB.trim() || 'NEIN', pool: 0 },
+          ],
+          winningOptionId: null,
+          resolutionType: null,
+          isOpenQuestion: false,
+          comboGroupId: groupId,
+          comboGroupLabel: newMarketQuestion.trim(),
+        });
+      });
+    } else {
+      createMarket({
+        question: newMarketQuestion,
+        type: newMarketType,
+        status: 'open',
+        createdBy: 'admin',
+        options: buildOptions(),
+        winningOptionId: null,
+        resolutionType: null,
+        isOpenQuestion: newMarketType === 'anonymous' ? isOpenQuestion : false,
+        ...(newMarketType === 'hot-take' ? { expiresAt: Date.now() + hotTakeMinutes * 60 * 1000 } : {}),
+      });
+    }
 
-    createMarket({
-      question: newMarketQuestion,
-      type: newMarketType,
-      status: 'open',
-      createdBy: 'admin',
-      options: buildOptions(),
-      winningOptionId: null,
-      resolutionType: null,
-      isOpenQuestion: newMarketType === 'anonymous' ? isOpenQuestion : false,
-      ...(newMarketType === 'hot-take' ? { expiresAt: Date.now() + hotTakeMinutes * 60 * 1000 } : {}),
-      ...(newMarketType === 'combo' ? { comboLegs: builtComboLegs, multiplier } : {}),
-    });
     setNewMarketQuestion('');
     setCustomOptions(['', '']);
     setIsBinary(true);

@@ -132,6 +132,8 @@ export interface Market {
   lockedPoolSnapshot?: Record<string, number>;
   winningOptionIds?: string[]; // für Multi-Winner (Milestone etc.)
   austriaBlock?: boolean;      // Spezialwette gehört zum Österreich-Block
+  comboGroupId?: string;       // Combo-Gruppe: alle Legs teilen dieselbe ID
+  comboGroupLabel?: string;    // Obertitel der Combo-Gruppe
 }
 
 export interface Bet {
