@@ -131,6 +131,7 @@ export interface Market {
   initialSeedCredits?: number;
   lockedPoolSnapshot?: Record<string, number>;
   winningOptionIds?: string[]; // für Multi-Winner (Milestone etc.)
+  austriaBlock?: boolean;      // Spezialwette gehört zum Österreich-Block
 }
 
 export interface Bet {

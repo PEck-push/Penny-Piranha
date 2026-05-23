@@ -198,7 +198,13 @@ export default function Dashboard() {
     setAnswerSubmitted(false);
   };
 
-  if (!me) return null;
+  if (!me) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-bg">
+        <div className="w-8 h-8 border-2 border-green border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // Show result-reveal sequence if there are unseen resolutions
   const unseenIds = me.unseenResolutions ?? [];
@@ -215,6 +221,41 @@ export default function Dashboard() {
     `🎰 Jackpot: ${jackpot} TKN`,
   ];
   const tickerContent = [...tickerItems, ...tickerItems];
+
+  // Special-bet card (international or Austria block)
+  const renderSpecialCard = (m: Market, austria: boolean) => {
+    const myBet = bets.find(b => b.marketId === m.id && b.playerId === me.id);
+    const total = getMarketTotal(m);
+    return (
+      <div key={m.id} onClick={() => openMarketModal(m)}
+        className={clsx(
+          'bg-card border rounded-[18px] p-4 mb-2.5 cursor-pointer transition-all hover:-translate-y-0.5 relative overflow-hidden',
+          austria ? 'border-[#EF3340]/35 hover:border-[#EF3340]/60' : 'border-purple2/30 hover:border-purple2/60',
+        )}>
+        <div className={clsx('absolute top-0 left-0 right-0 h-[2px]', austria ? 'bg-gradient-to-r from-transparent via-[#EF3340]/70 to-transparent' : 'bg-gradient-to-r from-transparent via-purple2/60 to-transparent')} />
+        <div className="flex items-center gap-1.5 mb-2">
+          <span className={clsx('text-[10px] font-black tracking-[0.1em] px-2 py-0.5 rounded-md border',
+            austria ? 'text-[#EF3340] bg-[#EF3340]/10 border-[#EF3340]/25' : 'text-purple2 bg-purple/10 border-purple2/25')}>
+            {austria ? '🇦🇹 ÖSTERREICH' : '🌟 SPEZIAL'}
+          </span>
+        </div>
+        <div className="text-[15px] font-black text-white leading-[1.3] mb-3">{m.question}</div>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {m.options.map(opt => (
+            <span key={opt.id} className="text-[10px] font-bold text-muted bg-white/5 border border-white/10 rounded-md px-2 py-0.5">
+              {opt.label}{opt.pool > 0 ? ` · ${opt.pool}` : ''}
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[12px] text-muted">Pool: <b className="text-white">{total} TKN</b></span>
+          {myBet
+            ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+            : <span className="text-[11px] text-muted">Tippen →</span>}
+        </div>
+      </div>
+    );
+  };
 
   // ─── DASHBOARD TAB ─────────────────────────────────────────────────────────
   const renderDashboard = () => (
@@ -238,12 +279,38 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Standard */}
-      <div className="flex items-center justify-between mb-2.5 mt-1">
-        <span className="text-[12px] font-black text-muted uppercase tracking-[0.1em]">Aktive Märkte</span>
-        <span className="text-[12px] font-bold text-blue2">{markets.filter(m => m.type === 'standard' && m.status === 'open').length} offen</span>
-      </div>
-      {markets.filter(m => m.type === 'standard' && m.status === 'open').map(m => {
+      {/* Spezialwetten (international) */}
+      {markets.filter(m => m.marketSubtype === 'spezialwette' && !m.austriaBlock && m.status === 'open').length > 0 && (
+        <>
+          <div className="flex items-center justify-between mb-2.5 mt-1">
+            <span className="text-[12px] font-black text-purple2 uppercase tracking-[0.1em]">🌟 Spezialwetten</span>
+          </div>
+          {markets.filter(m => m.marketSubtype === 'spezialwette' && !m.austriaBlock && m.status === 'open').map(m =>
+            renderSpecialCard(m, false),
+          )}
+        </>
+      )}
+
+      {/* Österreich-Block */}
+      {markets.filter(m => m.austriaBlock && m.status === 'open').length > 0 && (
+        <>
+          <div className="flex items-center justify-between mb-2.5 mt-1">
+            <span className="text-[12px] font-black text-[#EF3340] uppercase tracking-[0.1em]">🇦🇹 Österreich-Block</span>
+          </div>
+          {markets.filter(m => m.austriaBlock && m.status === 'open').map(m =>
+            renderSpecialCard(m, true),
+          )}
+        </>
+      )}
+
+      {/* Standard (eigene Custom-Märkte; WM-Matches laufen im Spielplan) */}
+      {markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype).length > 0 && (
+        <div className="flex items-center justify-between mb-2.5 mt-1">
+          <span className="text-[12px] font-black text-muted uppercase tracking-[0.1em]">Aktive Märkte</span>
+          <span className="text-[12px] font-bold text-blue2">{markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype).length} offen</span>
+        </div>
+      )}
+      {markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype).map(m => {
         const myBet = bets.find(b => b.marketId === m.id && b.playerId === me.id);
         return (
           <div key={m.id} onClick={() => openMarketModal(m)} className="bg-card border border-border rounded-[18px] p-4 mb-2.5 cursor-pointer transition-all hover:border-blue/40 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] relative overflow-hidden">
@@ -690,7 +757,12 @@ export default function Dashboard() {
                         <span className="text-[11px] font-black text-muted tracking-[0.1em] uppercase">Dein Einsatz</span>
                         <span className="font-mono text-[18px] font-bold text-yellow">{betAmount} TOKEN</span>
                       </div>
-                      <input type="range" min="1" max={Math.min(500, me.tokens)} value={betAmount} onChange={e => setBetAmount(parseInt(e.target.value))}
+                      <input type="range"
+                        min={selectedMarket.minBet ?? 1}
+                        max={selectedMarket.maxBet && selectedMarket.maxBet > 0
+                          ? Math.min(selectedMarket.maxBet, me.tokens)
+                          : Math.min(500, me.tokens)}
+                        value={Math.min(betAmount, me.tokens)} onChange={e => setBetAmount(parseInt(e.target.value))}
                         className="w-full h-1.5 bg-input rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-blue [&::-webkit-slider-thumb]:to-purple [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg" />
                     </div>
                   )}

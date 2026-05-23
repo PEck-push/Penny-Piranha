@@ -2,104 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { clsx } from 'clsx';
 import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
+import { flag, deName, isAustriaTeam } from '../utils/teams';
 
 type WmMatch = ScheduleMatch;
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
-
-const COUNTRY_FLAGS: Record<string, string> = {
-  // Europa
-  'Österreich': '🇦🇹', 'Austria': '🇦🇹',
-  'Deutschland': '🇩🇪', 'Germany': '🇩🇪',
-  'Frankreich': '🇫🇷', 'France': '🇫🇷',
-  'Spanien': '🇪🇸', 'Spain': '🇪🇸',
-  'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-  'Portugal': '🇵🇹',
-  'Niederlande': '🇳🇱', 'Netherlands': '🇳🇱',
-  'Belgien': '🇧🇪', 'Belgium': '🇧🇪',
-  'Italien': '🇮🇹', 'Italy': '🇮🇹',
-  'Kroatien': '🇭🇷', 'Croatia': '🇭🇷',
-  'Schweiz': '🇨🇭', 'Switzerland': '🇨🇭',
-  'Dänemark': '🇩🇰', 'Denmark': '🇩🇰',
-  'Polen': '🇵🇱', 'Poland': '🇵🇱',
-  'Serbien': '🇷🇸', 'Serbia': '🇷🇸',
-  'Ukraine': '🇺🇦',
-  'Türkei': '🇹🇷', 'Turkey': '🇹🇷',
-  'Schottland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-  'Ungarn': '🇭🇺', 'Hungary': '🇭🇺',
-  'Rumänien': '🇷🇴', 'Romania': '🇷🇴',
-  'Slowakei': '🇸🇰', 'Slovakia': '🇸🇰',
-  'Griechenland': '🇬🇷', 'Greece': '🇬🇷',
-  'Georgien': '🇬🇪', 'Georgia': '🇬🇪',
-  'Tschechien': '🇨🇿', 'Czech Republic': '🇨🇿', 'Czechia': '🇨🇿',
-  'Albanien': '🇦🇱', 'Albania': '🇦🇱',
-  'Slowenien': '🇸🇮', 'Slovenia': '🇸🇮',
-  'Finnland': '🇫🇮', 'Finland': '🇫🇮',
-  'Kosovo': '🇽🇰',
-  'Nordmazedonien': '🇲🇰', 'North Macedonia': '🇲🇰',
-  // Nord-/Mittelamerika & Karibik
-  'USA': '🇺🇸',
-  'Mexiko': '🇲🇽', 'Mexico': '🇲🇽',
-  'Kanada': '🇨🇦', 'Canada': '🇨🇦',
-  'Costa Rica': '🇨🇷',
-  'Panama': '🇵🇦',
-  'Honduras': '🇭🇳',
-  'Jamaika': '🇯🇲', 'Jamaica': '🇯🇲',
-  'El Salvador': '🇸🇻',
-  'Kuba': '🇨🇺', 'Cuba': '🇨🇺',
-  'Guatemala': '🇬🇹',
-  'Trinidad and Tobago': '🇹🇹',
-  'Curacao': '🇨🇼', 'Curaçao': '🇨🇼',
-  // Südamerika
-  'Brasilien': '🇧🇷', 'Brazil': '🇧🇷',
-  'Argentinien': '🇦🇷', 'Argentina': '🇦🇷',
-  'Kolumbien': '🇨🇴', 'Colombia': '🇨🇴',
-  'Ecuador': '🇪🇨',
-  'Uruguay': '🇺🇾',
-  'Chile': '🇨🇱',
-  'Peru': '🇵🇪',
-  'Paraguay': '🇵🇾',
-  'Bolivien': '🇧🇴', 'Bolivia': '🇧🇴',
-  'Venezuela': '🇻🇪',
-  // Afrika
-  'Marokko': '🇲🇦', 'Morocco': '🇲🇦',
-  'Senegal': '🇸🇳',
-  'Nigeria': '🇳🇬',
-  'Kamerun': '🇨🇲', 'Cameroon': '🇨🇲',
-  'Ghana': '🇬🇭',
-  'Mali': '🇲🇱',
-  'Ägypten': '🇪🇬', 'Egypt': '🇪🇬',
-  'Algerien': '🇩🇿', 'Algeria': '🇩🇿',
-  'Tunesien': '🇹🇳', 'Tunisia': '🇹🇳',
-  'Südafrika': '🇿🇦', 'South Africa': '🇿🇦',
-  'Elfenbeinküste': '🇨🇮', "Côte d'Ivoire": '🇨🇮', 'Ivory Coast': '🇨🇮',
-  'Kap Verde': '🇨🇻', 'Cape Verde': '🇨🇻',
-  'Angola': '🇦🇴',
-  'Kongo DR': '🇨🇩', 'DR Congo': '🇨🇩', 'Congo': '🇨🇬',
-  'Tansania': '🇹🇿', 'Tanzania': '🇹🇿',
-  // Asien & Ozeanien
-  'Japan': '🇯🇵',
-  'Südkorea': '🇰🇷', 'South Korea': '🇰🇷', 'Korea Republic': '🇰🇷',
-  'Iran': '🇮🇷',
-  'Saudi-Arabien': '🇸🇦', 'Saudi Arabia': '🇸🇦',
-  'Australien': '🇦🇺', 'Australia': '🇦🇺',
-  'Neuseeland': '🇳🇿', 'New Zealand': '🇳🇿',
-  'Usbekistan': '🇺🇿', 'Uzbekistan': '🇺🇿',
-  'Katar': '🇶🇦', 'Qatar': '🇶🇦',
-  'Jordanien': '🇯🇴', 'Jordan': '🇯🇴',
-  'Irak': '🇮🇶', 'Iraq': '🇮🇶',
-  'China': '🇨🇳', 'China PR': '🇨🇳',
-  'Indonesien': '🇮🇩', 'Indonesia': '🇮🇩',
-  'Oman': '🇴🇲', 'Bahrain': '🇧🇭', 'Kuwait': '🇰🇼',
-  // Fallback-Platzhalter
-  'Mexiko B': '🇲🇽', 'Niederlande B': '🇳🇱', 'USA B': '🇺🇸',
-};
-
-const flag = (team: string) => COUNTRY_FLAGS[team] ?? '🏴';
-
-const isAustriaTeam = (name: string) =>
-  name === 'Österreich' || name.toLowerCase() === 'austria';
 
 // Convert UTC timestamp to CEST display (UTC+2, no DST handling needed — all matches in summer)
 const toCEST = (ts: number) => {
@@ -230,11 +137,11 @@ export default function SpielplanTab() {
             <div className="flex items-center gap-2 mb-1.5">
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <span className="text-[18px] leading-none shrink-0">{flag(match.teamA)}</span>
-                <span className="text-[13px] font-black text-white leading-none truncate">{match.teamA}</span>
+                <span className="text-[13px] font-black text-white leading-none truncate">{deName(match.teamA)}</span>
               </div>
               <span className="text-[9px] font-black text-muted/50 shrink-0">VS</span>
               <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                <span className="text-[13px] font-black text-white leading-none truncate text-right">{match.teamB}</span>
+                <span className="text-[13px] font-black text-white leading-none truncate text-right">{deName(match.teamB)}</span>
                 <span className="text-[18px] leading-none shrink-0">{flag(match.teamB)}</span>
               </div>
             </div>
@@ -390,7 +297,7 @@ export default function SpielplanTab() {
           )}
           {groupTeams.map(t => (
             <span key={t} className="text-[12px] font-bold text-white/80 flex items-center gap-1">
-              {flag(t)} {t}
+              {flag(t)} {deName(t)}
             </span>
           ))}
         </div>
@@ -460,7 +367,7 @@ export default function SpielplanTab() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col items-start gap-1 flex-1 min-w-0">
                   <span className="text-[28px] leading-none">{flag(selectedMatch.teamA)}</span>
-                  <span className="text-[15px] font-black text-white truncate max-w-full">{selectedMatch.teamA}</span>
+                  <span className="text-[15px] font-black text-white truncate max-w-full">{deName(selectedMatch.teamA)}</span>
                 </div>
 
                 <div className="flex flex-col items-center shrink-0 px-2">
@@ -472,7 +379,7 @@ export default function SpielplanTab() {
 
                 <div className="flex flex-col items-end gap-1 flex-1 min-w-0">
                   <span className="text-[28px] leading-none">{flag(selectedMatch.teamB)}</span>
-                  <span className="text-[15px] font-black text-white truncate max-w-full text-right">{selectedMatch.teamB}</span>
+                  <span className="text-[15px] font-black text-white truncate max-w-full text-right">{deName(selectedMatch.teamB)}</span>
                 </div>
               </div>
             </div>

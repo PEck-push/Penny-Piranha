@@ -16,10 +16,12 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    initFirebaseSync();
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setCurrentUser(firebaseUser?.uid ?? null);
+      // Firestore listeners require an authenticated session (security rules).
+      // Initialise them only once a user is confirmed — otherwise the initial
+      // listeners die with permission-denied and never recover until a refresh.
+      if (firebaseUser) initFirebaseSync();
       setAuthLoading(false);
     });
     return unsubscribe;

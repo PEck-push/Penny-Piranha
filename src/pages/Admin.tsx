@@ -6,6 +6,9 @@ import { resetToInitialState } from '../services/db';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import type { ScheduleMatch } from '../store';
 import { auth } from '../firebase';
+import { deName } from '../utils/teams';
+import { getLimits, type Phase } from '../utils/phase';
+import { INTERNATIONAL_SPECIALS, AUSTRIA_SPECIALS, type SpecialBetTemplate } from '../data/specialBets';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
@@ -23,11 +26,8 @@ export default function Admin() {
   const [importMsg, setImportMsg] = useState('');
 
   // WM-Match market creation
-  const [wmGroup, setWmGroup] = useState('C');
+  const [wmGroup, setWmGroup] = useState('A');
   const [wmMatchId, setWmMatchId] = useState('');
-  const [wmMinBet, setWmMinBet] = useState(10);
-  const [wmMaxBet, setWmMaxBet] = useState(150);
-  const [wmAutoDeduct, setWmAutoDeduct] = useState(10);
   const [wmCreated, setWmCreated] = useState(false);
 
   // Market creation
@@ -171,38 +171,100 @@ export default function Admin() {
 
   const scheduleSource: ScheduleMatch[] = liveSchedule.length > 0 ? liveSchedule : WM2026_GROUP_SCHEDULE;
 
-  const handleCreateWmMarket = () => {
-    const match = scheduleSource.find(m => m.matchId === wmMatchId);
-    if (!match) return;
-    const alreadyExists = markets.some(m => m.matchId === wmMatchId);
-    if (alreadyExists) return;
-    createMarket({
-      question: `${match.teamA} vs. ${match.teamB}`,
-      type: 'standard',
-      status: 'open',
+  // Baut die Market-Daten für ein WM-Spiel — Einsatzlimits kommen automatisch
+  // aus der Phase (Plan §2), Teamnamen werden auf Deutsch übersetzt.
+  const buildWmMarket = (match: ScheduleMatch) => {
+    const phase = (match.phase as Phase) || 'gruppenphase';
+    const limits = getLimits(phase);
+    const a = deName(match.teamA);
+    const b = deName(match.teamB);
+    return {
+      question: `${a} vs. ${b}`,
+      type: 'standard' as const,
+      status: 'open' as const,
       createdBy: 'admin',
       options: [
-        { id: 'home', label: match.teamA, pool: 0 },
+        { id: 'home', label: a, pool: 0 },
         { id: 'draw', label: 'Unentschieden', pool: 0 },
-        { id: 'away', label: match.teamB, pool: 0 },
+        { id: 'away', label: b, pool: 0 },
       ],
       winningOptionId: null,
       resolutionType: null,
       isOpenQuestion: false,
-      marketSubtype: 'wm-match',
+      marketSubtype: 'wm-match' as const,
       matchId: match.matchId,
-      teamA: match.teamA,
-      teamB: match.teamB,
+      teamA: a,
+      teamB: b,
       kickoffAt: match.kickoffAt,
       groupLabel: match.groupLabel,
-      minBet: wmMinBet,
-      maxBet: wmMaxBet,
-      autoDeductAmount: wmAutoDeduct,
+      minBet: limits.minBet,
+      maxBet: limits.maxBet,
+      autoDeductAmount: limits.autoDeduct,
       autoDeductProcessed: false,
-    });
+    };
+  };
+
+  const handleCreateWmMarket = () => {
+    const match = scheduleSource.find(m => m.matchId === wmMatchId);
+    if (!match) return;
+    if (markets.some(m => m.matchId === wmMatchId)) return;
+    createMarket(buildWmMarket(match));
     setWmCreated(true);
     setWmMatchId('');
     setTimeout(() => setWmCreated(false), 3000);
+  };
+
+  // Massen-Freigabe: erstellt Märkte für mehrere Spiele auf einmal (Plan §2.Tippabgabe).
+  const [bulkMsg, setBulkMsg] = useState('');
+  const bulkCreateMarkets = (matches: ScheduleMatch[]) => {
+    const existing = new Set(markets.map(m => m.matchId));
+    const toCreate = matches.filter(m => !existing.has(m.matchId));
+    toCreate.forEach(m => createMarket(buildWmMarket(m)));
+    setBulkMsg(
+      toCreate.length === 0
+        ? 'Alle Märkte für diese Auswahl existieren bereits.'
+        : `${toCreate.length} Märkte geöffnet.`,
+    );
+    setTimeout(() => setBulkMsg(''), 4000);
+  };
+
+  const groupPhaseMatches = scheduleSource.filter(
+    m => (m.phase ?? 'gruppenphase') === 'gruppenphase',
+  );
+  const openMatchday = (md: number) =>
+    bulkCreateMarkets(groupPhaseMatches.filter(m => m.matchday === md));
+  const openWholeGroupPhase = () => bulkCreateMarkets(groupPhaseMatches);
+
+  // Spezialwetten aus Vorlagen erstellen (Plan §5).
+  const [specialMsg, setSpecialMsg] = useState('');
+  const createSpecialBet = (tpl: SpecialBetTemplate) => {
+    if (markets.some(m => m.question === tpl.title)) {
+      setSpecialMsg('Diese Spezialwette existiert bereits.');
+      setTimeout(() => setSpecialMsg(''), 3000);
+      return;
+    }
+    createMarket({
+      question: tpl.title,
+      type: 'standard',
+      status: 'open',
+      createdBy: 'admin',
+      options: tpl.options.map(label => ({
+        id: Math.random().toString(36).substring(7),
+        label,
+        pool: 0,
+      })),
+      winningOptionId: null,
+      resolutionType: null,
+      isOpenQuestion: false,
+      marketSubtype: 'spezialwette',
+      austriaBlock: !!tpl.austria,
+      minBet: 10,
+      maxBet: 0,
+      autoDeductAmount: 0,
+      autoDeductProcessed: true,
+    });
+    setSpecialMsg(`„${tpl.title}" erstellt.`);
+    setTimeout(() => setSpecialMsg(''), 3000);
   };
 
   const handleGoLive = async () => {
@@ -400,7 +462,7 @@ export default function Admin() {
                         )}
                       >
                         <span className="font-black text-white flex-1 truncate">
-                          {match.teamA} vs. {match.teamB}
+                          {deName(match.teamA)} vs. {deName(match.teamB)}
                         </span>
                         <span className="text-[10px] text-muted shrink-0">{toCEST(match.kickoffAt)}</span>
                         {exists && <span className="text-[10px] font-black text-green shrink-0">✓</span>}
@@ -410,30 +472,95 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Min/Max/AutoDeduct */}
-            {wmMatchId && (
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {([['Min', wmMinBet, setWmMinBet], ['Max', wmMaxBet, setWmMaxBet], ['Auto-Abzug', wmAutoDeduct, setWmAutoDeduct]] as [string, number, (v: number) => void][]).map(([label, val, setter]) => (
-                  <div key={label}>
-                    <div className="text-[9px] font-black text-muted uppercase tracking-[0.08em] mb-1">{label}</div>
-                    <input
-                      type="number"
-                      value={val}
-                      onChange={e => setter(parseInt(e.target.value) || 0)}
-                      className="w-full bg-input border border-border rounded-lg p-2 text-white font-mono text-[13px] font-bold outline-none focus:border-green/60 text-center"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="text-[10px] text-muted mb-3">
+              Einsatzlimits werden automatisch aus der Turnierphase übernommen
+              (Gruppenphase: Min 10 / Max 150 / Auto-Abzug 10).
+            </div>
 
             <button
               onClick={handleCreateWmMarket}
               disabled={!wmMatchId || markets.some(m => m.matchId === wmMatchId)}
               className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(0,214,143,0.3)] transition-all hover:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ⚽ WM-Markt öffnen
+              ⚽ Einzelnen WM-Markt öffnen
             </button>
+          </div>
+
+          {/* ── MASSEN-FREIGABE ───────────────────────────────────── */}
+          <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">📢</span>
+              <div className="text-[11px] font-black text-blue2 tracking-[0.15em] uppercase">Massen-Freigabe Gruppenphase</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Öffnet viele Märkte auf einmal — Limits automatisch aus der Phase.
+              Bereits offene Spiele werden übersprungen.
+            </div>
+            {bulkMsg && (
+              <div className="bg-blue/10 border border-blue2/30 rounded-xl px-3 py-2 text-[12px] font-bold text-center text-blue2 mb-3">
+                {bulkMsg}
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {[1, 2, 3].map(md => (
+                <button key={md} onClick={() => openMatchday(md)}
+                  className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white font-black text-[12px] hover:border-blue2/50 transition-all">
+                  Spieltag {md}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={openWholeGroupPhase}
+              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-blue to-purple font-sans text-[13px] font-black text-white cursor-pointer shadow-[0_4px_18px_rgba(59,110,255,0.3)] transition-all hover:-translate-y-px"
+            >
+              📢 Komplette Gruppenphase öffnen ({groupPhaseMatches.length} Spiele)
+            </button>
+          </div>
+
+          {/* ── SPEZIALWETTEN ─────────────────────────────────────── */}
+          <div className="bg-card border border-purple2/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🌟</span>
+              <div className="text-[11px] font-black text-purple2 tracking-[0.15em] uppercase">Spezialwetten</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Per Klick öffnen. Kein Auto-Abzug, Mindesteinsatz 10. Auflösung über „Märkte verwalten".
+            </div>
+            {specialMsg && (
+              <div className="bg-purple/10 border border-purple2/30 rounded-xl px-3 py-2 text-[12px] font-bold text-center text-purple2 mb-3">
+                {specialMsg}
+              </div>
+            )}
+
+            <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">International</div>
+            <div className="flex flex-col gap-1.5 mb-3">
+              {INTERNATIONAL_SPECIALS.map(tpl => {
+                const exists = markets.some(m => m.question === tpl.title);
+                return (
+                  <button key={tpl.id} onClick={() => createSpecialBet(tpl)} disabled={exists}
+                    className={clsx('text-left rounded-xl p-2.5 border text-[12px] font-bold transition-all',
+                      exists ? 'border-green/20 bg-green/5 text-muted opacity-60 cursor-not-allowed'
+                             : 'border-border bg-input text-white hover:border-purple2/40 cursor-pointer')}>
+                    {exists ? '✓ ' : '+ '}{tpl.title}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="text-[10px] font-black text-[#EF3340] uppercase tracking-[0.1em] mb-1.5">🇦🇹 Österreich-Block</div>
+            <div className="flex flex-col gap-1.5">
+              {AUSTRIA_SPECIALS.map(tpl => {
+                const exists = markets.some(m => m.question === tpl.title);
+                return (
+                  <button key={tpl.id} onClick={() => createSpecialBet(tpl)} disabled={exists}
+                    className={clsx('text-left rounded-xl p-2.5 border text-[12px] font-bold transition-all',
+                      exists ? 'border-green/20 bg-green/5 text-muted opacity-60 cursor-not-allowed'
+                             : 'border-[#EF3340]/25 bg-[#EF3340]/5 text-white hover:border-[#EF3340]/50 cursor-pointer')}>
+                    {exists ? '✓ ' : '+ '}{tpl.title}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* ── CREATE MARKET ─────────────────────────────────────── */}
