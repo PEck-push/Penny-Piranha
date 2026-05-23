@@ -15,13 +15,14 @@ const OPT_BORDER = ['border-green/35','border-red/35','border-blue2/35','border-
 const OPT_HOVER  = ['hover:bg-green/15','hover:bg-red/15','hover:bg-blue/15','hover:bg-yellow/15','hover:bg-purple/15'];
 const OPT_SHADOW = ['shadow-[0_8px_32px_rgba(0,214,143,0.35)]','shadow-[0_8px_32px_rgba(255,61,90,0.35)]','shadow-[0_8px_32px_rgba(59,110,255,0.35)]','shadow-[0_8px_32px_rgba(255,212,71,0.35)]','shadow-[0_8px_32px_rgba(139,61,255,0.35)]'];
 
-function calcPayout(market: Market, optionId: string, betAmt: number, jackpot: number): number {
+function calcPayout(market: Market, optionId: string, betAmt: number): number {
   const opt = market.options.find(o => o.id === optionId);
   if (!opt) return 0;
   if (market.type === 'combo') return betAmt * (market.multiplier ?? 3);
   const simOpt = opt.pool + betAmt;
-  const simTotal = getMarketTotal(market) + betAmt + jackpot;
-  return simOpt === 0 ? 0 : Math.floor((betAmt / simOpt) * simTotal);
+  const simTotal = getMarketTotal(market) + betAmt; // reiner Parimutuel-Pool, kein Jackpot
+  if (simOpt === 0) return 0;
+  return Math.max(Math.floor((betAmt / simOpt) * simTotal), betAmt + 2); // Mindestgewinn: Einsatz + 2
 }
 
 function PoolBar({ market }: { market: Market }) {
@@ -527,7 +528,7 @@ export default function Dashboard() {
           const opt = m.options.find(o => o.id === b.optionId);
           const optIdx = m.options.findIndex(o => o.id === b.optionId);
           const isJackpot = m.marketSubtype === 'jackpot';
-          const potWin = calcPayout(m, b.optionId, b.amount, jackpot);
+          const potWin = calcPayout(m, b.optionId, b.amount);
           return (
             <div key={b.id} className="bg-card border border-border rounded-2xl p-4 mb-2.5">
               <div className="flex items-center gap-2 mb-2">
@@ -944,7 +945,7 @@ export default function Dashboard() {
                     return (
                     <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
                       {selectedMarket.options.map((opt, i) => {
-                        const payout = calcPayout(selectedMarket, opt.id, betAmount, jackpot);
+                        const payout = calcPayout(selectedMarket, opt.id, betAmount);
                         return (
                           <button key={opt.id} onClick={() => handleBet(opt.id, opt.label)} disabled={me.tokens < betAmount}
                             className={clsx('rounded-[18px] cursor-pointer font-sans border-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 flex flex-col items-center justify-center py-3 px-2 gap-0.5',
