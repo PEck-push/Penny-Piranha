@@ -134,6 +134,12 @@ export interface Market {
   austriaBlock?: boolean;      // Spezialwette gehört zum Österreich-Block
   comboGroupId?: string;       // Combo-Gruppe: alle Legs teilen dieselbe ID
   comboGroupLabel?: string;    // Obertitel der Combo-Gruppe
+  // Jackpot-Sonderrunden (einsatzfrei, fester Haus-Preis)
+  noStake?: boolean;           // true → Gratis-Tipp ohne Token-Einsatz
+  jackpotBlock?: string;       // 'block1' | 'block2' | 'finale'
+  jackpotBlockLabel?: string;  // z.B. "🏁 Ende Gruppenphase"
+  fixedPrize?: number;         // fester Token-Preis dieser Frage (vom Haus)
+  absorbsJackpotPot?: boolean; // Finale-Headline: schluckt angesparten jackpot
 }
 
 export interface Bet {
@@ -221,6 +227,7 @@ interface AppState {
   registerPlayer: (uid: string, data: Omit<Player, 'id'>) => Promise<void>;
   logoutAuth: () => Promise<void>;
   placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
+  placeTip: (marketId: string, optionId: string, optionLabel: string) => void;
   submitAnswer: (marketId: string, text: string) => void;
   createMarket: (market: Omit<Market, 'id' | 'createdAt'>) => void;
   resolveOpenQuestion: (marketId: string, winnerPlayerIds: string[]) => void;
@@ -253,7 +260,20 @@ export const useStore = create<AppState>()((set, get) => {
     let newJackpot = state.jackpot;
     let resType: ResolutionType;
 
-    if (market.type === 'combo') {
+    if (market.marketSubtype === 'jackpot') {
+      // Einsatzfreie Sonderrunde: fester Haus-Preis, gleichmäßig auf richtige
+      // Tipper verteilt. Die Finale-Headline absorbiert zusätzlich den
+      // angesparten jackpot. Unbeanspruchte/Rest-Token rollen in den jackpot.
+      resType = 'normal';
+      const prize = (market.fixedPrize ?? 0) + (market.absorbsJackpotPot ? state.jackpot : 0);
+      const n = winBets.length;
+      let paid = 0;
+      if (n > 0) {
+        const each = Math.floor(prize / n);
+        winBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + each; paid += each; });
+      }
+      newJackpot = (market.absorbsJackpotPot ? 0 : state.jackpot) + prize - paid;
+    } else if (market.type === 'combo') {
       const multiplier = market.multiplier ?? 3;
       if (winningOptionId === 'combo-win') {
         resType = 'normal';
@@ -275,16 +295,19 @@ export const useStore = create<AppState>()((set, get) => {
       allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
       newJackpot = state.jackpot + (totalPool - refunded);
     } else if (winPool === totalPool) {
+      // Alle auf derselben Seite: reine Rückzahlung des Einsatzes.
+      // Der jackpot bleibt unangetastet (wird für den Finale-Block angespart).
       resType = 'all-same-side';
-      let jpPaid = 0;
-      winBets.forEach(b => { const share = state.jackpot > 0 ? Math.floor((b.amount / winPool) * state.jackpot) : 0; pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount + share; jpPaid += share; });
-      newJackpot = Math.max(0, state.jackpot - jpPaid);
+      winBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
     } else {
+      // Reine Parimutuel-Auszahlung aus den Spieler-Einsätzen. Der jackpot
+      // wird NICHT mehr eingerechnet, sondern angespart; nur der Rundungsrest
+      // fließt hinzu.
       resType = 'normal';
-      const eff = totalPool + state.jackpot;
+      const eff = totalPool;
       let paid = 0;
       winBets.forEach(b => { const p = Math.floor((b.amount / winPool) * eff); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
-      newJackpot = Math.max(0, eff - paid);
+      newJackpot = state.jackpot + Math.max(0, eff - paid);
     }
 
     set(s => ({
@@ -420,17 +443,40 @@ export const useStore = create<AppState>()((set, get) => {
       }
     },
 
+    // Einsatzfreier Gratis-Tipp für Jackpot-Sonderrunden: kein Token-Abzug,
+    // kein Pool-Aufbau — wird als Bet mit amount: 0 gespeichert.
+    placeTip: async (marketId, optionId, optionLabel) => {
+      const state = get();
+      if (!state.currentUser) return;
+      const mkt = state.markets.find(m => m.id === marketId);
+      if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
+      const alreadyTipped = state.bets.some(b => b.marketId === marketId && b.playerId === state.currentUser);
+      if (alreadyTipped) return;
+
+      const bet: Bet = {
+        id: Math.random().toString(36).substring(7),
+        marketId, playerId: state.currentUser, optionId, optionLabel, amount: 0,
+        timestamp: Date.now(),
+      };
+      set(s => ({ bets: [...s.bets, bet] }));
+      if (db) {
+        try {
+          await setDoc(doc(db, 'bets', bet.id), bet);
+        } catch (err) {
+          console.error('[Store] placeTip Fehler:', err);
+        }
+      }
+    },
+
     resolveOpenQuestion: async (marketId, winnerPlayerIds) => {
       const state = get();
       const market = state.markets.find(m => m.id === marketId);
       if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
       const pUpdates: Record<string, number> = {};
-      let newJackpot = state.jackpot;
-      if (winnerPlayerIds.length > 0) {
-        const prize = Math.floor(state.jackpot / winnerPlayerIds.length);
-        winnerPlayerIds.forEach(pid => { pUpdates[pid] = prize; });
-        newJackpot = Math.max(0, state.jackpot - prize * winnerPlayerIds.length);
-      }
+      // Der angesparte jackpot ist für den Finale-Block reserviert und wird hier
+      // nicht mehr ausgeschüttet. Offene Fragen werden vom Admin bei Bedarf
+      // manuell per giveTokens belohnt.
+      const newJackpot = state.jackpot;
       set(s => ({
         jackpot: newJackpot,
         markets: s.markets.map(m =>

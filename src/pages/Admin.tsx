@@ -8,7 +8,7 @@ import type { ScheduleMatch } from '../store';
 import { auth } from '../firebase';
 import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
-import { INTERNATIONAL_SPECIALS, AUSTRIA_SPECIALS, type SpecialBetTemplate } from '../data/specialBets';
+import { INTERNATIONAL_SPECIALS, AUSTRIA_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
@@ -274,6 +274,40 @@ export default function Admin() {
       autoDeductProcessed: true,
     });
     setSpecialMsg(`„${tpl.title}" erstellt.`);
+    setTimeout(() => setSpecialMsg(''), 3000);
+  };
+
+  const createJackpotBet = (tpl: SpecialBetTemplate) => {
+    if (markets.some(m => m.question === tpl.title)) {
+      setSpecialMsg('Diese Jackpot-Runde existiert bereits.');
+      setTimeout(() => setSpecialMsg(''), 3000);
+      return;
+    }
+    createMarket({
+      question: tpl.title,
+      type: 'standard',
+      status: 'open',
+      createdBy: 'admin',
+      options: tpl.options.map(label => ({
+        id: Math.random().toString(36).substring(7),
+        label,
+        pool: 0,
+      })),
+      winningOptionId: null,
+      resolutionType: null,
+      isOpenQuestion: false,
+      marketSubtype: 'jackpot',
+      noStake: true,
+      jackpotBlock: tpl.block,
+      jackpotBlockLabel: tpl.block ? JACKPOT_BLOCK_LABELS[tpl.block] : undefined,
+      fixedPrize: tpl.fixedPrize ?? 0,
+      absorbsJackpotPot: !!tpl.absorbsJackpotPot,
+      minBet: 0,
+      maxBet: 0,
+      autoDeductAmount: 0,
+      autoDeductProcessed: true,
+    });
+    setSpecialMsg(`„${tpl.title}" als Jackpot-Runde erstellt.`);
     setTimeout(() => setSpecialMsg(''), 3000);
   };
 
@@ -571,6 +605,43 @@ export default function Admin() {
                 );
               })}
             </div>
+          </div>
+
+          {/* ── JACKPOT-SONDERRUNDEN ──────────────────────────────── */}
+          <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🎰</span>
+              <div className="text-[11px] font-black text-yellow tracking-[0.15em] uppercase">Jackpot-Sonderrunden</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Einsatzfrei — Spieler tippen gratis. Fester Haus-Preis pro Frage, gleichmäßig auf
+              richtige Tipper verteilt. Resttoken aus „Kein-Gewinner"-Auflösungen sparen sich im
+              Jackpot an (aktuell <b className="text-yellow">{jackpot} TKN</b>) und fließen in die
+              Finale-Frage „Wer wird Weltmeister?". Auflösung über „Märkte verwalten".
+            </div>
+            {(['block1', 'block2', 'finale'] as const).map(block => (
+              <div key={block} className="mb-3 last:mb-0">
+                <div className="text-[10px] font-black text-yellow/80 uppercase tracking-[0.1em] mb-1.5">
+                  {JACKPOT_BLOCK_LABELS[block]}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {JACKPOT_TEMPLATES.filter(t => t.block === block).map(tpl => {
+                    const exists = markets.some(m => m.question === tpl.title);
+                    return (
+                      <button key={tpl.id} onClick={() => createJackpotBet(tpl)} disabled={exists}
+                        className={clsx('text-left rounded-xl p-2.5 border text-[12px] font-bold transition-all flex items-center justify-between gap-2',
+                          exists ? 'border-green/20 bg-green/5 text-muted opacity-60 cursor-not-allowed'
+                                 : 'border-yellow/25 bg-yellow/5 text-white hover:border-yellow/50 cursor-pointer')}>
+                        <span>{exists ? '✓ ' : '+ '}{tpl.title}</span>
+                        <span className="text-[10px] font-black text-yellow shrink-0">
+                          {tpl.absorbsJackpotPot ? `${tpl.fixedPrize}+Pot` : `${tpl.fixedPrize}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* ── CREATE MARKET ─────────────────────────────────────── */}

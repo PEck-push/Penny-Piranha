@@ -6,6 +6,7 @@ import { LayoutDashboard, Target, Trophy, Lock, Calendar } from 'lucide-react';
 import SpielplanTab from '../components/SpielplanTab';
 import RevealScreen from '../components/RevealScreen';
 import FeedWidget from '../components/FeedWidget';
+import { JACKPOT_BLOCK_LABELS } from '../data/specialBets';
 
 const OPT_HEX    = ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
@@ -131,6 +132,7 @@ export default function Dashboard() {
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [betAmount, setBetAmount] = useState(20);
   const [confirmBet, setConfirmBet] = useState<{ optionId: string; optionLabel: string; amount: number } | null>(null);
+  const [confirmTip, setConfirmTip] = useState<{ marketId: string; question: string; optionId: string; optionLabel: string } | null>(null);
   const [openAnswerText, setOpenAnswerText] = useState('');
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
 
@@ -142,6 +144,7 @@ export default function Dashboard() {
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
   const placeBet = useStore(s => s.placeBet);
+  const placeTip = useStore(s => s.placeTip);
   const logoutAuth = useStore(s => s.logoutAuth);
   const submitAnswer = useStore(s => s.submitAnswer);
   const me = players.find(p => p.id === currentUser);
@@ -359,6 +362,64 @@ export default function Dashboard() {
         </>
       )}
 
+      {/* Jackpot-Sonderrunden (einsatzfrei, fester Haus-Preis) */}
+      {(() => {
+        const jpMarkets = markets.filter(m => m.marketSubtype === 'jackpot' && m.status === 'open');
+        if (jpMarkets.length === 0) return null;
+        const blockOrder = ['block1', 'block2', 'finale'];
+        const blocks = [...new Set(jpMarkets.map(m => m.jackpotBlock ?? 'finale'))]
+          .sort((a, b) => blockOrder.indexOf(a) - blockOrder.indexOf(b));
+        return (
+          <>
+            <div className="flex items-center justify-between mb-2.5 mt-1">
+              <span className="text-[12px] font-black text-yellow uppercase tracking-[0.1em]">🎰 Jackpot-Sonderrunden</span>
+              <span className="text-[12px] font-bold text-yellow">gratis tippen</span>
+            </div>
+            {blocks.map(block => {
+              const blockMarkets = jpMarkets.filter(m => (m.jackpotBlock ?? 'finale') === block);
+              const label = blockMarkets[0]?.jackpotBlockLabel ?? JACKPOT_BLOCK_LABELS[block] ?? 'Jackpot';
+              return (
+                <div key={block} className="mb-3 bg-card border border-yellow/30 rounded-[20px] overflow-hidden relative">
+                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-yellow via-orange to-yellow" />
+                  <div className="p-3.5 px-4 border-b border-yellow/20">
+                    <span className="text-[10px] font-black text-yellow bg-yellow/10 border border-yellow/30 rounded-full px-2.5 py-1 tracking-[0.1em]">{label}</span>
+                  </div>
+                  {blockMarkets.map((m, idx) => {
+                    const myTip = bets.find(b => b.marketId === m.id && b.playerId === me.id);
+                    const prizeLabel = m.absorbsJackpotPot
+                      ? `${m.fixedPrize ?? 0} + Jackpot (${jackpot}) TKN`
+                      : `${m.fixedPrize ?? 0} TKN`;
+                    return (
+                      <div key={m.id} className={clsx('p-3.5 px-4', idx < blockMarkets.length - 1 && 'border-b border-yellow/15')}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="text-[13px] font-black text-white flex-1 leading-tight">{m.question}</span>
+                          <span className="text-[10px] font-black text-yellow bg-yellow/10 border border-yellow/25 rounded-md px-2 py-0.5 shrink-0">🏆 {prizeLabel}</span>
+                        </div>
+                        {myTip ? (
+                          <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5 w-fit">
+                            ✓ Dein Gratis-Tipp: {myTip.optionLabel}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {m.options.map(opt => (
+                              <button key={opt.id}
+                                onClick={() => setConfirmTip({ marketId: m.id, question: m.question, optionId: opt.id, optionLabel: opt.label })}
+                                className="text-[11px] font-bold text-white bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 hover:border-yellow/50 hover:bg-yellow/10 transition-all cursor-pointer">
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </>
+        );
+      })()}
+
       {/* Standard (eigene Custom-Märkte; WM-Matches laufen im Spielplan) */}
       {markets.filter(m => m.type === 'standard' && m.status === 'open' && !m.marketSubtype && !m.comboGroupId).length > 0 && (
         <div className="flex items-center justify-between mb-2.5 mt-1">
@@ -449,17 +510,27 @@ export default function Dashboard() {
           if (!m) return null;
           const opt = m.options.find(o => o.id === b.optionId);
           const optIdx = m.options.findIndex(o => o.id === b.optionId);
+          const isJackpot = m.marketSubtype === 'jackpot';
           const potWin = calcPayout(m, b.optionId, b.amount, jackpot);
           return (
             <div key={b.id} className="bg-card border border-border rounded-2xl p-4 mb-2.5">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[14px]">{m.type === 'combo' ? '🔗' : '▶'}</span>
+                <span className="text-[14px]">{isJackpot ? '🎰' : m.type === 'combo' ? '🔗' : '▶'}</span>
                 <span className="text-[14px] font-bold text-white flex-1 leading-tight">{m.question}</span>
                 <span className={clsx('text-[11px] font-black px-2 py-0.5 rounded-md', OPT_BG[optIdx], OPT_TEXT[optIdx])}>{opt?.label}</span>
               </div>
               <div className="text-[12px] text-muted flex justify-between">
-                <span>Einsatz: <b className="text-white">{b.amount} TKN</b></span>
-                <span>Möglicher Gewinn: <b className="text-yellow">~{potWin} TKN</b></span>
+                {isJackpot ? (
+                  <>
+                    <span className="text-green font-bold">Gratis-Tipp</span>
+                    <span>Preistopf: <b className="text-yellow">{m.absorbsJackpotPot ? `${m.fixedPrize ?? 0} + Jackpot` : `${m.fixedPrize ?? 0}`} TKN</b></span>
+                  </>
+                ) : (
+                  <>
+                    <span>Einsatz: <b className="text-white">{b.amount} TKN</b></span>
+                    <span>Möglicher Gewinn: <b className="text-yellow">~{potWin} TKN</b></span>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -469,26 +540,28 @@ export default function Dashboard() {
           const m = markets.find(m => m.id === b.marketId);
           if (!m) return null;
           const optIdx = m.options.findIndex(o => o.id === b.optionId);
+          const isJackpot = m.marketSubtype === 'jackpot';
           const isWin = m.status === 'resolved' && m.winningOptionId === b.optionId;
           const isStorno = m.status === 'cancelled';
           const isRollover = m.status === 'resolved' && m.resolutionType === 'rollover';
           let resultText = '', resultClass = '', resultAmt = '';
-          if (isStorno) { resultText = 'STORNO'; resultClass = 'text-muted'; resultAmt = `+${b.amount} TKN`; }
+          if (isStorno) { resultText = 'STORNO'; resultClass = 'text-muted'; resultAmt = isJackpot ? '' : `+${b.amount} TKN`; }
           else if (isRollover) { resultText = 'ROLLOVER'; resultClass = 'text-purple2'; resultAmt = `+${Math.floor(b.amount * 0.5)} TKN`; }
           else if (isWin) {
-            resultText = 'WON ✓'; resultClass = 'text-green';
-            if (m.type === 'combo') { resultAmt = `+${b.amount * (m.multiplier ?? 3)} TKN`; }
-            else { const wOpt = m.options.find(o => o.id === b.optionId); resultAmt = `+${wOpt ? Math.floor((b.amount / wOpt.pool) * getMarketTotal(m)) : 0} TKN`; }
-          } else { resultText = 'LOST ✗'; resultClass = 'text-red'; resultAmt = `-${b.amount} TKN`; }
+            resultText = isJackpot ? '🎰 GEWONNEN' : 'WON ✓'; resultClass = 'text-green';
+            if (isJackpot) { resultAmt = 'Preis erhalten'; }
+            else if (m.type === 'combo') { resultAmt = `+${b.amount * (m.multiplier ?? 3)} TKN`; }
+            else { const wOpt = m.options.find(o => o.id === b.optionId); resultAmt = `+${wOpt && wOpt.pool > 0 ? Math.floor((b.amount / wOpt.pool) * getMarketTotal(m)) : 0} TKN`; }
+          } else { resultText = isJackpot ? 'Daneben' : 'LOST ✗'; resultClass = 'text-red'; resultAmt = isJackpot ? '' : `-${b.amount} TKN`; }
           return (
             <div key={b.id} className="bg-card border border-border rounded-2xl p-4 mb-2.5 opacity-70">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[14px]">{m.type === 'combo' ? '🔗' : '▶'}</span>
+                <span className="text-[14px]">{isJackpot ? '🎰' : m.type === 'combo' ? '🔗' : '▶'}</span>
                 <span className="text-[14px] font-bold text-white flex-1 leading-tight">{m.question}</span>
                 <span className={clsx('text-[11px] font-black px-2 py-0.5 rounded-md', OPT_BG[optIdx] ?? OPT_BG[0], OPT_TEXT[optIdx] ?? OPT_TEXT[0])}>{b.optionLabel}</span>
               </div>
               <div className="text-[12px] text-muted flex justify-between">
-                <span>Einsatz: <b className="text-white">{b.amount} TKN</b></span>
+                <span>{isJackpot ? <span className="text-green font-bold">Gratis-Tipp</span> : <>Einsatz: <b className="text-white">{b.amount} TKN</b></>}</span>
                 <span className={clsx('font-bold', resultClass)}>{resultText} <span className="font-mono">{resultAmt}</span></span>
               </div>
             </div>
@@ -889,6 +962,27 @@ export default function Dashboard() {
             <div className="flex gap-3 w-full">
               <button onClick={() => setConfirmBet(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
               <button onClick={executeBet} className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(255,212,71,0.4)] transition-all">Bestätigen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONFIRM TIP DIALOG (Jackpot-Sonderrunde, gratis) ──────────────────── */}
+      {confirmTip && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
+          <div className="bg-card border border-yellow/25 rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <div className="w-16 h-16 rounded-full bg-yellow/10 border border-yellow/20 flex items-center justify-center text-[28px] mb-4">🎰</div>
+            <div className="text-[20px] font-black text-white mb-2">Gratis-Tipp abgeben</div>
+            <div className="text-[14px] text-muted mb-6 leading-relaxed">
+              {confirmTip.question}<br />
+              <b className="text-yellow">„{confirmTip.optionLabel}"</b>
+              <br /><span className="text-[12px] text-green/90 font-bold mt-2 block">Kein Einsatz — kostenlos!</span>
+              <span className="text-[12px] text-red/80 font-bold uppercase tracking-wider block">Kann nicht geändert werden!</span>
+            </div>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => setConfirmTip(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
+              <button onClick={() => { placeTip(confirmTip.marketId, confirmTip.optionId, confirmTip.optionLabel); setConfirmTip(null); }}
+                className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(255,212,71,0.4)] transition-all">Tippen</button>
             </div>
           </div>
         </div>

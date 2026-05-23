@@ -43,6 +43,46 @@ export async function resolveMarketAdmin(
   const allBets: BetDoc[] = betsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
   const winBets = allBets.filter(b => b.optionId === winningOptionId);
 
+  // ── Jackpot-Sonderrunde (einsatzfrei, fester Haus-Preis) ────────────────────
+  // Korrekte Tipper teilen den festen Preis gleichmäßig. Die Finale-Headline
+  // absorbiert zusätzlich den angesparten jackpot. Kein Streak/Underdog hier.
+  if (market.marketSubtype === 'jackpot') {
+    const currentJackpot = Number((appSnap.data() as any)?.jackpot ?? 0);
+    const fixedPrize = Number(market.fixedPrize ?? 0);
+    const prize = fixedPrize + (market.absorbsJackpotPot ? currentJackpot : 0);
+    const n = winBets.length;
+    const each = n > 0 ? Math.floor(prize / n) : 0;
+    const paid = each * n;
+
+    const batch = db.batch();
+    batch.update(marketRef, {
+      status: 'resolved',
+      winningOptionId,
+      resolutionType: 'normal',
+      resolvedBy: by,
+      resolvedAt: FieldValue.serverTimestamp(),
+    });
+    const payouts: Record<string, number> = {};
+    for (const b of winBets) {
+      payouts[b.playerId] = (payouts[b.playerId] ?? 0) + each;
+      batch.update(db.collection('players').doc(String(b.playerId)), {
+        tokens: FieldValue.increment(each),
+        unseenResolutions: FieldValue.arrayUnion(marketId),
+      });
+    }
+    // Rest + ungeleerter Preis rollt in den jackpot; absorbierte Headline leert ihn.
+    batch.update(appRef, { jackpot: FieldValue.increment(fixedPrize - paid) });
+    const winLabel = (market.options ?? []).find((o: any) => o.id === winningOptionId)?.label ?? winningOptionId;
+    batch.set(db.collection('feed').doc(), {
+      type: 'jackpot_distribution',
+      marketId,
+      text: `🎰 Jackpot-Runde: ${market.question ?? marketId} → ${winLabel} (${each} TKN je Gewinner)`,
+      ts: FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+    return { ok: true, payouts };
+  }
+
   const options: Array<{ id: string; label: string; pool: number }> = market.options ?? [];
   const totalPool = options.reduce((s, o) => s + (o.pool || 0), 0);
   const winPool = winBets.reduce((s, b) => s + (b.amount || 0), 0);
