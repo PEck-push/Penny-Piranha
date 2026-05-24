@@ -572,9 +572,7 @@ export default function Dashboard() {
     const myBetMarketIds = new Set(myBets.map(b => b.marketId));
     const untipped = markets.filter(m => m.status === 'open' && !myBetMarketIds.has(m.id));
     const goToMarket = (m: Market) => {
-      if (m.matchId) setActiveTab('spielplan');
-      else if (m.marketSubtype === 'jackpot' || m.noStake) setActiveTab('dashboard');
-      else { setActiveTab('dashboard'); openMarketModal(m); }
+      openMarketModal(m);
     };
     return (
       <div className="flex-1 overflow-y-auto no-scrollbar pb-[90px] pt-3.5 px-4 relative z-10">
@@ -616,7 +614,7 @@ export default function Dashboard() {
           const isJackpot = m.marketSubtype === 'jackpot';
           const potWin = calcPayout(m, b.optionId, b.amount);
           return (
-            <div key={b.id} className="bg-card border border-border rounded-2xl p-4 mb-2.5">
+            <div key={b.id} onClick={() => goToMarket(m)} className="bg-card border border-border rounded-2xl p-4 mb-2.5 cursor-pointer transition-all hover:border-blue/40 hover:-translate-y-0.5">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-[14px]">{isJackpot ? '🎰' : m.type === 'combo' ? '🔗' : '▶'}</span>
                 <span className="text-[14px] font-bold text-white flex-1 leading-tight">{m.question}</span>
