@@ -48,6 +48,7 @@ export const initFirebaseSync = () => {
         currentPhase: data.currentPhase ?? 'gruppenphase',
         testMode: data.testMode ?? true,
         adminMessage: data.adminMessage ?? '',
+        whatsappGroupLink: data.whatsappGroupLink ?? '',
       });
     }
   }, err => console.error('[Firebase] appState Fehler:', err)));

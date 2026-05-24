@@ -84,6 +84,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 export default function Register() {
   const navigate = useNavigate();
   const registerPlayer = useStore(s => s.registerPlayer);
+  const whatsappGroupLink = useStore(s => s.whatsappGroupLink);
 
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -599,6 +600,17 @@ export default function Register() {
             Charakter und Name sind nach der Registrierung gesperrt.
           </div>
         </div>
+
+        {whatsappGroupLink && (
+          <a
+            href={whatsappGroupLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 bg-green/10 border border-green/25 rounded-2xl p-3.5 text-green font-black text-[14px] mb-4 no-underline"
+          >
+            💬 WhatsApp-Gruppe beitreten →
+          </a>
+        )}
 
         {error && (
           <div className="bg-red/10 border border-red/30 rounded-xl px-4 py-2.5 text-[13px] text-red text-center mb-3">

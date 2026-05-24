@@ -22,14 +22,34 @@ export default async (_req: Request, _context: Context) => {
     }));
     const wc = list.find((c: any) => c.code === 'WC');
 
-    // Also try the WC match count directly
-    let wcMatches: number | string = 'nicht abgefragt';
+    // WC match details: total, finished, scheduled + earliest dates
+    let wcMatchCount: number | string = 'nicht abgefragt';
+    let wcFinishedCount: number | string = 0;
+    let wcScheduledCount: number | string = 0;
+    let wcEarliestScheduled: string | null = null;
+    let wcEarliestFinished: string | null = null;
+
     if (wc) {
       try {
-        const m = await get('/v4/competitions/WC/matches', apiKey);
-        wcMatches = (m.matches ?? []).length;
+        const [allM, finishedM, scheduledM] = await Promise.all([
+          get('/v4/competitions/WC/matches', apiKey),
+          get('/v4/competitions/WC/matches?status=FINISHED', apiKey),
+          get('/v4/competitions/WC/matches?status=SCHEDULED', apiKey),
+        ]);
+
+        wcMatchCount = (allM.matches ?? []).length;
+        wcFinishedCount = (finishedM.matches ?? []).length;
+        wcScheduledCount = (scheduledM.matches ?? []).length;
+
+        const scheduled = [...(scheduledM.matches ?? [])] as any[];
+        scheduled.sort((a, b) => new Date(a.utcDate).getTime() - new Date(b.utcDate).getTime());
+        wcEarliestScheduled = scheduled[0]?.utcDate ?? null;
+
+        const finished = [...(finishedM.matches ?? [])] as any[];
+        finished.sort((a, b) => new Date(a.utcDate).getTime() - new Date(b.utcDate).getTime());
+        wcEarliestFinished = finished[0]?.utcDate ?? null;
       } catch (e: any) {
-        wcMatches = `Fehler: ${e.message}`;
+        wcMatchCount = `Fehler: ${e.message}`;
       }
     }
 
@@ -38,7 +58,11 @@ export default async (_req: Request, _context: Context) => {
       tokenWorks: true,
       worldCupAvailable: !!wc,
       worldCup: wc ?? null,
-      worldCupMatchCount: wcMatches,
+      worldCupMatchCount: wcMatchCount,
+      worldCupFinishedCount: wcFinishedCount,
+      worldCupScheduledCount: wcScheduledCount,
+      worldCupEarliestScheduled: wcEarliestScheduled,
+      worldCupEarliestFinished: wcEarliestFinished,
       allCompetitions: list,
     });
   } catch (err: any) {

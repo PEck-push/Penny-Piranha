@@ -230,6 +230,7 @@ interface AppState {
   currentPhase: string; // Phase string from appState/global
   testMode: boolean; // per Default true; via "Live gehen" deaktiviert
   adminMessage: string; // optionale Ticker-Nachricht des Admins
+  whatsappGroupLink: string; // Beitrittslink zur WhatsApp-Gruppe (angezeigt nach Registrierung)
   currentUser: string | null;
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
@@ -259,6 +260,7 @@ interface AppState {
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
+  setWhatsappGroupLink: (url: string) => Promise<void>;
   resetState: () => void;
 }
 
@@ -391,6 +393,7 @@ export const useStore = create<AppState>()((set, get) => {
     currentPhase: 'gruppenphase',
     testMode: true,
     adminMessage: '',
+    whatsappGroupLink: '',
     currentUser: null,
 
     login: async (playerId, avatar, avatarColor, avatarId) => {
@@ -764,6 +767,11 @@ export const useStore = create<AppState>()((set, get) => {
     setAdminMessage: async (msg) => {
       set({ adminMessage: msg });
       if (db) await setDoc(doc(db, 'appState', 'global'), { adminMessage: msg }, { merge: true });
+    },
+
+    setWhatsappGroupLink: async (url) => {
+      set({ whatsappGroupLink: url });
+      if (db) await setDoc(doc(db, 'appState', 'global'), { whatsappGroupLink: url }, { merge: true });
     },
 
     resetState: () => {

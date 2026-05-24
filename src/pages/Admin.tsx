@@ -82,6 +82,24 @@ export default function Admin() {
   const [adminTab, setAdminTab] = useState<'maerkte' | 'wetten' | 'spieler' | 'system'>('maerkte');
   // Ticker-Nachricht
   const [tickerMsg, setTickerMsg] = useState('');
+  // API check
+  const [apiCheckStatus, setApiCheckStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [apiCheckResult, setApiCheckResult] = useState<any>(null);
+  // WhatsApp config
+  const [waLinkInput, setWaLinkInput] = useState('');
+  const [waLinkStatus, setWaLinkStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [waTestStatus, setWaTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [waTestMsg, setWaTestMsg] = useState('');
+  // Force-open market (testMode only)
+  const [forceOpenMatchId, setForceOpenMatchId] = useState('');
+  const [forceOpenStatus, setForceOpenStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [forceOpenMsg, setForceOpenMsg] = useState('');
+  // Sim result (testMode only)
+  const [simMarketId, setSimMarketId] = useState<string | null>(null);
+  const [simScoreA, setSimScoreA] = useState('');
+  const [simScoreB, setSimScoreB] = useState('');
+  const [simStatus, setSimStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [simMsg, setSimMsg] = useState('');
 
   const markets = useStore(s => s.markets);
   const answers = useStore(s => s.answers);
@@ -107,6 +125,8 @@ export default function Admin() {
   const setAdminMessage = useStore(s => s.setAdminMessage);
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
+  const whatsappGroupLink = useStore(s => s.whatsappGroupLink ?? '');
+  const setWhatsappGroupLink = useStore(s => s.setWhatsappGroupLink);
   const navigate = useNavigate();
 
   const handlePinInput = (num: string) => {
@@ -207,6 +227,99 @@ export default function Admin() {
     } catch (err: any) {
       setImportStatus('error');
       setImportMsg(err.message || 'Import fehlgeschlagen');
+    }
+  };
+
+  const handleCheckApi = async () => {
+    setApiCheckStatus('loading');
+    setApiCheckResult(null);
+    try {
+      const res = await fetch('/.netlify/functions/check-api');
+      const data = await res.json();
+      setApiCheckResult(data);
+      setApiCheckStatus(data.ok ? 'ok' : 'error');
+    } catch (err: any) {
+      setApiCheckStatus('error');
+      setApiCheckResult({ error: err.message });
+    }
+  };
+
+  const handleSaveWaLink = async () => {
+    if (!waLinkInput.trim()) return;
+    setWaLinkStatus('loading');
+    try {
+      await setWhatsappGroupLink(waLinkInput.trim());
+      setWaLinkStatus('ok');
+      setTimeout(() => setWaLinkStatus('idle'), 2000);
+    } catch {
+      setWaLinkStatus('error');
+    }
+  };
+
+  const handleTestWa = async () => {
+    setWaTestStatus('loading');
+    setWaTestMsg('');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt.');
+      const res = await fetch('/.netlify/functions/test-whatsapp', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setWaTestStatus('ok');
+      setWaTestMsg('✓ Testnachricht gesendet!');
+    } catch (err: any) {
+      setWaTestStatus('error');
+      setWaTestMsg(err.message || 'Fehler');
+    }
+  };
+
+  const handleForceOpen = async () => {
+    if (!forceOpenMatchId) return;
+    setForceOpenStatus('loading');
+    setForceOpenMsg('');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt.');
+      const res = await fetch('/.netlify/functions/force-open-market', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: forceOpenMatchId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setForceOpenStatus('ok');
+      setForceOpenMsg(`✓ Markt erstellt: ${data.question}`);
+      setForceOpenMatchId('');
+    } catch (err: any) {
+      setForceOpenStatus('error');
+      setForceOpenMsg(err.message || 'Fehler');
+    }
+  };
+
+  const handleSimResult = async (marketId: string) => {
+    setSimStatus('loading');
+    setSimMsg('');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt.');
+      const res = await fetch('/.netlify/functions/sim-result', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marketId, scoreA: Number(simScoreA), scoreB: Number(simScoreB) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setSimStatus('ok');
+      setSimMsg(`✓ Aufgelöst: ${data.winningOptionId}`);
+      setSimMarketId(null);
+      setSimScoreA('');
+      setSimScoreB('');
+    } catch (err: any) {
+      setSimStatus('error');
+      setSimMsg(err.message || 'Fehler');
     }
   };
 
@@ -553,6 +666,73 @@ export default function Admin() {
               🌐 Spielplan jetzt laden
             </button>
           </div>
+
+          {/* ── API PRÜFEN ───────────────────────────────────────── */}
+          <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🔍</span>
+              <div className="text-[11px] font-black text-blue2 tracking-[0.15em] uppercase">API prüfen</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Prüft API-Key und WC-Match-Verfügbarkeit. Zeigt FINISHED/SCHEDULED-Zähler und frühestes Spieldatum.
+            </div>
+            {apiCheckResult && (
+              <div className={clsx('rounded-xl px-3 py-2 text-[11px] font-mono mb-3 overflow-auto max-h-[200px] whitespace-pre-wrap break-all',
+                apiCheckStatus === 'ok' ? 'bg-green/10 border border-green/30 text-green' : 'bg-red/10 border border-red/30 text-red')}>
+                {JSON.stringify(apiCheckResult, null, 2)}
+              </div>
+            )}
+            <button
+              onClick={handleCheckApi}
+              disabled={apiCheckStatus === 'loading'}
+              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-blue to-purple font-sans text-[13px] font-black text-white cursor-pointer shadow-[0_4px_18px_rgba(59,110,255,0.3)] transition-all hover:-translate-y-px disabled:opacity-50"
+            >
+              {apiCheckStatus === 'loading' ? 'Prüfe…' : '🔍 API jetzt prüfen'}
+            </button>
+          </div>
+
+          {/* ── FORCE-OPEN MARKET (testMode only) ──────────────── */}
+          {testMode && liveSchedule.length > 0 && (
+            <div className="bg-card border border-yellow/20 rounded-2xl p-4 mb-2.5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[18px]">🧪</span>
+                <div className="text-[11px] font-black text-yellow tracking-[0.15em] uppercase">Markt sofort öffnen (Test)</div>
+              </div>
+              <div className="text-[10px] text-muted mb-3">
+                Öffnet sofort einen WM-Markt — ignoriert die 48h-Regel. Nur im Testmodus.
+              </div>
+              {forceOpenMsg && (
+                <div className={clsx('rounded-xl px-3 py-2 text-[12px] font-bold text-center mb-3',
+                  forceOpenStatus === 'ok' ? 'bg-green/10 border border-green/30 text-green' : 'bg-red/10 border border-red/30 text-red')}>
+                  {forceOpenMsg}
+                </div>
+              )}
+              <select
+                value={forceOpenMatchId}
+                onChange={e => setForceOpenMatchId(e.target.value)}
+                className="w-full bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-yellow/60 mb-2"
+              >
+                <option value="">Spiel wählen…</option>
+                {liveSchedule
+                  .filter(m => !markets.some(mkt => mkt.matchId === m.matchId))
+                  .sort((a, b) => a.kickoffAt - b.kickoffAt)
+                  .slice(0, 30)
+                  .map(m => (
+                    <option key={m.matchId} value={m.matchId}>
+                      {m.teamA} vs. {m.teamB} ({new Date(m.kickoffAt).toLocaleDateString('de-AT')})
+                    </option>
+                  ))
+                }
+              </select>
+              <button
+                onClick={handleForceOpen}
+                disabled={!forceOpenMatchId || forceOpenStatus === 'loading'}
+                className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-yellow to-orange font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {forceOpenStatus === 'loading' ? 'Öffne…' : '🚀 Markt jetzt öffnen'}
+              </button>
+            </div>
+          )}
 
           </>}
 
@@ -965,6 +1145,45 @@ export default function Admin() {
                     ↩️ STORNO
                   </button>
                 </div>
+                {/* Sim-result: only for locked wm-match markets in testMode */}
+                {testMode && m.marketSubtype === 'wm-match' && m.status === 'locked' && (
+                  <div className="mt-2">
+                    {simMarketId === m.id ? (
+                      <div className="bg-yellow/5 border border-yellow/20 rounded-xl p-2.5">
+                        <div className="text-[10px] font-black text-yellow mb-2">⚽ Ergebnis simulieren</div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] text-muted shrink-0">{m.teamA}</span>
+                          <input type="number" min="0" max="20" value={simScoreA} onChange={e => setSimScoreA(e.target.value)}
+                            className="w-10 bg-white/5 border border-border rounded-lg px-2 py-1 text-[13px] text-white text-center outline-none focus:border-yellow/60" />
+                          <span className="text-muted">:</span>
+                          <input type="number" min="0" max="20" value={simScoreB} onChange={e => setSimScoreB(e.target.value)}
+                            className="w-10 bg-white/5 border border-border rounded-lg px-2 py-1 text-[13px] text-white text-center outline-none focus:border-yellow/60" />
+                          <span className="text-[10px] text-muted shrink-0">{m.teamB}</span>
+                        </div>
+                        {simMsg && simMarketId === m.id && (
+                          <div className={clsx('text-[10px] font-bold text-center mb-1.5',
+                            simStatus === 'ok' ? 'text-green' : 'text-red')}>{simMsg}</div>
+                        )}
+                        <div className="flex gap-1.5">
+                          <button onClick={() => handleSimResult(m.id)}
+                            disabled={simScoreA === '' || simScoreB === '' || simStatus === 'loading'}
+                            className="flex-1 p-1.5 rounded-lg bg-yellow/20 border border-yellow/40 text-yellow text-[10px] font-black disabled:opacity-40">
+                            {simStatus === 'loading' ? '…' : '✓ Auflösen'}
+                          </button>
+                          <button onClick={() => { setSimMarketId(null); setSimScoreA(''); setSimScoreB(''); setSimMsg(''); }}
+                            className="px-2.5 rounded-lg bg-white/5 border border-border text-muted text-[10px] font-black">
+                            Abbruch
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setSimMarketId(m.id); setSimScoreA(''); setSimScoreB(''); setSimMsg(''); }}
+                        className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">
+                        ⚽ Ergebnis sim.
+                      </button>
+                    )}
+                  </div>
+                )}
                 {/* Show combo legs status */}
                 {m.type === 'combo' && m.comboLegs && (
                   <div className="mt-2 flex flex-col gap-1">
@@ -1146,6 +1365,51 @@ export default function Admin() {
             {inviteCodeStatus === 'error' && (
               <div className="text-[11px] text-red text-center mt-2">Fehler. Bitte Firebase prüfen.</div>
             )}
+          </div>
+
+          {/* ── WHATSAPP GRUPPE ─────────────────────────────────── */}
+          <div className="bg-card border border-green/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">💬</span>
+              <div className="text-[11px] font-black text-green tracking-[0.15em] uppercase">WhatsApp Gruppe</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Beitrittslink für neue Spieler (erscheint auf Screen 5 der Registrierung). Der Bot sendet tägliche Updates.
+            </div>
+            {whatsappGroupLink && (
+              <div className="bg-white/5 border border-border rounded-xl px-3 py-2 font-mono text-[11px] text-green text-center mb-3 break-all">
+                {whatsappGroupLink}
+              </div>
+            )}
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={waLinkInput}
+                onChange={e => setWaLinkInput(e.target.value)}
+                placeholder="https://chat.whatsapp.com/…"
+                className="flex-1 bg-white/5 border border-border rounded-xl px-3 py-2 text-[13px] text-white placeholder:text-muted/40 outline-none focus:border-green/60"
+              />
+              <button
+                onClick={handleSaveWaLink}
+                disabled={!waLinkInput.trim() || waLinkStatus === 'loading'}
+                className="px-4 py-2 rounded-xl bg-green/20 border border-green/40 text-green text-[12px] font-black disabled:opacity-40"
+              >
+                {waLinkStatus === 'ok' ? '✓' : waLinkStatus === 'loading' ? '…' : 'Setzen'}
+              </button>
+            </div>
+            {waTestMsg && (
+              <div className={clsx('rounded-xl px-3 py-2 text-[12px] font-bold text-center mb-2',
+                waTestStatus === 'ok' ? 'bg-green/10 border border-green/30 text-green' : 'bg-red/10 border border-red/30 text-red')}>
+                {waTestMsg}
+              </div>
+            )}
+            <button
+              onClick={handleTestWa}
+              disabled={waTestStatus === 'loading'}
+              className="w-full p-2.5 border border-green/30 rounded-xl bg-green/10 font-sans text-[12px] font-black text-green cursor-pointer disabled:opacity-40"
+            >
+              {waTestStatus === 'loading' ? 'Sendet…' : '🧪 WhatsApp testen'}
+            </button>
           </div>
 
           {/* ── TICKER-NACHRICHT ────────────────────────────────── */}
