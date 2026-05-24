@@ -96,33 +96,33 @@ export const ALL_SPECIALS = [...INTERNATIONAL_SPECIALS, ...AUSTRIA_SPECIALS];
 //   • Schwierigkeit  → mehr Optionen = geringere Trefferchance = höherer Preis
 //   • Dramaturgie    → Block 1 < Block 2 < Finale (Spannungsbogen)
 //   • Österreich     → eigener Sonderblock, höher dotiert als der Einstieg (Block 1)
-// Vier Blöcke: Block 1 = 250, 🇦🇹 Österreich = 850, Block 2 = 600, Finale = 1300 (Σ 3000).
+// Vier Blöcke: Block 1 = 350, 🇦🇹 Österreich = 750, Block 2 = 600, Finale = 1300 (Σ 3000).
 export const JACKPOT_TEMPLATES: SpecialBetTemplate[] = [
-  // Block 1 — Ende Gruppenphase (Einstieg, kleinster Preis) · Σ 250
+  // Block 1 — Ende Gruppenphase (Einstieg) · Σ 350
   {
     id: 'jp-group-goals',
     title: '🥅 Wie viele Tore fallen in der Gruppenphase?',
     options: ['unter 160', '160–179', '180–199', '200–219', '220+'],
-    block: 'block1', fixedPrize: 250, // 5 Opt., international
+    block: 'block1', fixedPrize: 350, // 5 Opt., international
   },
-  // 🇦🇹 Österreich-Jackpot — eigener Sonderblock, höher dotiert · Σ 850
+  // 🇦🇹 Österreich-Jackpot — eigener Sonderblock · Σ 750
   {
     id: 'jp-aut-goals',
     title: '🇦🇹 Wie viele Tore schießt Österreich in der Gruppenphase?',
     options: ['0', '1', '2', '3', '4', '5', '6+'],
-    block: 'austria', fixedPrize: 300, // 7 Opt., AT-Bonus
+    block: 'austria', fixedPrize: 250, // 7 Opt., AT-Bonus
   },
   {
     id: 'jp-aut-points',
     title: '🇦🇹 Wie viele Punkte holt Österreich in der Gruppenphase?',
     options: ['0', '1', '3', '4', '6', '7', '9'],
-    block: 'austria', fixedPrize: 250, // 7 Opt., AT-Bonus
+    block: 'austria', fixedPrize: 150, // 7 Opt., AT-Bonus
   },
   {
     id: 'jp-aut-progress',
     title: '🇦🇹 Wie weit kommt Österreich?',
     options: ['Gruppenphase', 'Sechzehntelfinale', 'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale', 'Weltmeister'],
-    block: 'austria', fixedPrize: 300, // 7 Opt., AT-Bonus, dramatischster AT-Tipp
+    block: 'austria', fixedPrize: 350, // 7 Opt., AT-Bonus, dramatischster AT-Tipp
   },
   // Block 2 — Ende Sechzehntel-/Achtelfinale (mittlere Preise) · Σ 600
   {
