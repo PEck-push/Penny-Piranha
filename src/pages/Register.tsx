@@ -105,8 +105,6 @@ export default function Register() {
   // Step 4
   const [selectedBody, setSelectedBody] = useState(BODY_STYLES[0]);
 
-  // Step 5: finale Bestätigung
-  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
 
   const displayName = [firstName, lastName].filter(Boolean).join(' ');
 
@@ -609,7 +607,7 @@ export default function Register() {
         )}
 
         <button
-          onClick={() => setShowFinalConfirm(true)}
+          onClick={handleConfirm}
           disabled={loading}
           className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -623,42 +621,6 @@ export default function Register() {
           Charakter doch noch ändern
         </button>
       </div>
-
-      {/* ── Finale Bestätigung (letzte Rückzugsmöglichkeit) ─────────────────────── */}
-      {showFinalConfirm && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
-          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[340px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
-            <img
-              src={selectedAvatar.img}
-              alt={selectedAvatar.n}
-              className="h-[90px] w-auto object-contain mb-3"
-            />
-            <div className="text-[20px] font-black text-white mb-2">Wirklich festlegen?</div>
-            <div className="text-[13px] text-muted mb-2 leading-relaxed">
-              <b className="text-white">{displayName}</b> als <b className="text-white">{selectedAvatar.n}</b> ({selectedBody.label}).
-            </div>
-            <div className="text-[11px] text-yellow font-bold uppercase tracking-wider mb-5">
-              Charakter & Name sind danach dauerhaft gesperrt!
-            </div>
-            <div className="flex flex-col gap-2.5 w-full">
-              <button
-                onClick={handleConfirm}
-                disabled={loading}
-                className="w-full p-3.5 rounded-xl font-black text-bg bg-gradient-to-r from-green to-[#B8860B] shadow-[0_0_15px_rgba(230,180,60,0.4)] transition-all disabled:opacity-50"
-              >
-                {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Konto wird beschworen…</span> : '✓ Ja, jetzt registrieren'}
-              </button>
-              <button
-                onClick={() => setShowFinalConfirm(false)}
-                disabled={loading}
-                className="w-full p-3.5 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-50"
-              >
-                ‹ Zurück — noch ändern
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
