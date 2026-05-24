@@ -8,19 +8,24 @@ const SECTIONS: { icon: string; title: string; body: string }[] = [
     body: 'Die Propheten tippen auf WM-Ereignisse. Wer richtig liegt, gewinnt Token. Am Ende des Turniers zählt, wer das größte Vermögen erprophezeit hat.',
   },
   {
-    icon: '🪙',
-    title: 'Token',
-    body: 'Jeder startet mit einem Guthaben. „Frei" sind die Token, die du gerade einsetzen kannst, „Konto" ist dein Gesamtvermögen inkl. laufender Wetten.',
-  },
-  {
-    icon: '▶️',
-    title: 'Wetten platzieren',
-    body: 'Wähle bei einem offenen Markt eine Antwort und setze Token. Du kannst deine Wette bis zum Anpfiff jederzeit ändern. Danach wird der Markt gesperrt.',
+    icon: '💰',
+    title: 'Wie gewinnt man Token?',
+    body: 'Tipp auf einen offenen Markt, wähle deinen Einsatz — und recht behalten. Bei richtiger Prognose erhältst du deinen proportionalen Anteil aus dem Gesamttopf. Je mehr du einsetzt und je weniger andere auf dasselbe Ergebnis tippen, desto höher dein Gewinn. Liegt niemand richtig, wandert der gesamte Topf in den Jackpot.',
   },
   {
     icon: '⚖️',
-    title: 'Auszahlung (Parimutuel)',
-    body: 'Alle Einsätze eines Marktes wandern in einen Topf. Nach dem Ergebnis teilen die richtigen Tipper den gesamten Topf — je mehr Einsatz, desto größer dein Anteil. Liegt niemand richtig, wandert der Topf in den Jackpot.',
+    title: 'Auszahlung im Detail (Parimutuel)',
+    body: 'Alle Einsätze fließen in einen gemeinsamen Topf. Die richtigen Tipper teilen ihn im Verhältnis ihres Einsatzes zueinander. Beispiel: Topf 300 TKN, du hast 60 von 100 TKN auf den Sieger gesetzt → du bekommst 180 TKN (60 % von 300). Mindestgewinn: Einsatz + 2 Token.',
+  },
+  {
+    icon: '💪',
+    title: 'Underdog-Bonus',
+    body: 'Wer auf einen Außenseiter tippt — eine Option mit unter 15 % Anteil am Gesamttopf zum Zeitpunkt der Markt-Sperrung — kassiert bei einem Treffer zusätzlich 10 % seines Einsatzes als Bonus aus der Hausbank. Mut wird belohnt!',
+  },
+  {
+    icon: '▶️',
+    title: 'Wetten platzieren & ändern',
+    body: 'Wähle bei einem offenen Markt eine Antwort und setze Token. Bis zum Anpfiff bzw. zur Markt-Sperrung kannst du deine Wette jederzeit anpassen. Danach ist sie fix.',
   },
   {
     icon: '🎰',
