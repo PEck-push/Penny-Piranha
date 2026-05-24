@@ -33,6 +33,16 @@ const SECTIONS: { icon: string; title: string; body: string }[] = [
     body: 'Ein eigener Sonderblock dreht sich nur um das ÖFB-Team. Gleiche Gratis-Regeln, eigener Preistopf — für alle Patrioten unter den Propheten.',
   },
   {
+    icon: '💀',
+    title: 'Ausscheiden',
+    body: 'Wer auf unter 25 Token fällt, ist zahlungsunfähig und kann keine neuen Wetten mehr abgeben. Ohne Buyback scheidet man offiziell aus dem Bewerb aus — bleibt aber als stiller Beobachter dabei.',
+  },
+  {
+    icon: '🔄',
+    title: 'Buyback — zweite Chance',
+    body: 'Wer zahlungsunfähig ist und noch keinen Buyback genutzt hat, kann einmalig eine zweite Chance beantragen. Der Admin genehmigt sie: du erhältst 800 Token obendrauf und bist wieder voll dabei. Diese Joker-Option gibt es nur einmal pro Spieler und nur bis Ende des Achtelfinals.',
+  },
+  {
     icon: '🔥',
     title: 'Serien & Erfolge',
     body: 'Mehrere richtige Tipps in Folge bringen dich „On Fire". Für besondere Leistungen schaltest du Abzeichen frei, die dein Profil schmücken.',
