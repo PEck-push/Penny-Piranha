@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useStore, Market, getMarketTotal } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle, User } from 'lucide-react';
+import { isAdminEmail } from '../config/admins';
 import SpielplanTab from '../components/SpielplanTab';
 import RevealScreen from '../components/RevealScreen';
 import FeedWidget from '../components/FeedWidget';
@@ -153,6 +154,7 @@ export default function Dashboard() {
   const logoutAuth = useStore(s => s.logoutAuth);
   const submitAnswer = useStore(s => s.submitAnswer);
   const me = players.find(p => p.id === currentUser);
+  const isAdmin = me?.isAdmin || isAdminEmail(me?.email);
   const [revealDone, setRevealDone] = useState(false);
 
   const { expired: selectedExpired } = useCountdown(selectedMarket?.expiresAt);
@@ -357,17 +359,65 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Österreich-Block */}
-      {markets.filter(m => m.austriaBlock && m.status === 'open').length > 0 && (
-        <>
-          <div className="flex items-center justify-between mb-2.5 mt-1">
-            <span className="text-[12px] font-black text-[#EF3340] uppercase tracking-[0.1em]">🇦🇹 Österreich-Block</span>
-          </div>
-          {markets.filter(m => m.austriaBlock && m.status === 'open').map(m =>
-            renderSpecialCard(m, true),
-          )}
-        </>
-      )}
+      {/* Österreich-Block (gratis tippen) */}
+      {markets.filter(m => m.austriaBlock && m.status === 'open').length > 0 && (() => {
+        const autMarkets = markets.filter(m => m.austriaBlock && m.status === 'open');
+        return (
+          <>
+            <div className="flex items-center justify-between mb-2.5 mt-1">
+              <span className="text-[12px] font-black text-[#EF3340] uppercase tracking-[0.1em]">🇦🇹 Österreich-Block</span>
+              <span className="text-[12px] font-bold text-[#EF3340]">gratis tippen</span>
+            </div>
+            <div className="mb-3 bg-card border border-[#EF3340]/40 rounded-[20px] overflow-hidden relative">
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#EF3340] via-white to-[#EF3340]" />
+              {autMarkets.map((m, idx) => {
+                const myTip = bets.find(b => b.marketId === m.id && b.playerId === me.id);
+                const isChangingTip = changingTipMarket === m.id;
+                return (
+                  <div key={m.id} className={clsx('p-3.5 px-4', idx < autMarkets.length - 1 && 'border-b border-[#EF3340]/15')}>
+                    <div className="text-[13px] font-black text-white leading-tight mb-2.5">{m.question}</div>
+                    {myTip && !isChangingTip ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5">
+                          ✓ Dein Tipp: {myTip.optionLabel}
+                        </div>
+                        {m.status === 'open' && (
+                          <button onClick={() => setChangingTipMarket(m.id)}
+                            className="text-[10px] font-black text-[#EF3340] border border-[#EF3340]/30 bg-[#EF3340]/5 hover:bg-[#EF3340]/15 rounded-lg px-2 py-1.5 transition-colors cursor-pointer">
+                            ✏️ Ändern
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {isChangingTip && (
+                          <div className="w-full text-[10px] font-black text-[#EF3340] mb-1">✏️ Neuen Tipp wählen:</div>
+                        )}
+                        {m.options.map(opt => (
+                          <button key={opt.id}
+                            onClick={() => {
+                              if (isChangingTip) { changeTip(m.id, opt.id, opt.label); setChangingTipMarket(null); }
+                              else setConfirmTip({ marketId: m.id, question: m.question, optionId: opt.id, optionLabel: opt.label });
+                            }}
+                            className="text-[11px] font-bold text-white bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 transition-all cursor-pointer hover:border-[#EF3340]/50 hover:bg-[#EF3340]/10">
+                            {opt.label}
+                          </button>
+                        ))}
+                        {isChangingTip && (
+                          <button onClick={() => setChangingTipMarket(null)}
+                            className="text-[11px] text-muted border border-white/10 rounded-lg px-2.5 py-1.5 hover:text-white cursor-pointer">
+                            Abbrechen
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Jackpot-Sonderrunden (einsatzfrei, fester Haus-Preis) */}
       {(() => {
@@ -713,17 +763,21 @@ export default function Dashboard() {
       {/* Top Bar */}
       {activeTab === 'dashboard' && (
         <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between gap-2.5">
-          <img src="/logo-icon.webp" alt="Krügerl Propheten" className="h-9 w-9 object-contain shrink-0" />
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
-              <span className="text-[14px]">🎰</span>
-              <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
-            </div>
-            <button onClick={() => navigate('/rules')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
+          <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
+            <span className="text-[14px]">🎰</span>
+            <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/rules')} className="w-8 h-8 rounded-full bg-yellow/10 border border-yellow/30 flex items-center justify-center text-yellow hover:bg-yellow/20 transition-colors">
               <HelpCircle className="w-4 h-4" />
             </button>
-            <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
-              <Lock className="w-3.5 h-3.5" />
+            {isAdmin && (
+              <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
+                <Lock className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button onClick={() => navigate('/profile')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
+              <User className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

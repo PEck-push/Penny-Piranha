@@ -102,6 +102,8 @@ export interface Player {
   unseenResolutions?: string[];
   // Test-Spieler (erfundene Mitspieler, nur im Testmodus) — beim Reset gelöscht
   isTestPlayer?: boolean;
+  // Admin-Rolle (in Firestore per Hand oder über Admin-UI setzen)
+  isAdmin?: boolean;
 }
 
 export interface Market {
