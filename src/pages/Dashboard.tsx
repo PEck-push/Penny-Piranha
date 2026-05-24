@@ -134,6 +134,8 @@ export default function Dashboard() {
   const [betAmount, setBetAmount] = useState(20);
   const [confirmBet, setConfirmBet] = useState<{ optionId: string; optionLabel: string; amount: number } | null>(null);
   const [confirmTip, setConfirmTip] = useState<{ marketId: string; question: string; optionId: string; optionLabel: string } | null>(null);
+  const [changingBetMarket, setChangingBetMarket] = useState<string | null>(null);
+  const [changingTipMarket, setChangingTipMarket] = useState<string | null>(null);
   const [openAnswerText, setOpenAnswerText] = useState('');
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
 
@@ -144,8 +146,10 @@ export default function Dashboard() {
   const bets = useStore(s => s.bets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
-  const placeBet = useStore(s => s.placeBet);
-  const placeTip = useStore(s => s.placeTip);
+  const placeBet  = useStore(s => s.placeBet);
+  const placeTip  = useStore(s => s.placeTip);
+  const changeBet = useStore(s => s.changeBet);
+  const changeTip = useStore(s => s.changeTip);
   const logoutAuth = useStore(s => s.logoutAuth);
   const submitAnswer = useStore(s => s.submitAnswer);
   const me = players.find(p => p.id === currentUser);
@@ -393,30 +397,61 @@ export default function Dashboard() {
                   </div>
                   {blockMarkets.map((m, idx) => {
                     const myTip = bets.find(b => b.marketId === m.id && b.playerId === me.id);
-                    const prizeLabel = m.absorbsJackpotPot
-                      ? `${m.fixedPrize ?? 0} + Jackpot (${jackpot}) TKN`
-                      : `${m.fixedPrize ?? 0} TKN`;
+                    const totalPrize = (m.fixedPrize ?? 0) + (m.absorbsJackpotPot ? jackpot : 0);
+                    const tippers = bets.filter(b => b.marketId === m.id).length;
+                    const isChangingTip = changingTipMarket === m.id;
                     return (
                       <div key={m.id} className={clsx('p-3.5 px-4', idx < blockMarkets.length - 1 && (aut ? 'border-b border-[#EF3340]/15' : 'border-b border-yellow/15'))}>
-                        <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
                           <span className="text-[13px] font-black text-white flex-1 leading-tight">{m.question}</span>
-                          <span className={clsx('text-[10px] font-black rounded-md px-2 py-0.5 shrink-0',
-                            aut ? 'text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/25' : 'text-yellow bg-yellow/10 border border-yellow/25')}>🏆 {prizeLabel}</span>
                         </div>
-                        {myTip ? (
-                          <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5 w-fit">
-                            ✓ Dein Gratis-Tipp: {myTip.optionLabel}
+                        {/* Preis-Info */}
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <span className={clsx('text-[11px] font-black rounded-md px-2 py-0.5',
+                            aut ? 'text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/25' : 'text-yellow bg-yellow/10 border border-yellow/25')}>
+                            🏆 {totalPrize} TKN
+                          </span>
+                          {tippers > 0 && (
+                            <span className="text-[10px] text-muted">
+                              ≈ {Math.floor(totalPrize / tippers)} TKN pro Tipper ({tippers})
+                            </span>
+                          )}
+                        </div>
+                        {myTip && !isChangingTip ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5">
+                              ✓ Dein Tipp: {myTip.optionLabel}
+                            </div>
+                            {m.status === 'open' && (
+                              <button onClick={() => setChangingTipMarket(m.id)}
+                                className={clsx('text-[10px] font-black rounded-lg px-2 py-1.5 border transition-colors cursor-pointer',
+                                  aut ? 'text-[#EF3340] border-[#EF3340]/30 bg-[#EF3340]/5 hover:bg-[#EF3340]/15' : 'text-yellow border-yellow/30 bg-yellow/5 hover:bg-yellow/15')}>
+                                ✏️ Ändern
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-1.5">
+                            {isChangingTip && (
+                              <div className="w-full text-[10px] font-black text-yellow mb-1">✏️ Neuen Tipp wählen:</div>
+                            )}
                             {m.options.map(opt => (
                               <button key={opt.id}
-                                onClick={() => setConfirmTip({ marketId: m.id, question: m.question, optionId: opt.id, optionLabel: opt.label })}
+                                onClick={() => {
+                                  if (isChangingTip) { changeTip(m.id, opt.id, opt.label); setChangingTipMarket(null); }
+                                  else setConfirmTip({ marketId: m.id, question: m.question, optionId: opt.id, optionLabel: opt.label });
+                                }}
                                 className={clsx('text-[11px] font-bold text-white bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 transition-all cursor-pointer',
                                   aut ? 'hover:border-[#EF3340]/50 hover:bg-[#EF3340]/10' : 'hover:border-yellow/50 hover:bg-yellow/10')}>
                                 {opt.label}
                               </button>
                             ))}
+                            {isChangingTip && (
+                              <button onClick={() => setChangingTipMarket(null)}
+                                className="text-[11px] text-muted border border-white/10 rounded-lg px-2.5 py-1.5 hover:text-white cursor-pointer">
+                                Abbrechen
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -677,23 +712,14 @@ export default function Dashboard() {
 
       {/* Top Bar */}
       {activeTab === 'dashboard' && (
-        <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <img src="/logo-icon.webp" alt="" className="w-6 h-6 object-contain drop-shadow-[0_0_8px_rgba(230,180,60,0.5)]" />
-              <span className="text-[13px] font-black text-white">Krügerl Propheten</span>
-            </div>
-            <div className="text-[11px] text-muted mt-[1px]">Hey, <b className="text-green">{me.name}</b></div>
+        <div className="relative z-30 px-5 pt-2.5 flex items-center justify-end gap-2.5">
+          <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
+            <span className="text-[14px]">🎰</span>
+            <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
           </div>
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
-              <span className="text-[14px]">🎰</span>
-              <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
-            </div>
-            <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
-              <Lock className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
+            <Lock className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -714,14 +740,14 @@ export default function Dashboard() {
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Konto</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[14px]">🪙</span>
-                  <span className="font-mono text-[16px] font-bold text-white">{me.tokens + bets.filter(b => b.playerId === me.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s,b)=>s+b.amount,0)}</span>
+                  <span className="font-mono text-[16px] font-bold text-green">{me.tokens + bets.filter(b => b.playerId === me.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s,b)=>s+b.amount,0)}</span>
                 </div>
               </div>
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Frei</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[14px]">🪙</span>
-                  <span className="font-mono text-[16px] font-bold text-green">{me.tokens}</span>
+                  <span className="font-mono text-[16px] font-bold text-white">{me.tokens}</span>
                 </div>
               </div>
             </div>
@@ -920,35 +946,50 @@ export default function Dashboard() {
 
                   {/* Bet Buttons */}
                   {!selectedExpired && (() => {
-                    const alreadyBet = bets.some(b => b.marketId === selectedMarket.id && b.playerId === me.id);
-                    if (alreadyBet) {
-                      const myBet = bets.find(b => b.marketId === selectedMarket.id && b.playerId === me.id);
+                    const myBet = bets.find(b => b.marketId === selectedMarket.id && b.playerId === me.id);
+                    const isChanging = changingBetMarket === selectedMarket.id;
+                    if (myBet && !isChanging) {
                       return (
                         <div className="p-4 px-5 pb-7 text-center">
-                          <div className="bg-yellow/10 border border-yellow/25 rounded-2xl p-4">
-                            <div className="text-[20px] mb-1">🔒</div>
-                            <div className="text-[13px] font-black text-yellow">Bereits gewettet</div>
-                            <div className="text-[11px] text-muted mt-1">
-                              {myBet?.amount} TKN auf <b className="text-white">{myBet?.optionLabel}</b>
+                          <div className="bg-green/10 border border-green/25 rounded-2xl p-4">
+                            <div className="text-[13px] font-black text-green">✓ Deine Wette</div>
+                            <div className="text-[15px] font-black text-white mt-1">
+                              {myBet.amount} TKN auf „{myBet.optionLabel}"
                             </div>
+                            {selectedMarket.status === 'open' && (
+                              <button onClick={() => { setChangingBetMarket(selectedMarket.id); setBetAmount(myBet.amount); }}
+                                className="mt-3 text-[11px] font-black text-yellow border border-yellow/30 bg-yellow/10 rounded-lg px-3 py-1.5 hover:bg-yellow/20 transition-colors cursor-pointer">
+                                ✏️ Wette ändern
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
                     }
                     return (
-                    <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
-                      {selectedMarket.options.map((opt, i) => {
-                        const payout = calcPayout(selectedMarket, opt.id, betAmount);
-                        return (
-                          <button key={opt.id} onClick={() => handleBet(opt.id, opt.label)} disabled={me.tokens < betAmount}
-                            className={clsx('rounded-[18px] cursor-pointer font-sans border-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 flex flex-col items-center justify-center py-3 px-2 gap-0.5',
-                              i === 0 ? `border-transparent bg-gradient-to-br from-green to-[#B8860B] text-bg ${OPT_SHADOW[0]}` : `bg-transparent ${OPT_TEXT[i]} ${OPT_BORDER[i]} ${OPT_HOVER[i]}`)}>
-                            <span className="text-[14px] font-black leading-none">{opt.label}</span>
-                            <span className={clsx('text-[10px] font-bold', i === 0 ? 'text-bg/70' : 'opacity-60')}>~{payout} TKN</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <>
+                      {isChanging && (
+                        <div className="px-5 pt-3 text-[11px] font-black text-yellow text-center">
+                          ✏️ Wette wird geändert — wähle eine neue Option
+                        </div>
+                      )}
+                      <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
+                        {selectedMarket.options.map((opt, i) => {
+                          const payout = calcPayout(selectedMarket, opt.id, betAmount);
+                          const handleClick = isChanging
+                            ? () => { changeBet(selectedMarket.id, opt.id, opt.label, betAmount); setChangingBetMarket(null); setSelectedMarket(null); }
+                            : () => handleBet(opt.id, opt.label);
+                          return (
+                            <button key={opt.id} onClick={handleClick} disabled={me.tokens + (myBet?.amount ?? 0) < betAmount}
+                              className={clsx('rounded-[18px] cursor-pointer font-sans border-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 flex flex-col items-center justify-center py-3 px-2 gap-0.5',
+                                i === 0 ? `border-transparent bg-gradient-to-br from-green to-[#B8860B] text-bg ${OPT_SHADOW[0]}` : `bg-transparent ${OPT_TEXT[i]} ${OPT_BORDER[i]} ${OPT_HOVER[i]}`)}>
+                              <span className="text-[14px] font-black leading-none">{opt.label}</span>
+                              <span className={clsx('text-[10px] font-bold', i === 0 ? 'text-bg/70' : 'opacity-60')}>~{payout} TKN</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
                     );
                   })()}
                 </div>
@@ -987,7 +1028,7 @@ export default function Dashboard() {
               {confirmTip.question}<br />
               <b className="text-yellow">„{confirmTip.optionLabel}"</b>
               <br /><span className="text-[12px] text-green/90 font-bold mt-2 block">Kein Einsatz — kostenlos!</span>
-              <span className="text-[12px] text-red/80 font-bold uppercase tracking-wider block">Kann nicht geändert werden!</span>
+              <span className="text-[12px] text-muted block mt-0.5">Änderbar bis zum 1. WM-Spiel.</span>
             </div>
             <div className="flex gap-3 w-full">
               <button onClick={() => setConfirmTip(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>

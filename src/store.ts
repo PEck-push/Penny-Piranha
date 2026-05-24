@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db, auth } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export type FeedEventType =
@@ -236,6 +236,9 @@ interface AppState {
   placeBetAs: (playerId: string, marketId: string, optionId: string, optionLabel: string, amount: number) => Promise<void>;
   placeTip: (marketId: string, optionId: string, optionLabel: string) => void;
   placeTipAs: (playerId: string, marketId: string, optionId: string, optionLabel: string) => Promise<void>;
+  changeBet: (marketId: string, newOptionId: string, newOptionLabel: string, newAmount: number) => Promise<void>;
+  changeTip: (marketId: string, newOptionId: string, newOptionLabel: string) => Promise<void>;
+  closeMarket: (marketId: string) => Promise<void>;
   createTestPlayer: (name?: string) => Promise<void>;
   autoBetTestPlayers: () => Promise<void>;
   fullReset: () => Promise<void>;
@@ -488,6 +491,80 @@ export const useStore = create<AppState>()((set, get) => {
         } catch (err) {
           console.error('[Store] placeTipAs Fehler:', err);
         }
+      }
+    },
+
+    changeBet: async (marketId, newOptionId, newOptionLabel, newAmount) => {
+      const state = get();
+      const uid = state.currentUser;
+      if (!uid) return;
+      const oldBet = state.bets.find(b => b.marketId === marketId && b.playerId === uid);
+      const player = state.players.find(p => p.id === uid);
+      const market = state.markets.find(m => m.id === marketId);
+      if (!oldBet || !player || !market || market.status !== 'open') return;
+      if (player.tokens + oldBet.amount < newAmount) return;
+      const newBet: Bet = { id: Math.random().toString(36).substring(7), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
+      set(s => ({
+        bets: [...s.bets.filter(b => b.id !== oldBet.id), newBet],
+        players: s.players.map(p => p.id === uid ? { ...p, tokens: p.tokens + oldBet.amount - newAmount } : p),
+        markets: s.markets.map(m => m.id === marketId ? { ...m, options: m.options.map(o => o.id === oldBet.optionId ? { ...o, pool: o.pool - oldBet.amount } : o.id === newOptionId ? { ...o, pool: o.pool + newAmount } : o) } : m),
+      }));
+      if (db) {
+        try {
+          const updatedMkt = get().markets.find(m => m.id === marketId);
+          const batch = writeBatch(db);
+          batch.delete(doc(db, 'bets', oldBet.id));
+          batch.set(doc(db, 'bets', newBet.id), newBet);
+          batch.update(doc(db, 'players', uid), { tokens: player.tokens + oldBet.amount - newAmount });
+          if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
+          await batch.commit();
+        } catch (err) { console.error('[Store] changeBet Fehler:', err); }
+      }
+    },
+
+    changeTip: async (marketId, newOptionId, newOptionLabel) => {
+      const state = get();
+      const uid = state.currentUser;
+      if (!uid) return;
+      const oldBet = state.bets.find(b => b.marketId === marketId && b.playerId === uid);
+      const market = state.markets.find(m => m.id === marketId);
+      if (!oldBet || !market || market.status !== 'open') return;
+      const newBet: Bet = { id: Math.random().toString(36).substring(7), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() };
+      set(s => ({ bets: [...s.bets.filter(b => b.id !== oldBet.id), newBet] }));
+      if (db) {
+        try {
+          const batch = writeBatch(db);
+          batch.delete(doc(db, 'bets', oldBet.id));
+          batch.set(doc(db, 'bets', newBet.id), newBet);
+          await batch.commit();
+        } catch (err) { console.error('[Store] changeTip Fehler:', err); }
+      }
+    },
+
+    closeMarket: async (marketId) => {
+      const state = get();
+      const market = state.markets.find(m => m.id === marketId);
+      if (!market || market.status !== 'open') return;
+      const marketBets = state.bets.filter(b => b.marketId === marketId);
+      const pUpdates: Record<string, number> = {};
+      marketBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
+      const clearedOptions = market.options.map(o => ({ ...o, pool: 0 }));
+      set(s => ({
+        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'cancelled' as const, options: clearedOptions } : m),
+        bets: s.bets.filter(b => b.marketId !== marketId),
+        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
+      }));
+      if (db) {
+        try {
+          const batch = writeBatch(db);
+          batch.update(doc(db, 'markets', marketId), { status: 'cancelled', options: clearedOptions });
+          for (const [pid, amt] of Object.entries(pUpdates)) {
+            const p = state.players.find(pl => pl.id === pid);
+            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
+          }
+          for (const bet of marketBets) batch.delete(doc(db, 'bets', bet.id));
+          await batch.commit();
+        } catch (err) { console.error('[Store] closeMarket Fehler:', err); }
       }
     },
 
