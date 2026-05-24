@@ -244,8 +244,7 @@ export default function Register() {
         {BG}
         <div className="relative z-10 px-5 pt-8 flex-1 flex flex-col">
           <div className="text-center pb-5">
-            <span className="block text-[68px] leading-none" style={{ animation: 'auraGlow 3s ease-in-out infinite' }}>🍺</span>
-            <div className="text-[16px] font-black text-white tracking-[-0.5px] mt-1">KRÜGERL PROPHETEN</div>
+            <img src="/logo-full.webp" alt="Krügerl Propheten — Das WM-Tippspiel" className="h-24 w-auto mx-auto" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
           </div>
 
           <StepDots current={1} total={5} />
@@ -278,7 +277,7 @@ export default function Register() {
             <button
               onClick={handleInviteCode}
               disabled={loading || !inviteCode.trim()}
-              className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Prüfen…</span> : 'Weiter →'}
             </button>
@@ -382,7 +381,7 @@ export default function Register() {
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-12 pb-10 px-5">
             <button
               onClick={handleAccountNext}
-              className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5"
+              className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-0.5"
             >
               Weiter → Charakter wählen
             </button>
@@ -440,7 +439,7 @@ export default function Register() {
                 <div className={clsx(
                   'w-12 h-12 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all duration-150 overflow-hidden',
                   selectedAvatar.id === a.id
-                    ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(0,214,143,0.35)] scale-110'
+                    ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-110'
                     : 'border-border group-hover:border-blue/50 group-hover:scale-110',
                 )}>
                   <img src={a.img} alt={a.n} className="w-full h-full object-cover" />
@@ -459,7 +458,7 @@ export default function Register() {
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-4 pb-8 px-5 z-30">
           <button
             onClick={() => setStep(4)}
-            className="w-full p-[14px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_30px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-[2px] flex items-center justify-center gap-2.5"
+            className="w-full p-[14px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_30px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-[2px] flex items-center justify-center gap-2.5"
           >
             <img src={selectedAvatar.img} alt={selectedAvatar.n} className="w-7 h-7 object-cover rounded-full" />
             <span>Weiter als {selectedAvatar.n}</span>
@@ -517,7 +516,7 @@ export default function Register() {
                   className={clsx(
                     'flex flex-col items-center gap-2 rounded-2xl border-2 p-3 transition-all',
                     selectedBody.id === style.id
-                      ? 'border-green bg-green/10 shadow-[0_0_20px_rgba(0,214,143,0.2)]'
+                      ? 'border-green bg-green/10 shadow-[0_0_20px_rgba(230,180,60,0.2)]'
                       : 'border-border bg-white/5 hover:border-blue/40',
                   )}
                 >
@@ -533,7 +532,7 @@ export default function Register() {
           <div className="pb-8 pt-4">
             <button
               onClick={() => setStep(5)}
-              className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5"
+              className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-0.5"
             >
               Weiter → Bestätigung
             </button>
@@ -612,7 +611,7 @@ export default function Register() {
         <button
           onClick={() => setShowFinalConfirm(true)}
           disabled={loading}
-          className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Konto wird beschworen…</span> : '✓ Registrieren & Spielen'}
         </button>
@@ -645,7 +644,7 @@ export default function Register() {
               <button
                 onClick={handleConfirm}
                 disabled={loading}
-                className="w-full p-3.5 rounded-xl font-black text-bg bg-gradient-to-r from-green to-[#00A86E] shadow-[0_0_15px_rgba(0,214,143,0.4)] transition-all disabled:opacity-50"
+                className="w-full p-3.5 rounded-xl font-black text-bg bg-gradient-to-r from-green to-[#B8860B] shadow-[0_0_15px_rgba(230,180,60,0.4)] transition-all disabled:opacity-50"
               >
                 {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Konto wird beschworen…</span> : '✓ Ja, jetzt registrieren'}
               </button>

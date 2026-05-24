@@ -407,7 +407,7 @@ export default function Admin() {
       <div className="flex-1 flex flex-col bg-bg relative">
         <div className="absolute inset-0 z-[100] bg-[#02040C]/95 backdrop-blur-2xl flex flex-col items-center justify-center">
           <button onClick={() => navigate('/dashboard')} className="absolute top-6 left-6 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">✕</button>
-          <span className="text-[64px] leading-none mb-3" style={{ animation: 'auraGlow 3s ease-in-out infinite' }}>🍺</span>
+          <img src="/logo-icon.webp" alt="" className="h-[72px] w-auto mb-3" style={{ animation: 'auraGlow 3s ease-in-out infinite' }} />
           <div className="text-[18px] font-black text-white mb-1">Admin-Zugang</div>
           <div className="text-[12px] text-muted mb-7">Nur für den Host · PIN: 1234</div>
           <div className="flex gap-3 mb-8">
@@ -435,7 +435,7 @@ export default function Admin() {
       <div className="relative z-10 flex flex-col flex-1">
         <div className="p-3.5 px-5 border-b border-border flex items-center justify-between shrink-0">
           <div className="text-[17px] font-black text-white flex items-center gap-2">
-            <span className="text-[18px]">🍺</span> Admin Panel
+            <img src="/logo-icon.webp" alt="" className="w-6 h-6 object-contain" /> Admin Panel
           </div>
           <div className="text-[10px] font-black tracking-[0.1em] text-red bg-red/10 border border-red/30 rounded-lg px-2.5 py-1">HOST ONLY</div>
         </div>
@@ -473,7 +473,7 @@ export default function Admin() {
                 <button
                   onClick={() => setGoLiveModal(true)}
                   disabled={goLiveStatus === 'loading'}
-                  className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(0,214,143,0.3)] transition-all hover:-translate-y-px disabled:opacity-50"
+                  className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px disabled:opacity-50"
                 >
                   🟢 Testmodus beenden & live gehen
                 </button>
@@ -517,7 +517,7 @@ export default function Admin() {
           </div>
 
           {/* ── WM MATCH MARKT ────────────────────────────────────── */}
-          <div className="bg-card border border-[#00D68F]/20 rounded-2xl p-4 mb-2.5">
+          <div className="bg-card border border-[#E6B43C]/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-3.5">
               <span className="text-[18px]">⚽</span>
               <div className="text-[11px] font-black text-green tracking-[0.15em] uppercase">WM-Match Markt öffnen</div>
@@ -581,7 +581,7 @@ export default function Admin() {
             <button
               onClick={handleCreateWmMarket}
               disabled={!wmMatchId || markets.some(m => m.matchId === wmMatchId)}
-              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(0,214,143,0.3)] transition-all hover:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed"
             >
               ⚽ Einzelnen WM-Markt öffnen
             </button>
@@ -843,7 +843,7 @@ export default function Admin() {
                     {customOptions.map((opt, i) => (
                       <div key={i} className="flex gap-2 items-center">
                         <div className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0"
-                          style={{ backgroundColor: ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'][i]+'33', color: ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'][i] }}>
+                          style={{ backgroundColor: ['#E6B43C','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'][i]+'33', color: ['#E6B43C','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'][i] }}>
                           {i+1}
                         </div>
                         <input type="text" value={opt} onChange={e => { const n=[...customOptions]; n[i]=e.target.value; setCustomOptions(n); }}
@@ -975,7 +975,7 @@ export default function Admin() {
               className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-blue2 placeholder:text-muted mb-3" />
             <input type="number" value={giveAmount} onChange={e => setGiveAmount(e.target.value)}
               className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-blue2 mb-3" />
-            <button onClick={handleGiveTokens} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(0,214,143,0.3)] transition-all hover:-translate-y-px">🪙 Tokens vergeben</button>
+            <button onClick={handleGiveTokens} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px">🪙 Tokens vergeben</button>
           </div>
 
           {/* ── JACKPOT ─────────────────────────────────────────── */}
@@ -1197,7 +1197,7 @@ export default function Admin() {
                       className={clsx(
                         "flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all",
                         isWinner
-                          ? "bg-green/10 border-green/50 shadow-[0_0_12px_rgba(0,214,143,0.2)]"
+                          ? "bg-green/10 border-green/50 shadow-[0_0_12px_rgba(230,180,60,0.2)]"
                           : "bg-input border-border hover:border-blue/40"
                       )}
                     >
@@ -1233,7 +1233,7 @@ export default function Admin() {
                     setOpenQModal(null);
                     setSelectedWinners(new Set());
                   }}
-                  className="flex-1 p-3 rounded-xl font-black text-white bg-gradient-to-r from-green to-[#00A86E] shadow-[0_0_15px_rgba(0,214,143,0.4)] transition-all">
+                  className="flex-1 p-3 rounded-xl font-black text-white bg-gradient-to-r from-green to-[#B8860B] shadow-[0_0_15px_rgba(230,180,60,0.4)] transition-all">
                   {selectedWinners.size === 0 ? 'Keine Gewinner' : `${selectedWinners.size} Gewinner bestätigen ✓`}
                 </button>
               </div>
@@ -1258,7 +1258,7 @@ export default function Admin() {
             <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-5">Kann nicht rückgängig gemacht werden!</div>
             <div className="flex gap-3 w-full">
               <button onClick={() => setGoLiveModal(false)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
-              <button onClick={handleGoLive} className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-green to-[#00A86E] shadow-[0_0_15px_rgba(0,214,143,0.4)] transition-all">Live gehen ✓</button>
+              <button onClick={handleGoLive} className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-green to-[#B8860B] shadow-[0_0_15px_rgba(230,180,60,0.4)] transition-all">Live gehen ✓</button>
             </div>
           </div>
         </div>

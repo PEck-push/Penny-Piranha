@@ -8,12 +8,12 @@ import RevealScreen from '../components/RevealScreen';
 import FeedWidget from '../components/FeedWidget';
 import { JACKPOT_BLOCK_LABELS } from '../data/specialBets';
 
-const OPT_HEX    = ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
+const OPT_HEX    = ['#E6B43C','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
 const OPT_BG     = ['bg-green/10','bg-red/10','bg-blue/10','bg-yellow/10','bg-purple/10'];
 const OPT_BORDER = ['border-green/35','border-red/35','border-blue2/35','border-yellow/35','border-purple2/35'];
 const OPT_HOVER  = ['hover:bg-green/15','hover:bg-red/15','hover:bg-blue/15','hover:bg-yellow/15','hover:bg-purple/15'];
-const OPT_SHADOW = ['shadow-[0_8px_32px_rgba(0,214,143,0.35)]','shadow-[0_8px_32px_rgba(255,61,90,0.35)]','shadow-[0_8px_32px_rgba(59,110,255,0.35)]','shadow-[0_8px_32px_rgba(255,212,71,0.35)]','shadow-[0_8px_32px_rgba(139,61,255,0.35)]'];
+const OPT_SHADOW = ['shadow-[0_8px_32px_rgba(230,180,60,0.35)]','shadow-[0_8px_32px_rgba(255,61,90,0.35)]','shadow-[0_8px_32px_rgba(59,110,255,0.35)]','shadow-[0_8px_32px_rgba(255,212,71,0.35)]','shadow-[0_8px_32px_rgba(139,61,255,0.35)]'];
 
 function calcPayout(market: Market, optionId: string, betAmt: number): number {
   const opt = market.options.find(o => o.id === optionId);
@@ -191,14 +191,14 @@ export default function Dashboard() {
   if (!me) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-bg px-8 gap-5 text-center">
-        <div className="text-[40px]">🍺</div>
+        <img src="/logo-icon.webp" alt="" className="w-20 h-20 object-contain" />
         <div className="text-[18px] font-black text-white">Kein Spielerprofil gefunden</div>
         <div className="text-[13px] text-muted leading-relaxed">
           Dein Account wurde möglicherweise zurückgesetzt.<br />Bitte neu registrieren.
         </div>
         <button
           onClick={() => { logoutAuth(); navigate('/register'); }}
-          className="w-full max-w-[260px] p-3.5 rounded-xl bg-gradient-to-br from-green to-[#00A86E] font-black text-[15px] text-bg shadow-[0_6px_24px_rgba(0,214,143,0.4)]"
+          className="w-full max-w-[260px] p-3.5 rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-black text-[15px] text-bg shadow-[0_6px_24px_rgba(230,180,60,0.4)]"
         >
           Jetzt registrieren
         </button>
@@ -442,7 +442,7 @@ export default function Dashboard() {
           <div key={m.id} onClick={() => openMarketModal(m)} className="bg-card border border-border rounded-[18px] p-4 mb-2.5 cursor-pointer transition-all hover:border-blue/40 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-blue2/40 to-transparent" />
             <div className="flex items-center gap-1.5 mb-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-green shadow-[0_0_6px_rgba(0,214,143,1)] animate-[puls_1.5s_infinite]" />
+              <div className="w-1.5 h-1.5 rounded-full bg-green shadow-[0_0_6px_rgba(230,180,60,1)] animate-[puls_1.5s_infinite]" />
               <span className="text-[10px] font-extrabold text-muted tracking-[0.1em]">Standard</span>
             </div>
             <div className="text-[15px] font-black text-white leading-[1.3] mb-3.5">{m.question}</div>
@@ -635,7 +635,7 @@ export default function Dashboard() {
           {sorted.slice(3).map((p, i) => (
             <div key={p.id} className={clsx("flex items-center gap-3 bg-card border rounded-[14px] p-3 mb-1.5 relative",
               p.id === me.id ? "border-green/40 bg-green/5" : "border-border hover:border-blue/30", p.tokens === 0 && "border-red/25")}>
-              {p.id === me.id && <div className="absolute left-0 top-1/5 bottom-1/5 w-[3px] rounded-r-sm bg-green shadow-[0_0_10px_rgba(0,214,143,1)]" />}
+              {p.id === me.id && <div className="absolute left-0 top-1/5 bottom-1/5 w-[3px] rounded-r-sm bg-green shadow-[0_0_10px_rgba(230,180,60,1)]" />}
               <div className={clsx("font-mono text-[14px] font-bold w-6 text-center", p.id === me.id ? "text-yellow" : p.tokens === 0 ? "text-red" : "text-muted")}>#{i+4}</div>
               <div className="w-9 h-9 rounded-lg bg-input flex items-center justify-center border border-border shrink-0 overflow-hidden">
                 {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
@@ -672,7 +672,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,212,71,.18)_0%,transparent_40%)]" />
       )}
       {activeTab === 'spielplan' && (
-        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(0,214,143,.12)_0%,transparent_50%)]" />
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(230,180,60,.12)_0%,transparent_50%)]" />
       )}
 
       {/* Top Bar */}
@@ -680,9 +680,7 @@ export default function Dashboard() {
         <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between">
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_12px_rgba(0,214,143,0.5)] text-[13px]">
-                🍺
-              </div>
+              <img src="/logo-icon.webp" alt="" className="w-6 h-6 object-contain drop-shadow-[0_0_8px_rgba(230,180,60,0.5)]" />
               <span className="text-[13px] font-black text-white">Krügerl Propheten</span>
             </div>
             <div className="text-[11px] text-muted mt-[1px]">Hey, <b className="text-green">{me.name}</b></div>
@@ -780,7 +778,7 @@ export default function Dashboard() {
                 {label}
               </span>
               {activeTab === tab && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-b-sm bg-green shadow-[0_0_10px_rgba(0,214,143,0.5)]" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-b-sm bg-green shadow-[0_0_10px_rgba(230,180,60,0.5)]" />
               )}
             </div>
           ))}
@@ -791,7 +789,7 @@ export default function Dashboard() {
       {selectedMarket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-3 py-4">
           <div className="bg-bg rounded-[28px] flex flex-col relative overflow-hidden border border-border shadow-[0_20px_60px_rgba(0,0,0,0.7)] w-full max-w-[430px] max-h-[90vh]">
-            <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_-5%,rgba(0,214,143,.2)_0%,transparent_50%)]" />
+            <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_-5%,rgba(230,180,60,.2)_0%,transparent_50%)]" />
             <div className="relative z-10 flex flex-col">
               
 
@@ -944,7 +942,7 @@ export default function Dashboard() {
                         return (
                           <button key={opt.id} onClick={() => handleBet(opt.id, opt.label)} disabled={me.tokens < betAmount}
                             className={clsx('rounded-[18px] cursor-pointer font-sans border-2 transition-all hover:-translate-y-0.5 disabled:opacity-50 flex flex-col items-center justify-center py-3 px-2 gap-0.5',
-                              i === 0 ? `border-transparent bg-gradient-to-br from-green to-[#00A86E] text-bg ${OPT_SHADOW[0]}` : `bg-transparent ${OPT_TEXT[i]} ${OPT_BORDER[i]} ${OPT_HOVER[i]}`)}>
+                              i === 0 ? `border-transparent bg-gradient-to-br from-green to-[#B8860B] text-bg ${OPT_SHADOW[0]}` : `bg-transparent ${OPT_TEXT[i]} ${OPT_BORDER[i]} ${OPT_HOVER[i]}`)}>
                             <span className="text-[14px] font-black leading-none">{opt.label}</span>
                             <span className={clsx('text-[10px] font-bold', i === 0 ? 'text-bg/70' : 'opacity-60')}>~{payout} TKN</span>
                           </button>

@@ -94,7 +94,7 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
       <div className={clsx(
         'absolute inset-0 transition-all duration-700',
         isCorrect
-          ? 'bg-[radial-gradient(ellipse_at_50%_30%,rgba(0,214,143,.25)_0%,transparent_60%)]'
+          ? 'bg-[radial-gradient(ellipse_at_50%_30%,rgba(230,180,60,.25)_0%,transparent_60%)]'
           : isWrong
           ? 'bg-[radial-gradient(ellipse_at_50%_30%,rgba(255,61,90,.18)_0%,transparent_60%)]'
           : 'bg-[radial-gradient(ellipse_at_50%_30%,rgba(59,110,255,.15)_0%,transparent_60%)]',
@@ -161,7 +161,7 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
         {/* Correct */}
         {isCorrect && myBet && (
           <div className="w-full bg-green/10 border border-green/30 rounded-2xl p-5 text-center mb-6 relative overflow-hidden">
-            <div className="absolute inset-0 animate-[pulse_2s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_50%_50%,rgba(0,214,143,.15)_0%,transparent_70%)]" />
+            <div className="absolute inset-0 animate-[pulse_2s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_50%_50%,rgba(230,180,60,.15)_0%,transparent_70%)]" />
             <div className="relative">
               <div className="text-[48px] mb-2">✅</div>
               <div className="text-[22px] font-black text-green mb-1">RICHTIG!</div>
@@ -196,7 +196,7 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
                 <div key={opt.id} className="h-full transition-all"
                   style={{
                     width: `${(opt.pool / poolTotal) * 100}%`,
-                    backgroundColor: ['#3B6EFF','#FFD447','#FF3D5A','#00D68F','#8B3DFF'][i],
+                    backgroundColor: ['#3B6EFF','#FFD447','#FF3D5A','#E6B43C','#8B3DFF'][i],
                   }} />
               ))}
             </div>
@@ -216,7 +216,7 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
         {/* CTA */}
         <button
           onClick={handleNext}
-          className="w-full p-[16px] border-none rounded-[18px] bg-gradient-to-br from-green to-[#00A86E] font-sans text-[16px] font-black text-bg cursor-pointer tracking-[0.02em] shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_50px_rgba(0,214,143,0.5)]"
+          className="w-full p-[16px] border-none rounded-[18px] bg-gradient-to-br from-green to-[#B8860B] font-sans text-[16px] font-black text-bg cursor-pointer tracking-[0.02em] shadow-[0_8px_40px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_50px_rgba(230,180,60,0.5)]"
         >
           {index + 1 < total ? `Weiter (${index + 1}/${total})` : 'Zum Dashboard →'}
         </button>

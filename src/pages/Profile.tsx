@@ -103,7 +103,7 @@ export default function Profile() {
         <div className="w-[140px] h-[140px] mb-3">
           {me.avatar
             ? <img src={me.avatar} alt={me.name} className="w-full h-full object-contain" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
-            : <div className="w-full h-full rounded-full bg-white/5 flex items-center justify-center text-[48px]" style={{ animation: 'auraGlow 4s ease-in-out infinite' }}>🍺</div>
+            : <img src="/logo-icon.webp" alt="" className="w-full h-full object-contain" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
           }
         </div>
         <div className="text-[22px] font-black text-white tracking-[-0.5px]">{me.name}</div>

@@ -84,7 +84,7 @@ export default function BetSlider({
               className={clsx(
                 'rounded-2xl border-2 py-3 px-2 flex flex-col items-center gap-0.5 transition-all',
                 active
-                  ? 'border-green bg-green/15 text-white shadow-[0_0_20px_rgba(0,214,143,0.25)]'
+                  ? 'border-green bg-green/15 text-white shadow-[0_0_20px_rgba(230,180,60,0.25)]'
                   : 'border-border bg-white/5 text-muted hover:border-blue/40',
               )}
             >
