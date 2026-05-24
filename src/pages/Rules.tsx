@@ -28,6 +28,11 @@ const SECTIONS: { icon: string; title: string; body: string }[] = [
     body: 'Wähle bei einem offenen Markt eine Antwort und setze Token. Bis zum Anpfiff bzw. zur Markt-Sperrung kannst du deine Wette jederzeit anpassen. Danach ist sie fix.',
   },
   {
+    icon: '⚡',
+    title: 'Tipp-Pflicht & Strafe',
+    body: 'Jeder offene Markt muss vor der Sperrung getippt werden. Wer einen Markt ungetippt lässt, wird automatisch mit dem jeweils festgelegten Strafbetrag belastet — diese Token wandern direkt in den Jackpot. Rechtzeitig tippen lohnt sich also doppelt!',
+  },
+  {
     icon: '🎰',
     title: 'Jackpot-Sonderrunden',
     body: 'Über das Turnier verteilt gibt es einsatzfreie Gratis-Tipps. Das Haus stiftet pro Frage einen festen Preis, den die richtigen Tipper gleichmäßig teilen. Kein Risiko — nur Gewinn.',
