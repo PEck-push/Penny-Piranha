@@ -676,7 +676,9 @@ export default function Dashboard() {
 
   // ─── LEADERBOARD TAB ───────────────────────────────────────────────────────
   const renderLeaderboard = () => {
-    const sorted = [...players].sort((a, b) => b.tokens - a.tokens);
+    const playerTotal = (p: typeof players[0]) =>
+      p.tokens + bets.filter(b => b.playerId === p.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s, b) => s + b.amount, 0);
+    const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
     const top = sorted[0];
     return (
       <div className="flex-1 flex flex-col relative z-10">
@@ -700,8 +702,9 @@ export default function Dashboard() {
               <div className="bg-gradient-to-br from-yellow to-orange text-bg font-mono text-[11px] font-bold rounded-lg px-2.5 py-1">#1</div>
             </div>
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 backdrop-blur-md">
-              <span className="font-mono text-[18px] font-bold text-yellow">🪙 {top?.tokens}</span>
+              <span className="font-mono text-[18px] font-bold text-yellow">🪙 {top ? playerTotal(top) : 0}</span>
               <span className="text-[12px] text-yellow/60 font-bold">TOKEN</span>
+              {top && playerTotal(top) !== top.tokens && <span className="text-[10px] text-yellow/40 font-mono">{top.tokens} frei</span>}
             </div>
           </div>
         </div>
@@ -712,7 +715,8 @@ export default function Dashboard() {
               <div className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md text-[#C8C8F0] bg-[#C8C8F0]/10 border border-[#C8C8F0]/25">#2 🥈</div>
               <div className="w-9 h-9">{sorted[1].avatar ? <img src={sorted[1].avatar} alt={sorted[1].name} className="w-full h-full object-cover rounded-full" /> : <div className="w-full h-full rounded-full bg-white/5" />}</div>
               <div className="text-[14px] font-black text-white text-center">{sorted[1].name}</div>
-              <div className="font-mono text-[15px] font-bold text-green">{sorted[1].tokens} TKN</div>
+              <div className="font-mono text-[15px] font-bold text-green">{playerTotal(sorted[1])} TKN</div>
+              {playerTotal(sorted[1]) !== sorted[1].tokens && <div className="text-[10px] text-muted font-mono">{sorted[1].tokens} frei</div>}
             </div>
           )}
           {sorted[2] && (
@@ -721,16 +725,19 @@ export default function Dashboard() {
               <div className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md text-[#CD7F32] bg-[#CD7F32]/10 border border-[#CD7F32]/25">#3 🥉</div>
               <div className="w-9 h-9">{sorted[2].avatar ? <img src={sorted[2].avatar} alt={sorted[2].name} className="w-full h-full object-cover rounded-full" /> : <div className="w-full h-full rounded-full bg-white/5" />}</div>
               <div className="text-[14px] font-black text-white text-center">{sorted[2].name}</div>
-              <div className="font-mono text-[15px] font-bold text-green">{sorted[2].tokens} TKN</div>
+              <div className="font-mono text-[15px] font-bold text-green">{playerTotal(sorted[2])} TKN</div>
+              {playerTotal(sorted[2]) !== sorted[2].tokens && <div className="text-[10px] text-muted font-mono">{sorted[2].tokens} frei</div>}
             </div>
           )}
         </div>
         <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-[90px] pt-1 relative z-10">
-          {sorted.slice(3).map((p, i) => (
+          {sorted.slice(3).map((p, i) => {
+            const total = playerTotal(p);
+            return (
             <div key={p.id} className={clsx("flex items-center gap-3 bg-card border rounded-[14px] p-3 mb-1.5 relative",
-              p.id === me.id ? "border-green/40 bg-green/5" : "border-border hover:border-blue/30", p.tokens === 0 && "border-red/25")}>
+              p.id === me.id ? "border-green/40 bg-green/5" : "border-border hover:border-blue/30", total === 0 && "border-red/25")}>
               {p.id === me.id && <div className="absolute left-0 top-1/5 bottom-1/5 w-[3px] rounded-r-sm bg-green shadow-[0_0_10px_rgba(230,180,60,1)]" />}
-              <div className={clsx("font-mono text-[14px] font-bold w-6 text-center", p.id === me.id ? "text-yellow" : p.tokens === 0 ? "text-red" : "text-muted")}>#{i+4}</div>
+              <div className={clsx("font-mono text-[14px] font-bold w-6 text-center", p.id === me.id ? "text-yellow" : total === 0 ? "text-red" : "text-muted")}>#{i+4}</div>
               <div className="w-9 h-9 rounded-lg bg-input flex items-center justify-center border border-border shrink-0 overflow-hidden">
                 {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
               </div>
@@ -748,9 +755,13 @@ export default function Dashboard() {
                   </span>
                 )}
               </div>
-              <span className={clsx("font-mono text-[15px] font-bold", p.tokens === 0 ? "text-red" : "text-white")}>{p.tokens}</span>
+              <div className="flex flex-col items-end">
+                <span className={clsx("font-mono text-[15px] font-bold", total === 0 ? "text-red" : "text-white")}>{total}</span>
+                {total !== p.tokens && <span className="text-[10px] text-muted font-mono">{p.tokens} frei</span>}
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
