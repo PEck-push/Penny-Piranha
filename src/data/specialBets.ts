@@ -55,35 +55,6 @@ export const INTERNATIONAL_SPECIALS: SpecialBetTemplate[] = [
   },
 ];
 
-export const AUSTRIA_SPECIALS: SpecialBetTemplate[] = [
-  {
-    id: 'aut-progress',
-    title: '🇦🇹 Wie weit kommt Österreich?',
-    options: ['Gruppenphase', 'Sechzehntelfinale', 'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale', 'Weltmeister'],
-    austria: true,
-  },
-  {
-    id: 'aut-goals',
-    title: '🇦🇹 Wie viele Tore schießt Österreich in der Gruppenphase?',
-    options: ['0', '1', '2', '3', '4', '5', '6+'],
-    austria: true,
-  },
-  {
-    id: 'aut-points',
-    title: '🇦🇹 Wie viele Punkte holt Österreich in der Gruppenphase?',
-    options: ['0', '1', '3', '4', '6', '7', '9'],
-    austria: true,
-  },
-  {
-    id: 'aut-arnautovic',
-    title: '🇦🇹 Trifft Marko Arnautović im Turnier?',
-    options: ['JA', 'NEIN'],
-    austria: true,
-  },
-];
-
-export const ALL_SPECIALS = [...INTERNATIONAL_SPECIALS, ...AUSTRIA_SPECIALS];
-
 // ── Jackpot-Sonderrunden (einsatzfrei, fester Haus-Preis) ──────────────────────
 // Mehrere Blöcke, zeitlich über das Turnier verteilt. Korrekte Tipper teilen den
 // fixedPrize gleichmäßig. Die Finale-Headline (worldchampion) absorbiert zusätzlich
@@ -122,7 +93,13 @@ export const JACKPOT_TEMPLATES: SpecialBetTemplate[] = [
     id: 'jp-aut-progress',
     title: '🇦🇹 Wie weit kommt Österreich?',
     options: ['Gruppenphase', 'Sechzehntelfinale', 'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale', 'Weltmeister'],
-    block: 'austria', fixedPrize: 350, // 7 Opt., AT-Bonus, dramatischster AT-Tipp
+    block: 'austria', fixedPrize: 250, // 7 Opt., AT-Bonus, dramatischster AT-Tipp
+  },
+  {
+    id: 'jp-aut-arnautovic',
+    title: '🇦🇹 Trifft Marko Arnautović im Turnier?',
+    options: ['JA', 'NEIN'],
+    block: 'austria', fixedPrize: 100, // 2 Opt., leichter Bonus-Tipp
   },
   // Block 2 — Ende Sechzehntel-/Achtelfinale (mittlere Preise) · Σ 600
   {

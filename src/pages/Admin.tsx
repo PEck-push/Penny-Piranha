@@ -8,7 +8,7 @@ import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
-import { INTERNATIONAL_SPECIALS, AUSTRIA_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
+import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
 import { isAdminEmail } from '../config/admins';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
@@ -639,7 +639,7 @@ export default function Admin() {
             )}
 
             <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">International</div>
-            <div className="flex flex-col gap-1.5 mb-3">
+            <div className="flex flex-col gap-1.5">
               {INTERNATIONAL_SPECIALS.map(tpl => {
                 const exists = markets.some(m => m.question === tpl.title);
                 return (
@@ -652,20 +652,8 @@ export default function Admin() {
                 );
               })}
             </div>
-
-            <div className="text-[10px] font-black text-[#EF3340] uppercase tracking-[0.1em] mb-1.5">🇦🇹 Österreich-Block</div>
-            <div className="flex flex-col gap-1.5">
-              {AUSTRIA_SPECIALS.map(tpl => {
-                const exists = markets.some(m => m.question === tpl.title);
-                return (
-                  <button key={tpl.id} onClick={() => createSpecialBet(tpl)} disabled={exists}
-                    className={clsx('text-left rounded-xl p-2.5 border text-[12px] font-bold transition-all',
-                      exists ? 'border-green/20 bg-green/5 text-muted opacity-60 cursor-not-allowed'
-                             : 'border-[#EF3340]/25 bg-[#EF3340]/5 text-white hover:border-[#EF3340]/50 cursor-pointer')}>
-                    {exists ? '✓ ' : '+ '}{tpl.title}
-                  </button>
-                );
-              })}
+            <div className="text-[10px] text-muted mt-2.5 leading-relaxed">
+              🇦🇹 Österreich-Fragen liegen jetzt einsatzfrei im Abschnitt „🎰 Jackpot-Sonderrunden" (Block Österreich).
             </div>
           </div>
 
