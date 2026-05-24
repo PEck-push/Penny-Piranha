@@ -562,9 +562,44 @@ export default function Dashboard() {
     const myBets = bets.filter(b => b.playerId === me.id);
     const active = myBets.filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'open' || m.status === 'locked'); });
     const resolved = myBets.filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'resolved' || m.status === 'cancelled'); });
+    const myBetMarketIds = new Set(myBets.map(b => b.marketId));
+    const untipped = markets.filter(m => m.status === 'open' && !myBetMarketIds.has(m.id));
+    const goToMarket = (m: Market) => {
+      if (m.matchId) setActiveTab('spielplan');
+      else if (m.marketSubtype === 'jackpot' || m.noStake) setActiveTab('dashboard');
+      else { setActiveTab('dashboard'); openMarketModal(m); }
+    };
     return (
       <div className="flex-1 overflow-y-auto no-scrollbar pb-[90px] pt-3.5 px-4 relative z-10">
         <div className="text-[22px] font-black text-white mb-4">Meine Wetten 🎯</div>
+
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-[12px] font-black text-blue2 uppercase tracking-[0.1em]">🔔 Offen — noch nicht getippt</span>
+          {untipped.length > 0 && <span className="text-[12px] font-bold text-blue2">{untipped.length}</span>}
+        </div>
+        {untipped.length === 0 ? <div className="text-[12px] text-muted mb-6">Alles getippt — stark! 🎯</div> : (
+          <div className="mb-6">
+            {untipped.map(m => {
+              const isJackpot = m.marketSubtype === 'jackpot';
+              const isWm = !!m.matchId;
+              const icon = isJackpot ? '🎰' : isWm ? '⚽' : m.type === 'combo' ? '🔗' : m.marketSubtype === 'spezialwette' ? '🌟' : '▶';
+              return (
+                <div key={m.id} onClick={() => goToMarket(m)}
+                  className="bg-card border border-blue2/30 rounded-2xl p-3.5 mb-2 cursor-pointer transition-all hover:border-blue2/60 hover:-translate-y-0.5 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue2/50 to-transparent" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px] shrink-0">{icon}</span>
+                    <span className="text-[13px] font-bold text-white flex-1 leading-tight">{m.question}</span>
+                    <span className="text-[10px] font-black text-blue2 bg-blue/10 border border-blue2/25 rounded-md px-2 py-0.5 shrink-0">
+                      {isJackpot ? 'gratis' : 'tippen →'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <div className="text-[12px] font-black text-muted uppercase tracking-[0.1em] mb-2.5">Aktiv</div>
         {active.length === 0 ? <div className="text-[12px] text-muted mb-6">Keine aktiven Wetten</div> : active.map(b => {
           const m = markets.find(m => m.id === b.marketId);

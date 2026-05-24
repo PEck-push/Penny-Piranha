@@ -177,6 +177,8 @@ export interface ScheduleMatch {
   status?: 'scheduled' | 'live' | 'finished';
   scoreA?: number | null;
   scoreB?: number | null;
+  // Torschützen, falls die API sie liefert (football-data.org Free-Tier i.d.R. nicht).
+  scorers?: { team?: string; player: string; minute?: number | null }[];
 }
 
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);

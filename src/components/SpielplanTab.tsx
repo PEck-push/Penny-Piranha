@@ -96,6 +96,9 @@ export default function SpielplanTab() {
 
   if (!me) return null;
 
+  const isFinished = (m: WmMatch) =>
+    m.status === 'finished' || (m.scoreA != null && m.scoreB != null);
+
   // ─── MATCH CARD ───────────────────────────────────────────────────────────────
   const MatchCard = ({ match }: { match: WmMatch }) => {
     const market   = getMarket(match);
@@ -106,6 +109,10 @@ export default function SpielplanTab() {
     const isLocked = market?.status === 'locked';
     const isResolved = market?.status === 'resolved';
     const isAustria = isAustriaTeam(match.teamA) || isAustriaTeam(match.teamB);
+    const finished = isFinished(match);
+    const scorersA = (match.scorers ?? []).filter(s => s.team && s.team === match.teamA);
+    const scorersB = (match.scorers ?? []).filter(s => s.team && s.team === match.teamB);
+    const unassignedScorers = (match.scorers ?? []).filter(s => !s.team);
 
     return (
       <div
@@ -115,6 +122,7 @@ export default function SpielplanTab() {
           isOpen     ? 'border-blue2/35 cursor-pointer hover:border-blue2/60 hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(59,110,255,0.15)]' : 'border-border',
           myBet      ? 'border-yellow/35' : '',
           isAustria  ? 'border-[#EF3340]/30' : '',
+          finished   ? 'opacity-60' : '',
         )}
       >
         {isAustria && (
@@ -139,7 +147,9 @@ export default function SpielplanTab() {
                 <span className="text-[18px] leading-none shrink-0">{flag(match.teamA)}</span>
                 <span className="text-[13px] font-black text-white leading-none truncate">{deName(match.teamA)}</span>
               </div>
-              <span className="text-[9px] font-black text-muted/50 shrink-0">VS</span>
+              {finished
+                ? <span className="font-mono text-[15px] font-black text-white shrink-0 px-1">{match.scoreA}<span className="text-muted">:</span>{match.scoreB}</span>
+                : <span className="text-[9px] font-black text-muted/50 shrink-0">VS</span>}
               <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
                 <span className="text-[13px] font-black text-white leading-none truncate text-right">{deName(match.teamB)}</span>
                 <span className="text-[18px] leading-none shrink-0">{flag(match.teamB)}</span>
@@ -147,7 +157,7 @@ export default function SpielplanTab() {
             </div>
 
             {/* Pool bar */}
-            {market && poolTotal > 0 && (
+            {market && poolTotal > 0 && !finished && (
               <div className="h-1.5 rounded-full overflow-hidden flex">
                 {market.options.map((opt, i) => (
                   <div key={opt.id} className="h-full transition-all duration-500"
@@ -174,14 +184,34 @@ export default function SpielplanTab() {
             {isOpen && (
               <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-green/10 text-green border border-green/25">● Offen</span>
             )}
-            {!market && match.kickoffAt > now && (
+            {!market && !finished && match.kickoffAt > now && (
               <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-white/5 text-muted/60 border border-white/8">Bald</span>
+            )}
+            {finished && !isResolved && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-white/5 text-muted border border-white/10">Beendet</span>
             )}
             {isOpen && poolTotal > 0 && (
               <span className="text-[9px] font-bold text-muted">{poolTotal} TKN</span>
             )}
           </div>
         </div>
+
+        {/* Goalscorers (only if API provided them) */}
+        {finished && (match.scorers?.length ?? 0) > 0 && (
+          <div className="mt-2.5 pt-2 border-t border-border/60 flex justify-between gap-3 text-[10px] text-muted">
+            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+              {scorersA.map((s, i) => <span key={i} className="truncate">⚽ {s.player}{s.minute != null ? ` ${s.minute}'` : ''}</span>)}
+            </div>
+            <div className="flex flex-col gap-0.5 flex-1 min-w-0 text-right">
+              {scorersB.map((s, i) => <span key={i} className="truncate">{s.player}{s.minute != null ? ` ${s.minute}'` : ''} ⚽</span>)}
+            </div>
+            {scorersA.length === 0 && scorersB.length === 0 && unassignedScorers.length > 0 && (
+              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                {unassignedScorers.map((s, i) => <span key={i}>⚽ {s.player}{s.minute != null ? ` ${s.minute}'` : ''}</span>)}
+              </div>
+            )}
+          </div>
+        )}
 
         {myBet && (
           <div className="mt-2.5 pt-2 border-t border-border/60 flex items-center justify-between">
@@ -200,6 +230,31 @@ export default function SpielplanTab() {
     ...groupMatches.map(m => m.teamA),
     ...groupMatches.map(m => m.teamB),
   ])].slice(0, 4);
+
+  // ─── STANDINGS (computed from finished group matches) ──────────────────────────
+  type Row = { team: string; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number };
+  const standings: Row[] = (() => {
+    const table = new Map<string, Row>();
+    groupTeams.forEach(t => table.set(t, { team: t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }));
+    groupMatches.forEach(m => {
+      if (!isFinished(m) || m.scoreA == null || m.scoreB == null) return;
+      const a = table.get(m.teamA), b = table.get(m.teamB);
+      if (!a || !b) return;
+      a.p++; b.p++;
+      a.gf += m.scoreA; a.ga += m.scoreB;
+      b.gf += m.scoreB; b.ga += m.scoreA;
+      if (m.scoreA > m.scoreB)      { a.w++; a.pts += 3; b.l++; }
+      else if (m.scoreA < m.scoreB) { b.w++; b.pts += 3; a.l++; }
+      else                          { a.d++; b.d++; a.pts++; b.pts++; }
+    });
+    return [...table.values()].sort((x, y) =>
+      y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || x.team.localeCompare(y.team));
+  })();
+  const anyPlayed = standings.some(r => r.p > 0);
+
+  const upcomingMatches = groupMatches.filter(m => !isFinished(m));
+  const finishedMatches = groupMatches.filter(isFinished)
+    .sort((a, b) => b.kickoffAt - a.kickoffAt);
 
   return (
     <>
@@ -284,53 +339,62 @@ export default function SpielplanTab() {
         </div>
       </div>
 
-      {/* ── GROUP HEADER ────────────────────────────────────────────────────────── */}
+      {/* ── GROUP STANDINGS TABLE ───────────────────────────────────────────────── */}
       <div className="relative z-10 px-4 mt-2.5 mb-2 shrink-0">
-        <div className="bg-card border border-border rounded-[14px] px-4 py-2.5 flex items-center gap-3 flex-wrap">
-          <span className="text-[10px] font-black text-muted tracking-[0.1em] uppercase">
-            Gruppe {activeGroup}
-          </span>
-          {activeGroup === austriaGroupLetter && austriaGroupLetter && (
-            <span className="text-[10px] font-black text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/25 rounded-full px-2 py-0.5">
-              🇦🇹 ÖSTERREICH
-            </span>
-          )}
-          {groupTeams.map(t => (
-            <span key={t} className="text-[12px] font-bold text-white/80 flex items-center gap-1">
-              {flag(t)} {deName(t)}
-            </span>
-          ))}
+        <div className="bg-card border border-border rounded-[14px] overflow-hidden">
+          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+            <span className="text-[10px] font-black text-muted tracking-[0.1em] uppercase">Tabelle Gruppe {activeGroup}</span>
+            {activeGroup === austriaGroupLetter && austriaGroupLetter && (
+              <span className="text-[9px] font-black text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/25 rounded-full px-2 py-0.5">🇦🇹 ÖSTERREICH</span>
+            )}
+            {!anyPlayed && <span className="text-[9px] text-muted/60 ml-auto">noch keine Spiele gewertet</span>}
+          </div>
+          <div className="px-3 pb-2.5">
+            <div className="grid grid-cols-[14px_1fr_repeat(5,18px)_24px] gap-x-1 items-center text-[9px] font-black text-muted/60 uppercase tracking-wider px-1 pb-1 border-b border-border/60">
+              <span>#</span><span>Team</span>
+              <span className="text-center">Sp</span><span className="text-center">S</span>
+              <span className="text-center">U</span><span className="text-center">N</span>
+              <span className="text-center">TD</span><span className="text-right">Pkt</span>
+            </div>
+            {standings.map((r, i) => {
+              const aut = isAustriaTeam(r.team);
+              return (
+                <div key={r.team}
+                  className={clsx('grid grid-cols-[14px_1fr_repeat(5,18px)_24px] gap-x-1 items-center py-1 text-[11px] border-b border-border/40 last:border-0',
+                    aut ? 'text-[#EF3340]' : 'text-white')}>
+                  <span className="text-[9px] font-black text-muted">{i + 1}</span>
+                  <span className="flex items-center gap-1 min-w-0">
+                    <span className="text-[13px] shrink-0">{flag(r.team)}</span>
+                    <span className="font-bold truncate">{deName(r.team)}</span>
+                  </span>
+                  <span className="text-center font-mono text-muted">{r.p}</span>
+                  <span className="text-center font-mono">{r.w}</span>
+                  <span className="text-center font-mono">{r.d}</span>
+                  <span className="text-center font-mono">{r.l}</span>
+                  <span className="text-center font-mono text-muted">{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</span>
+                  <span className="text-right font-mono font-black">{r.pts}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* ── MATCHES ─────────────────────────────────────────────────────────────── */}
       <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-[90px]">
-        {[1, 2, 3].map(md => {
-          const mdMatches = groupMatches.filter(m => m.matchday === md);
-          if (mdMatches.length === 0) return null;
-          return (
-            <div key={md}>
-              <div className="text-[11px] font-black text-muted uppercase tracking-[0.1em] mb-2 mt-1">
-                Spieltag {md}
-              </div>
-              {mdMatches.map(match => <MatchCard key={match.matchId} match={match} />)}
-            </div>
-          );
-        })}
+        {upcomingMatches.length > 0 && (
+          <>
+            <div className="text-[11px] font-black text-muted uppercase tracking-[0.1em] mb-2 mt-1">Kommende Spiele</div>
+            {upcomingMatches.map(match => <MatchCard key={match.matchId} match={match} />)}
+          </>
+        )}
 
-        {/* Matches without a matchday (e.g. raw API import) */}
-        {(() => {
-          const noMd = groupMatches.filter(m => !m.matchday || m.matchday < 1 || m.matchday > 3);
-          if (noMd.length === 0) return null;
-          return (
-            <div>
-              <div className="text-[11px] font-black text-muted uppercase tracking-[0.1em] mb-2 mt-1">
-                Weitere Spiele
-              </div>
-              {noMd.map(match => <MatchCard key={match.matchId} match={match} />)}
-            </div>
-          );
-        })()}
+        {finishedMatches.length > 0 && (
+          <>
+            <div className="text-[11px] font-black text-muted uppercase tracking-[0.1em] mb-2 mt-4">Beendet</div>
+            {finishedMatches.map(match => <MatchCard key={match.matchId} match={match} />)}
+          </>
+        )}
 
         {groupMatches.length === 0 && (
           <div className="flex flex-col items-center gap-3 mt-12 text-center px-6">
