@@ -46,6 +46,32 @@ function PoolBar({ market }: { market: Market }) {
   );
 }
 
+// ── Tipp-Verteilung (anonymes Gruppenbild: wie viele tippten worauf) ──────────────
+function TipDistribution({ market, bets, accent }: { market: Market; bets: { marketId: string; optionId: string }[]; accent: string }) {
+  const counts = market.options.map(o => bets.filter(b => b.marketId === market.id && b.optionId === o.id).length);
+  const total = counts.reduce((s, n) => s + n, 0);
+  if (total === 0) {
+    return <div className="text-[10px] text-muted mb-2.5">Noch keine Tipps — sei der Erste!</div>;
+  }
+  return (
+    <div className="flex flex-col gap-1 mb-2.5">
+      <div className="text-[10px] font-bold text-muted mb-0.5">{total} {total === 1 ? 'Tipp' : 'Tipps'} bisher</div>
+      {market.options.map((opt, i) => {
+        const pct = Math.round((counts[i] / total) * 100);
+        return (
+          <div key={opt.id} className="flex items-center gap-2">
+            <span className="text-[10px] text-white/80 w-[42%] truncate shrink-0">{opt.label}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: accent }} />
+            </div>
+            <span className="font-mono text-[10px] text-muted w-9 text-right shrink-0">{counts[i]} · {pct}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Countdown hook ──────────────────────────────────────────────────────────────
 function useCountdown(expiresAt?: number): { remaining: number; expired: boolean; label: string } {
   const [remaining, setRemaining] = useState(expiresAt ? Math.max(0, expiresAt - Date.now()) : 0);
@@ -376,6 +402,7 @@ export default function Dashboard() {
                 return (
                   <div key={m.id} className={clsx('p-3.5 px-4', idx < autMarkets.length - 1 && 'border-b border-[#EF3340]/15')}>
                     <div className="text-[13px] font-black text-white leading-tight mb-2.5">{m.question}</div>
+                    <TipDistribution market={m} bets={bets} accent="#EF3340" />
                     {myTip && !isChangingTip ? (
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5">
@@ -467,6 +494,7 @@ export default function Dashboard() {
                             </span>
                           )}
                         </div>
+                        <TipDistribution market={m} bets={bets} accent={aut ? '#EF3340' : '#E6B43C'} />
                         {myTip && !isChangingTip ? (
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5">
