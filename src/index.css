@@ -87,6 +87,34 @@
   66% { transform: scale(1.05) translate(-15px, -10px); }
 }
 
+/* ── Zauberer-Theme: Lade- & Aura-Effekte ─────────────────────────── */
+/* Rotierender Magie-Sternkreis (Loader) */
+@keyframes magicSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+/* Funkeln einzelner Sterne (versetzt via animation-delay) */
+@keyframes sparkle {
+  0%, 100% { opacity: .25; transform: scale(.7); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+/* Mystische Aura: pulsierender Glow um das Logo-Emoji */
+@keyframes auraGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 12px rgba(167,123,255,.55)) drop-shadow(0 0 24px rgba(0,214,143,.35));
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    filter: drop-shadow(0 0 22px rgba(167,123,255,.9)) drop-shadow(0 0 44px rgba(0,214,143,.55));
+    transform: translateY(-8px) rotate(2deg);
+  }
+}
+/* Funken-Spinner-Punkt am Button */
+@keyframes runeSpin {
+  0% { transform: rotate(0deg); opacity: 1; }
+  100% { transform: rotate(360deg); opacity: 1; }
+}
+
 /* Hide scrollbar */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

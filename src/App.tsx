@@ -29,8 +29,21 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="w-full h-[100dvh] flex items-center justify-center bg-bg">
-        <div className="w-8 h-8 border-2 border-green border-t-transparent rounded-full animate-spin" />
+      <div className="w-full h-[100dvh] flex flex-col items-center justify-center bg-bg gap-5">
+        <div className="relative w-20 h-20">
+          {/* rotierender Magie-Ring */}
+          <div className="absolute inset-0 rounded-full border-2 border-transparent"
+               style={{ borderTopColor: 'rgba(167,123,255,.9)', borderRightColor: 'rgba(0,214,143,.5)', animation: 'magicSpin 1.4s linear infinite' }} />
+          <div className="absolute inset-2 rounded-full border border-transparent"
+               style={{ borderBottomColor: 'rgba(0,229,255,.7)', animation: 'magicSpin 2s linear infinite reverse' }} />
+          {/* funkelnde Sterne auf der Bahn */}
+          <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[12px]" style={{ animation: 'sparkle 1.5s ease-in-out infinite' }}>✦</span>
+          <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px]" style={{ animation: 'sparkle 1.5s ease-in-out .5s infinite' }}>✦</span>
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-[9px]" style={{ animation: 'sparkle 1.5s ease-in-out .9s infinite' }}>✧</span>
+          {/* Krügerl in der Mitte */}
+          <div className="absolute inset-0 flex items-center justify-center text-[28px]" style={{ animation: 'auraGlow 2.4s ease-in-out infinite' }}>🍺</div>
+        </div>
+        <div className="font-mono text-[10px] text-muted tracking-[0.3em] uppercase animate-[puls_1.8s_ease-in-out_infinite]">Die Propheten beraten…</div>
       </div>
     );
   }

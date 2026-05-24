@@ -63,7 +63,7 @@ export default function Login() {
       <div className="relative z-10 px-5 pt-8 flex-1 flex flex-col">
         <div className="text-center pb-6">
           <div className="h-28 flex items-center justify-center">
-            <span className="text-[92px] leading-none drop-shadow-[0_0_30px_rgba(0,214,143,0.5)] animate-[float_3s_ease-in-out_infinite]">🍺</span>
+            <span className="text-[92px] leading-none" style={{ animation: 'auraGlow 3s ease-in-out infinite' }}>🍺</span>
           </div>
           <div className="text-[20px] font-black text-white tracking-[-0.5px] mt-1">KRÜGERL PROPHETEN</div>
         </div>
@@ -121,7 +121,7 @@ export default function Login() {
             disabled={loading}
             className="mt-2 w-full p-[15px] border-none rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-sans text-[16px] font-black text-bg cursor-pointer tracking-[0.02em] shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_50px_rgba(0,214,143,0.5)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Anmelden…' : 'Anmelden'}
+            {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Anmelden…</span> : 'Anmelden'}
           </button>
         </form>
 

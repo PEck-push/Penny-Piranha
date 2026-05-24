@@ -244,7 +244,7 @@ export default function Register() {
         {BG}
         <div className="relative z-10 px-5 pt-8 flex-1 flex flex-col">
           <div className="text-center pb-5">
-            <span className="block text-[68px] leading-none drop-shadow-[0_0_24px_rgba(0,214,143,0.5)] animate-[float_3s_ease-in-out_infinite]">🍺</span>
+            <span className="block text-[68px] leading-none" style={{ animation: 'auraGlow 3s ease-in-out infinite' }}>🍺</span>
             <div className="text-[16px] font-black text-white tracking-[-0.5px] mt-1">KRÜGERL PROPHETEN</div>
           </div>
 
@@ -280,7 +280,7 @@ export default function Register() {
               disabled={loading || !inviteCode.trim()}
               className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Prüfen…' : 'Weiter →'}
+              {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Prüfen…</span> : 'Weiter →'}
             </button>
           </div>
 
@@ -614,7 +614,7 @@ export default function Register() {
           disabled={loading}
           className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#00A86E] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(0,214,143,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Konto wird erstellt…' : '✓ Registrieren & Spielen'}
+          {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Konto wird beschworen…</span> : '✓ Registrieren & Spielen'}
         </button>
 
         <button
@@ -647,7 +647,7 @@ export default function Register() {
                 disabled={loading}
                 className="w-full p-3.5 rounded-xl font-black text-bg bg-gradient-to-r from-green to-[#00A86E] shadow-[0_0_15px_rgba(0,214,143,0.4)] transition-all disabled:opacity-50"
               >
-                {loading ? 'Konto wird erstellt…' : '✓ Ja, jetzt registrieren'}
+                {loading ? <span className="inline-flex items-center gap-2 justify-center"><span className="inline-block" style={{ animation: 'runeSpin .9s linear infinite' }}>✦</span> Konto wird beschworen…</span> : '✓ Ja, jetzt registrieren'}
               </button>
               <button
                 onClick={() => setShowFinalConfirm(false)}
