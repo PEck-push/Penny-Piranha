@@ -61,15 +61,15 @@ export default function Login() {
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(139,61,255,.35)_0%,transparent_50%),radial-gradient(ellipse_at_80%_10%,rgba(0,229,255,.15)_0%,transparent_45%),radial-gradient(ellipse_at_50%_100%,rgba(59,110,255,.2)_0%,transparent_50%)]" />
 
       <div className="relative z-10 px-5 pt-8 flex-1 flex flex-col">
-        <div className="text-center pb-6">
-          <img src="/logo-full.webp" alt="Krügerl Propheten — Das WM-Tippspiel" className="h-32 w-auto mx-auto" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
+        <div className="text-center pb-5">
+          <img src="/logo-full.webp" alt="Krügerl Propheten — Das WM-Tippspiel" className="h-44 w-auto mx-auto" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
         </div>
 
-        <div className="text-[26px] font-black text-white text-center leading-[1.1] mb-1">
-          Willkommen zurück
+        <div className="text-[24px] font-black text-white text-center leading-[1.2] mb-1">
+          Habe d'Ehre!
         </div>
-        <div className="text-[12px] text-muted mb-8 text-center">
-          WM 2026 Tippspiel — melde dich an.
+        <div className="text-[13px] text-muted mb-8 text-center leading-relaxed">
+          Mei Bier is ned deppat! –<br />hoffentlich san's deine WM-Tipps a ned!
         </div>
 
         <form onSubmit={handleLogin} className="flex flex-col gap-3">
