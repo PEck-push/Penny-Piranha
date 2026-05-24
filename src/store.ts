@@ -818,7 +818,6 @@ export const useStore = create<AppState>()((set, get) => {
     fullReset: async () => {
       clearSessionCookie();
       const state = get();
-      // Verbleibende (Admin-)Spieler auf Startzustand zurücksetzen.
       const keptPlayers = state.players.filter(p => !p.isTestPlayer);
       const resetFields = {
         tokens: 1000, buybackUsed: false, comboMalus: false, badges: [],
@@ -827,15 +826,21 @@ export const useStore = create<AppState>()((set, get) => {
         dailyNetGain: 0, unlockedOverlays: [], activeAccessoryId: null,
         activeBadgeId: null, unseenResolutions: [],
       };
-      // Lokalen Zustand sofort leeren (Admin-Spieler bleiben, Tokens zurück).
+      // Optimistic local update.
       set({
         markets: [], bets: [], answers: [], feed: [], jackpot: 0,
-        currentPhase: 'gruppenphase', testMode: true,
+        currentPhase: 'gruppenphase', testMode: true, adminMessage: '',
         players: keptPlayers.map(p => ({ ...p, ...resetFields })),
       });
       if (!db) return;
       try {
-        // Sammlungen in Chunks von 400 löschen (Firestore-Batch-Limit: 500).
+        // ── Spieler-Tokens ZUERST in Firestore schreiben, damit nachfolgende
+        // onSnapshot-Events (ausgelöst durch deleteAll) bereits die neuen Werte
+        // zurückliefern und den lokalen Zustand nicht mehr überschreiben.
+        for (const p of keptPlayers) {
+          await setDoc(doc(db, 'players', p.id), resetFields, { merge: true });
+        }
+
         const deleteAll = async (colName: string, filter?: (data: any) => boolean) => {
           const snap = await getDocs(collection(db, colName));
           const docsToDelete = filter ? snap.docs.filter(d => filter(d.data())) : snap.docs;
@@ -850,11 +855,7 @@ export const useStore = create<AppState>()((set, get) => {
         await deleteAll('answers');
         await deleteAll('feed');
         await deleteAll('players', (d) => d.isTestPlayer === true);
-        // Verbleibende Spieler in Firestore auf Startguthaben zurücksetzen.
-        for (const p of keptPlayers) {
-          await updateDoc(doc(db, 'players', p.id), resetFields);
-        }
-        await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true }, { merge: true });
+        await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true, adminMessage: '' }, { merge: true });
       } catch (err) {
         console.error('[Store] fullReset Fehler:', err);
       }
