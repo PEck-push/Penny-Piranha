@@ -676,21 +676,24 @@ export default function Admin() {
               Jackpot an (aktuell <b className="text-yellow">{jackpot} TKN</b>) und fließen in die
               Finale-Frage „Wer wird Weltmeister?". Auflösung über „Märkte verwalten".
             </div>
-            {(['block1', 'block2', 'finale'] as const).map(block => (
+            {(['block1', 'austria', 'block2', 'finale'] as const).map(block => (
               <div key={block} className="mb-3 last:mb-0">
-                <div className="text-[10px] font-black text-yellow/80 uppercase tracking-[0.1em] mb-1.5">
+                <div className={clsx('text-[10px] font-black uppercase tracking-[0.1em] mb-1.5',
+                  block === 'austria' ? 'text-[#EF3340]' : 'text-yellow/80')}>
                   {JACKPOT_BLOCK_LABELS[block]}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {JACKPOT_TEMPLATES.filter(t => t.block === block).map(tpl => {
                     const exists = markets.some(m => m.question === tpl.title);
+                    const aut = block === 'austria';
                     return (
                       <button key={tpl.id} onClick={() => createJackpotBet(tpl)} disabled={exists}
                         className={clsx('text-left rounded-xl p-2.5 border text-[12px] font-bold transition-all flex items-center justify-between gap-2',
                           exists ? 'border-green/20 bg-green/5 text-muted opacity-60 cursor-not-allowed'
-                                 : 'border-yellow/25 bg-yellow/5 text-white hover:border-yellow/50 cursor-pointer')}>
+                                 : aut ? 'border-[#EF3340]/30 bg-[#EF3340]/5 text-white hover:border-[#EF3340]/60 cursor-pointer'
+                                       : 'border-yellow/25 bg-yellow/5 text-white hover:border-yellow/50 cursor-pointer')}>
                         <span>{exists ? '✓ ' : '+ '}{tpl.title}</span>
-                        <span className="text-[10px] font-black text-yellow shrink-0">
+                        <span className={clsx('text-[10px] font-black shrink-0', aut ? 'text-[#EF3340]' : 'text-yellow')}>
                           {tpl.absorbsJackpotPot ? `${tpl.fixedPrize}+Pot` : `${tpl.fixedPrize}`}
                         </span>
                       </button>

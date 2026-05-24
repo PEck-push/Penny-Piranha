@@ -383,7 +383,7 @@ export default function Dashboard() {
       {(() => {
         const jpMarkets = markets.filter(m => m.marketSubtype === 'jackpot' && m.status === 'open');
         if (jpMarkets.length === 0) return null;
-        const blockOrder = ['block1', 'block2', 'finale'];
+        const blockOrder = ['block1', 'austria', 'block2', 'finale'];
         const blocks = [...new Set(jpMarkets.map(m => m.jackpotBlock ?? 'finale'))]
           .sort((a, b) => blockOrder.indexOf(a) - blockOrder.indexOf(b));
         return (
@@ -395,11 +395,15 @@ export default function Dashboard() {
             {blocks.map(block => {
               const blockMarkets = jpMarkets.filter(m => (m.jackpotBlock ?? 'finale') === block);
               const label = blockMarkets[0]?.jackpotBlockLabel ?? JACKPOT_BLOCK_LABELS[block] ?? 'Jackpot';
+              const aut = block === 'austria';
               return (
-                <div key={block} className="mb-3 bg-card border border-yellow/30 rounded-[20px] overflow-hidden relative">
-                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-yellow via-orange to-yellow" />
-                  <div className="p-3.5 px-4 border-b border-yellow/20">
-                    <span className="text-[10px] font-black text-yellow bg-yellow/10 border border-yellow/30 rounded-full px-2.5 py-1 tracking-[0.1em]">{label}</span>
+                <div key={block} className={clsx('mb-3 bg-card border rounded-[20px] overflow-hidden relative',
+                  aut ? 'border-[#EF3340]/40' : 'border-yellow/30')}>
+                  <div className={clsx('absolute top-0 left-0 right-0 h-[2px]',
+                    aut ? 'bg-gradient-to-r from-[#EF3340] via-white to-[#EF3340]' : 'bg-gradient-to-r from-yellow via-orange to-yellow')} />
+                  <div className={clsx('p-3.5 px-4 border-b', aut ? 'border-[#EF3340]/20' : 'border-yellow/20')}>
+                    <span className={clsx('text-[10px] font-black rounded-full px-2.5 py-1 tracking-[0.1em]',
+                      aut ? 'text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/30' : 'text-yellow bg-yellow/10 border border-yellow/30')}>{label}</span>
                   </div>
                   {blockMarkets.map((m, idx) => {
                     const myTip = bets.find(b => b.marketId === m.id && b.playerId === me.id);
@@ -407,10 +411,11 @@ export default function Dashboard() {
                       ? `${m.fixedPrize ?? 0} + Jackpot (${jackpot}) TKN`
                       : `${m.fixedPrize ?? 0} TKN`;
                     return (
-                      <div key={m.id} className={clsx('p-3.5 px-4', idx < blockMarkets.length - 1 && 'border-b border-yellow/15')}>
+                      <div key={m.id} className={clsx('p-3.5 px-4', idx < blockMarkets.length - 1 && (aut ? 'border-b border-[#EF3340]/15' : 'border-b border-yellow/15'))}>
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <span className="text-[13px] font-black text-white flex-1 leading-tight">{m.question}</span>
-                          <span className="text-[10px] font-black text-yellow bg-yellow/10 border border-yellow/25 rounded-md px-2 py-0.5 shrink-0">🏆 {prizeLabel}</span>
+                          <span className={clsx('text-[10px] font-black rounded-md px-2 py-0.5 shrink-0',
+                            aut ? 'text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/25' : 'text-yellow bg-yellow/10 border border-yellow/25')}>🏆 {prizeLabel}</span>
                         </div>
                         {myTip ? (
                           <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5 w-fit">
@@ -421,7 +426,8 @@ export default function Dashboard() {
                             {m.options.map(opt => (
                               <button key={opt.id}
                                 onClick={() => setConfirmTip({ marketId: m.id, question: m.question, optionId: opt.id, optionLabel: opt.label })}
-                                className="text-[11px] font-bold text-white bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 hover:border-yellow/50 hover:bg-yellow/10 transition-all cursor-pointer">
+                                className={clsx('text-[11px] font-bold text-white bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 transition-all cursor-pointer',
+                                  aut ? 'hover:border-[#EF3340]/50 hover:bg-[#EF3340]/10' : 'hover:border-yellow/50 hover:bg-yellow/10')}>
                                 {opt.label}
                               </button>
                             ))}
