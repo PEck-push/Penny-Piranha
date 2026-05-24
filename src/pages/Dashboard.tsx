@@ -173,6 +173,7 @@ export default function Dashboard() {
   const bets = useStore(s => s.bets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
+  const adminMessage = useStore(s => s.adminMessage);
   const placeBet  = useStore(s => s.placeBet);
   const placeTip  = useStore(s => s.placeTip);
   const changeBet = useStore(s => s.changeBet);
@@ -254,6 +255,7 @@ export default function Dashboard() {
   const openMarketsCount = markets.filter(m => m.status === 'open').length;
   const hasActiveHotTake = markets.some(m => m.type === 'hot-take' && m.status === 'open' && !(m.expiresAt && now > m.expiresAt));
   const tickerItems = [
+    ...(adminMessage ? [`📢 ${adminMessage}`] : []),
     `🟢 LIVE — ${openMarketsCount} Märkte offen`,
     ...(hasActiveHotTake ? ['⚡ HOT TAKE läuft'] : []),
     `🎰 Jackpot: ${jackpot} TKN`,

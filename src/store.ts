@@ -229,6 +229,7 @@ interface AppState {
   jackpot: number;
   currentPhase: string; // Phase string from appState/global
   testMode: boolean; // per Default true; via "Live gehen" deaktiviert
+  adminMessage: string; // optionale Ticker-Nachricht des Admins
   currentUser: string | null;
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
@@ -257,6 +258,7 @@ interface AppState {
   lockMarket: (marketId: string) => void;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
+  setAdminMessage: (msg: string) => Promise<void>;
   resetState: () => void;
 }
 
@@ -388,6 +390,7 @@ export const useStore = create<AppState>()((set, get) => {
     jackpot: 0,
     currentPhase: 'gruppenphase',
     testMode: true,
+    adminMessage: '',
     currentUser: null,
 
     login: async (playerId, avatar, avatarColor, avatarId) => {
@@ -758,9 +761,14 @@ export const useStore = create<AppState>()((set, get) => {
       }
     },
 
+    setAdminMessage: async (msg) => {
+      set({ adminMessage: msg });
+      if (db) await setDoc(doc(db, 'appState', 'global'), { adminMessage: msg }, { merge: true });
+    },
+
     resetState: () => {
       clearSessionCookie();
-      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], jackpot: 0, currentPhase: 'gruppenphase', testMode: true, currentUser: null });
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], jackpot: 0, currentPhase: 'gruppenphase', testMode: true, adminMessage: '', currentUser: null });
     },
 
     // Erfundener Mitspieler (nur Testmodus). Wird in Firestore gespeichert, damit

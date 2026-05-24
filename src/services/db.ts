@@ -47,6 +47,7 @@ export const initFirebaseSync = () => {
         jackpot: data.jackpot ?? data.hausbank ?? 0,
         currentPhase: data.currentPhase ?? 'gruppenphase',
         testMode: data.testMode ?? true,
+        adminMessage: data.adminMessage ?? '',
       });
     }
   }, err => console.error('[Firebase] appState Fehler:', err)));
