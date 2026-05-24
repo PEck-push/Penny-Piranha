@@ -9,6 +9,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, AUSTRIA_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
+import { isAdminEmail } from '../config/admins';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
@@ -95,6 +96,7 @@ export default function Admin() {
   const autoBetTestPlayers = useStore(s => s.autoBetTestPlayers);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
+  const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
   const players = useStore(s => s.players);
   const navigate = useNavigate();
 
@@ -982,6 +984,47 @@ export default function Admin() {
             <input type="number" value={giveAmount} onChange={e => setGiveAmount(e.target.value)}
               className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-blue2 mb-3" />
             <button onClick={handleGiveTokens} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px">🪙 Tokens vergeben</button>
+          </div>
+
+          {/* ── ADMIN-ROLLEN ────────────────────────────────────── */}
+          <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
+            <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-2">🔑 Admin-Rechte</div>
+            <div className="text-[10px] text-muted mb-3">
+              Admins sehen das Schloss-Icon und können Märkte verwalten. Spieler in der
+              fest hinterlegten E-Mail-Liste sind immer Admin.
+            </div>
+            {players.filter(p => !p.isTestPlayer).length === 0 ? (
+              <div className="text-[12px] text-muted text-center py-2">Keine Spieler</div>
+            ) : (
+              players.filter(p => !p.isTestPlayer).map(p => {
+                const fixedAdmin = isAdminEmail(p.email);
+                const active = fixedAdmin || !!p.isAdmin;
+                return (
+                  <div key={p.id} className="flex items-center gap-3 bg-input rounded-xl p-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-black text-white truncate flex items-center gap-1.5">
+                        {p.name}
+                        {active && <span className="text-[9px] font-black text-yellow bg-yellow/10 border border-yellow/25 rounded px-1.5 py-0.5">ADMIN</span>}
+                      </div>
+                      {p.email && <div className="text-[10px] text-muted truncate">{p.email}</div>}
+                    </div>
+                    {fixedAdmin ? (
+                      <span className="shrink-0 text-[10px] text-muted px-2">fix (E-Mail)</span>
+                    ) : (
+                      <button
+                        onClick={() => setPlayerAdmin(p.id, !p.isAdmin)}
+                        className={clsx('shrink-0 px-3 py-2 rounded-xl font-black text-[12px] border transition-colors cursor-pointer font-sans',
+                          p.isAdmin
+                            ? 'bg-red/15 border-red/40 text-red hover:bg-red/25'
+                            : 'bg-green/15 border-green/40 text-green hover:bg-green/25')}
+                      >
+                        {p.isAdmin ? '✕ Entziehen' : '✓ Zum Admin'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
 
           {/* ── JACKPOT ─────────────────────────────────────────── */}

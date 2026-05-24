@@ -241,6 +241,7 @@ interface AppState {
   changeBet: (marketId: string, newOptionId: string, newOptionLabel: string, newAmount: number) => Promise<void>;
   changeTip: (marketId: string, newOptionId: string, newOptionLabel: string) => Promise<void>;
   closeMarket: (marketId: string) => Promise<void>;
+  setPlayerAdmin: (playerId: string, isAdmin: boolean) => Promise<void>;
   createTestPlayer: (name?: string) => Promise<void>;
   autoBetTestPlayers: () => Promise<void>;
   fullReset: () => Promise<void>;
@@ -567,6 +568,15 @@ export const useStore = create<AppState>()((set, get) => {
           for (const bet of marketBets) batch.delete(doc(db, 'bets', bet.id));
           await batch.commit();
         } catch (err) { console.error('[Store] closeMarket Fehler:', err); }
+      }
+    },
+
+    setPlayerAdmin: async (playerId, isAdmin) => {
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, isAdmin } : p) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'players', playerId), { isAdmin });
+        } catch (err) { console.error('[Store] setPlayerAdmin Fehler:', err); }
       }
     },
 
