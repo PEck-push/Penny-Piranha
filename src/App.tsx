@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import Cashout from './pages/Cashout';
+import Profile from './pages/Profile';
 
 export default function App() {
   const currentUser = useStore(state => state.currentUser);
@@ -68,6 +69,7 @@ export default function App() {
               <Route path="/dashboard" element={currentUser ? <Dashboard /> : <Navigate to="/" />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/cashout" element={<Cashout />} />
+              <Route path="/profile" element={currentUser ? <Profile /> : <Navigate to="/" />} />
             </Routes>
           </div>
         </div>

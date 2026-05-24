@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore, Market, getMarketTotal } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
@@ -160,20 +160,6 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, []);
 
-  const [secretTaps, setSecretTaps] = useState(0);
-  const secretTapRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleSecretTap = () => {
-    const next = secretTaps + 1;
-    setSecretTaps(next);
-    if (secretTapRef.current) clearTimeout(secretTapRef.current);
-    if (next >= 5) {
-      setSecretTaps(0);
-      logoutAuth().then(() => navigate('/'));
-    } else {
-      secretTapRef.current = setTimeout(() => setSecretTaps(0), 2000);
-    }
-  };
 
   const handleBet = (optionId: string, optionLabel: string) => {
     if (selectedMarket && me && me.tokens >= betAmount && !selectedExpired)
@@ -719,7 +705,10 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_60%,rgba(59,110,255,.25)_0%,transparent_65%)] animate-[flareMove_15s_ease-in-out_infinite]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[280px] h-[80px] rounded-full bg-blue/30 blur-[35px]" />
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
-            {me.avatar ? <img src={me.avatar} alt={me.name} onClick={handleSecretTap} className="w-[200px] h-[200px] object-contain cursor-default select-none" /> : <div className="w-[200px] h-[200px] rounded-full bg-white/5" />}
+            {me.avatar
+              ? <img src={me.avatar} alt={me.name} onClick={() => navigate('/profile')} className="w-[200px] h-[200px] object-contain cursor-pointer select-none" />
+              : <div onClick={() => navigate('/profile')} className="w-[200px] h-[200px] rounded-full bg-white/5 cursor-pointer" />
+            }
           </div>
           <div className="relative z-30 flex flex-col items-center gap-3 mt-[220px]">
             <div className="flex items-center gap-3">
