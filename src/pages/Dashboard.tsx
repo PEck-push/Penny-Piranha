@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore, Market, getMarketTotal } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Target, Trophy, Lock, Calendar } from 'lucide-react';
+import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle } from 'lucide-react';
 import SpielplanTab from '../components/SpielplanTab';
 import RevealScreen from '../components/RevealScreen';
 import FeedWidget from '../components/FeedWidget';
@@ -712,14 +712,20 @@ export default function Dashboard() {
 
       {/* Top Bar */}
       {activeTab === 'dashboard' && (
-        <div className="relative z-30 px-5 pt-2.5 flex items-center justify-end gap-2.5">
-          <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
-            <span className="text-[14px]">🎰</span>
-            <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
+        <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between gap-2.5">
+          <img src="/logo-icon.webp" alt="Krügerl Propheten" className="h-9 w-9 object-contain shrink-0" />
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
+              <span className="text-[14px]">🎰</span>
+              <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
+            </div>
+            <button onClick={() => navigate('/rules')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
+              <HelpCircle className="w-4 h-4" />
+            </button>
+            <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
+              <Lock className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button onClick={() => navigate('/admin')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
-            <Lock className="w-3.5 h-3.5" />
-          </button>
         </div>
       )}
 

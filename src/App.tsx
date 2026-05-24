@@ -10,13 +10,44 @@ import Dashboard from './pages/Dashboard';
 import Admin from './pages/Admin';
 import Cashout from './pages/Cashout';
 import Profile from './pages/Profile';
+import Rules from './pages/Rules';
+
+function MythicSparkles() {
+  const stars = [
+    { top: '12%', left: '18%', size: 10, delay: 0,   dur: 2.4 },
+    { top: '20%', left: '78%', size: 14, delay: .6,  dur: 3.1 },
+    { top: '34%', left: '40%', size: 8,  delay: 1.2, dur: 2.8 },
+    { top: '48%', left: '12%', size: 12, delay: .3,  dur: 3.4 },
+    { top: '58%', left: '86%', size: 9,  delay: 1.6, dur: 2.6 },
+    { top: '68%', left: '30%', size: 13, delay: .9,  dur: 3.2 },
+    { top: '76%', left: '64%', size: 8,  delay: 1.9, dur: 2.9 },
+    { top: '86%', left: '22%', size: 11, delay: .5,  dur: 3.0 },
+    { top: '28%', left: '58%', size: 7,  delay: 2.1, dur: 2.5 },
+    { top: '82%', left: '82%', size: 10, delay: 1.4, dur: 3.3 },
+  ];
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute -inset-[20%]" style={{ animation: 'mythicDrift 14s ease-in-out infinite alternate' }}>
+        {stars.map((s, i) => (
+          <span key={i} className="absolute" style={{
+            top: s.top, left: s.left, fontSize: s.size,
+            color: i % 2 ? 'rgba(230,180,60,.9)' : 'rgba(167,123,255,.9)',
+            animation: `mythicTwinkle ${s.dur}s ease-in-out ${s.delay}s infinite`,
+            filter: 'drop-shadow(0 0 6px currentColor)',
+          }}>✦</span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function SplashScreen() {
   return (
-    <div className="w-full h-[100dvh] flex flex-col items-center justify-center bg-bg gap-8 px-8">
+    <div className="relative w-full h-[100dvh] flex flex-col items-center justify-center bg-bg gap-12 px-8 overflow-hidden">
+      <MythicSparkles />
       <img src="/logo-full.webp" alt="Krügerl Propheten — Das WM-Tippspiel"
-        className="w-full max-w-[320px] h-auto" style={{ animation: 'auraGlow 3s ease-in-out infinite' }} />
-      <div className="flex items-center gap-2.5">
+        className="relative z-10 w-full max-w-[320px] h-auto" style={{ animation: 'auraGlow 3s ease-in-out infinite' }} />
+      <div className="relative z-10 flex items-center gap-2.5 mt-4">
         <div className="relative w-8 h-8">
           <div className="absolute inset-0 rounded-full border border-transparent"
             style={{ borderTopColor: 'rgba(167,123,255,.9)', borderRightColor: 'rgba(230,180,60,.5)', animation: 'magicSpin 1.2s linear infinite' }} />
@@ -35,7 +66,7 @@ export default function App() {
   const [splashDone, setSplashDone]   = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setSplashDone(true), 2000);
+    const t = setTimeout(() => setSplashDone(true), 3000);
     return () => clearTimeout(t);
   }, []);
 
@@ -67,6 +98,7 @@ export default function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="/cashout" element={<Cashout />} />
               <Route path="/profile" element={currentUser ? <Profile /> : <Navigate to="/" />} />
+              <Route path="/rules" element={currentUser ? <Rules /> : <Navigate to="/" />} />
             </Routes>
           </div>
         </div>

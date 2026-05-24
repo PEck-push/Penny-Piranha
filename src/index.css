@@ -98,16 +98,24 @@
   0%, 100% { opacity: .25; transform: scale(.7); }
   50% { opacity: 1; transform: scale(1.2); }
 }
-/* Mystische Aura: pulsierender Glow um das Logo-Emoji */
+/* Mystische Aura: pulsierender Glow um das Logo (starr, ohne Bewegung) */
 @keyframes auraGlow {
   0%, 100% {
     filter: drop-shadow(0 0 12px rgba(167,123,255,.55)) drop-shadow(0 0 24px rgba(230,180,60,.35));
-    transform: translateY(0) rotate(-2deg);
   }
   50% {
     filter: drop-shadow(0 0 22px rgba(167,123,255,.9)) drop-shadow(0 0 44px rgba(230,180,60,.55));
-    transform: translateY(-8px) rotate(2deg);
   }
+}
+/* Mystischer Funken-Hintergrund: langsam driftende, pulsierende Sternenfelder */
+@keyframes mythicDrift {
+  0%   { transform: translate(0,0) rotate(0deg); opacity: .5; }
+  50%  { opacity: .9; }
+  100% { transform: translate(-40px,-30px) rotate(8deg); opacity: .5; }
+}
+@keyframes mythicTwinkle {
+  0%, 100% { opacity: 0; transform: scale(.4); }
+  50%      { opacity: 1; transform: scale(1); }
 }
 /* Funken-Spinner-Punkt am Button */
 @keyframes runeSpin {
