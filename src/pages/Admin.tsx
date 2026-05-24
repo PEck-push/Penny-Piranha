@@ -919,9 +919,14 @@ export default function Admin() {
               <div key={m.id} className="bg-input rounded-xl p-2.5 px-3 mb-1.5">
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                   <span className="flex-1 text-[12px] font-bold text-white truncate min-w-0">{m.question}</span>
-                  {m.status === 'open' && (
+                  {m.status === 'locked' && (
+                    <span className="text-[9px] font-black tracking-wider text-yellow bg-yellow/10 border border-yellow/30 rounded px-1.5 py-0.5 shrink-0">🔒 LOCKED</span>
+                  )}
+                  {(m.status === 'open' || m.status === 'locked') && (
                     <>
-                      <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">LOCK</button>
+                      {m.status === 'open' && (
+                        <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">LOCK</button>
+                      )}
                       {m.noStake
                         ? <button onClick={() => setPendingDelete({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">🗑 LÖSCHEN</button>
                         : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>

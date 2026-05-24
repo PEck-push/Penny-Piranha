@@ -553,7 +553,7 @@ export const useStore = create<AppState>()((set, get) => {
     closeMarket: async (marketId) => {
       const state = get();
       const market = state.markets.find(m => m.id === marketId);
-      if (!market || market.status !== 'open') return;
+      if (!market || (market.status !== 'open' && market.status !== 'locked')) return;
       const marketBets = state.bets.filter(b => b.marketId === marketId);
       const pUpdates: Record<string, number> = {};
       marketBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
