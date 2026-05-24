@@ -52,8 +52,9 @@ export default function Admin() {
   const [pendingResolution, setPendingResolution] = useState<{
     marketId: string; optionId: string; optionLabel: string; type: 'win' | 'rollover' | 'storno';
   } | null>(null);
-  // Close-market confirmation
+  // Close-market / delete confirmation
   const [pendingClose, setPendingClose] = useState<{ marketId: string; question: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ marketId: string; question: string } | null>(null);
 
   // Open question resolution
   const [openQModal, setOpenQModal] = useState<string | null>(null); // marketId
@@ -92,6 +93,7 @@ export default function Admin() {
   const liveSchedule = useStore(s => s.schedule);
   const fullReset = useStore(s => s.fullReset);
   const closeMarket = useStore(s => s.closeMarket);
+  const deleteMarket = useStore(s => s.deleteMarket);
   const createTestPlayer = useStore(s => s.createTestPlayer);
   const autoBetTestPlayers = useStore(s => s.autoBetTestPlayers);
   const placeBetAs = useStore(s => s.placeBetAs);
@@ -875,7 +877,10 @@ export default function Admin() {
                   {m.status === 'open' && (
                     <>
                       <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">LOCK</button>
-                      <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
+                      {m.noStake
+                        ? <button onClick={() => setPendingDelete({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">🗑 LÖSCHEN</button>
+                        : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
+                      }
                     </>
                   )}
                 </div>
@@ -1332,6 +1337,22 @@ export default function Admin() {
             <div className="flex gap-3 w-full">
               <button onClick={() => setPendingClose(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
               <button onClick={async () => { await closeMarket(pendingClose.marketId); setPendingClose(null); }} className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-red to-orange shadow-[0_0_15px_rgba(255,61,90,0.4)] transition-all">✓ Schließen & Refund</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDelete && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
+          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <div className="w-16 h-16 rounded-full bg-red/10 border border-red/25 flex items-center justify-center text-[28px] mb-4">🗑</div>
+            <div className="text-[20px] font-black text-white mb-2">Frage löschen</div>
+            <div className="text-[13px] text-white/90 font-semibold mb-1 leading-snug">„{pendingDelete.question}"</div>
+            <div className="text-[13px] text-muted mb-2 leading-relaxed">Gratis-Tipps werden verworfen, keine Token-Auswirkung.</div>
+            <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-5">Kann nicht rückgängig gemacht werden!</div>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => setPendingDelete(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
+              <button onClick={async () => { await deleteMarket(pendingDelete.marketId); setPendingDelete(null); }} className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-red to-orange shadow-[0_0_15px_rgba(255,61,90,0.4)] transition-all">🗑 Löschen</button>
             </div>
           </div>
         </div>

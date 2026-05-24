@@ -242,6 +242,7 @@ interface AppState {
   changeTip: (marketId: string, newOptionId: string, newOptionLabel: string) => Promise<void>;
   closeMarket: (marketId: string) => Promise<void>;
   setPlayerAdmin: (playerId: string, isAdmin: boolean) => Promise<void>;
+  deleteMarket: (marketId: string) => Promise<void>;
   createTestPlayer: (name?: string) => Promise<void>;
   autoBetTestPlayers: () => Promise<void>;
   fullReset: () => Promise<void>;
@@ -568,6 +569,14 @@ export const useStore = create<AppState>()((set, get) => {
           for (const bet of marketBets) batch.delete(doc(db, 'bets', bet.id));
           await batch.commit();
         } catch (err) { console.error('[Store] closeMarket Fehler:', err); }
+      }
+    },
+
+    deleteMarket: async (marketId) => {
+      set(s => ({ markets: s.markets.filter(m => m.id !== marketId) }));
+      if (db) {
+        try { await deleteDoc(doc(db, 'markets', marketId)); }
+        catch (err) { console.error('[Store] deleteMarket Fehler:', err); }
       }
     },
 

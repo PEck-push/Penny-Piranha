@@ -8,7 +8,7 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && (request.auth.uid == playerId || request.resource.data.isTestPlayer == true);
-      allow update: if request.auth != null && request.auth.uid == playerId;
+      allow update: if request.auth != null;
       allow delete: if request.auth != null
         && (request.auth.uid == playerId || resource.data.isTestPlayer == true);
     }

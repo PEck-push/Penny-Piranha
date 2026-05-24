@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { useStore } from './store';
-import { initFirebaseSync } from './services/db';
+import { initFirebaseSync, teardownFirebaseSync } from './services/db';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -72,6 +72,7 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) teardownFirebaseSync();
       setCurrentUser(firebaseUser?.uid ?? null);
       if (firebaseUser) initFirebaseSync();
       setAuthLoading(false);
