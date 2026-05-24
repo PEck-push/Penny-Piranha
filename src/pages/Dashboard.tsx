@@ -254,11 +254,16 @@ export default function Dashboard() {
 
   const openMarketsCount = markets.filter(m => m.status === 'open').length;
   const hasActiveHotTake = markets.some(m => m.type === 'hot-take' && m.status === 'open' && !(m.expiresAt && now > m.expiresAt));
+
+  // Gesamter verfügbarer Jackpot = angesparter Pot + Summe aller festen Preise offener Jackpot-Runden
+  const totalJackpot = jackpot + markets
+    .filter(m => m.status === 'open' && m.marketSubtype === 'jackpot')
+    .reduce((sum, m) => sum + (m.fixedPrize ?? 0), 0);
   const tickerItems = [
     ...(adminMessage ? [`📢 ${adminMessage}`] : []),
     `🟢 LIVE — ${openMarketsCount} Märkte offen`,
     ...(hasActiveHotTake ? ['⚡ HOT TAKE läuft'] : []),
-    `🎰 Jackpot: ${jackpot} TKN`,
+    `🎰 Jackpot: ${totalJackpot} TKN`,
   ];
   const tickerContent = [...tickerItems, ...tickerItems];
 
@@ -679,7 +684,7 @@ export default function Dashboard() {
           <div className="text-[22px] font-black text-white">Rangliste 🏆</div>
           <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
             <span className="text-[10px] font-extrabold text-yellow/50">JACKPOT</span>
-            <span className="font-mono text-[12px] font-bold text-yellow">🎰 {jackpot}</span>
+            <span className="font-mono text-[12px] font-bold text-yellow">🎰 {totalJackpot}</span>
           </div>
         </div>
         <div className="relative z-20 h-[250px] shrink-0 flex flex-col items-center justify-end overflow-hidden">
@@ -769,7 +774,7 @@ export default function Dashboard() {
         <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
             <span className="text-[14px]">🎰</span>
-            <span className="font-mono text-[11px] font-bold text-yellow">{jackpot} TKN</span>
+            <span className="font-mono text-[11px] font-bold text-yellow">{totalJackpot} TKN</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => navigate('/rules')} className="w-8 h-8 rounded-full bg-yellow/10 border border-yellow/30 flex items-center justify-center text-yellow hover:bg-yellow/20 transition-colors">

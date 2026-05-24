@@ -709,7 +709,7 @@ export default function Admin() {
             <div className="text-[10px] text-muted mb-3">
               Einsatzfrei — Spieler tippen gratis. Fester Haus-Preis pro Frage, gleichmäßig auf
               richtige Tipper verteilt. Resttoken aus „Kein-Gewinner"-Auflösungen sparen sich im
-              Jackpot an (aktuell <b className="text-yellow">{jackpot} TKN</b>) und fließen in die
+              Jackpot an (aktuell angespart: <b className="text-yellow">{jackpot} TKN</b>) und fließen in die
               Finale-Frage „Wer wird Weltmeister?". Auflösung über „Märkte verwalten".
             </div>
             {(['block1', 'austria', 'block2', 'finale'] as const).map(block => (
@@ -1075,13 +1075,31 @@ export default function Admin() {
           {adminTab === 'wetten' && <>
 
           {/* ── JACKPOT ─────────────────────────────────────────── */}
-          <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
-            <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Community Jackpot</div>
-            <div className="text-center py-2">
-              <div className="font-mono text-[40px] font-bold text-yellow drop-shadow-[0_0_30px_rgba(255,212,71,0.4)]">🪙 {jackpot}</div>
-              <div className="text-[11px] text-muted mt-1">Wird beim nächsten Gewinn ausgezahlt</div>
-            </div>
-          </div>
+          {(() => {
+            const openJpPrizes = markets
+              .filter(m => m.status === 'open' && m.marketSubtype === 'jackpot')
+              .reduce((s, m) => s + (m.fixedPrize ?? 0), 0);
+            const totalAvailable = jackpot + openJpPrizes;
+            return (
+              <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
+                <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Community Jackpot</div>
+                <div className="text-center py-2">
+                  <div className="font-mono text-[40px] font-bold text-yellow drop-shadow-[0_0_30px_rgba(255,212,71,0.4)]">🪙 {totalAvailable}</div>
+                  <div className="text-[11px] text-muted mt-1">Gesamt verfügbar für Spieler</div>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <div className="flex-1 bg-yellow/5 border border-yellow/20 rounded-xl px-3 py-2 text-center">
+                    <div className="text-[10px] text-muted mb-0.5">Offene Fragen</div>
+                    <div className="font-mono text-[16px] font-bold text-yellow">{openJpPrizes} TKN</div>
+                  </div>
+                  <div className="flex-1 bg-yellow/5 border border-yellow/20 rounded-xl px-3 py-2 text-center">
+                    <div className="text-[10px] text-muted mb-0.5">Angespart (Finale)</div>
+                    <div className="font-mono text-[16px] font-bold text-yellow">{jackpot} TKN</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           </>}
 
