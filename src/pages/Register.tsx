@@ -244,7 +244,8 @@ export default function Register() {
         {BG}
         <div className="relative z-10 px-5 pt-8 flex-1 flex flex-col">
           <div className="text-center pb-5">
-            <img src="/pp4.webp" alt="Penny Piranha" className="h-20 w-auto mx-auto drop-shadow-[0_0_24px_rgba(0,214,143,0.5)] animate-[float_3s_ease-in-out_infinite]" />
+            <span className="block text-[68px] leading-none drop-shadow-[0_0_24px_rgba(0,214,143,0.5)] animate-[float_3s_ease-in-out_infinite]">🍺</span>
+            <div className="text-[16px] font-black text-white tracking-[-0.5px] mt-1">KRÜGERL PROPHETEN</div>
           </div>
 
           <StepDots current={1} total={5} />

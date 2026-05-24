@@ -205,7 +205,7 @@ export default function Dashboard() {
   if (!me) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-bg px-8 gap-5 text-center">
-        <div className="text-[40px]">🦈</div>
+        <div className="text-[40px]">🍺</div>
         <div className="text-[18px] font-black text-white">Kein Spielerprofil gefunden</div>
         <div className="text-[13px] text-muted leading-relaxed">
           Dein Account wurde möglicherweise zurückgesetzt.<br />Bitte neu registrieren.
@@ -694,10 +694,10 @@ export default function Dashboard() {
         <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between">
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_12px_rgba(0,214,143,0.5)]">
-                <img src="/pp3.webp" alt="Penny Piranha" className="w-full h-full object-cover" />
+              <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center shadow-[0_0_12px_rgba(0,214,143,0.5)] text-[13px]">
+                🍺
               </div>
-              <span className="text-[13px] font-black text-white">Penny Piranha</span>
+              <span className="text-[13px] font-black text-white">Krügerl Propheten</span>
             </div>
             <div className="text-[11px] text-muted mt-[1px]">Hey, <b className="text-green">{me.name}</b></div>
           </div>

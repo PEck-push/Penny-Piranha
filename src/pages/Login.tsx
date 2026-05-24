@@ -62,11 +62,10 @@ export default function Login() {
 
       <div className="relative z-10 px-5 pt-8 flex-1 flex flex-col">
         <div className="text-center pb-6">
-          <img
-            src="/pp4.webp"
-            alt="Penny Piranha"
-            className="h-28 w-auto mx-auto drop-shadow-[0_0_30px_rgba(0,214,143,0.5)] animate-[float_3s_ease-in-out_infinite]"
-          />
+          <div className="h-28 flex items-center justify-center">
+            <span className="text-[92px] leading-none drop-shadow-[0_0_30px_rgba(0,214,143,0.5)] animate-[float_3s_ease-in-out_infinite]">🍺</span>
+          </div>
+          <div className="text-[20px] font-black text-white tracking-[-0.5px] mt-1">KRÜGERL PROPHETEN</div>
         </div>
 
         <div className="text-[26px] font-black text-white text-center leading-[1.1] mb-1">

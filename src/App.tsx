@@ -39,10 +39,10 @@ export default function App() {
     <BrowserRouter>
       <div className="w-full h-full flex flex-col items-center sm:justify-center">
         <div className="hidden sm:block text-center mb-6 shrink-0">
-          <div className="font-mono text-[9px] text-[#2A3555] tracking-[0.3em] uppercase">The Prediction Pit</div>
+          <div className="font-mono text-[9px] text-[#2A3555] tracking-[0.3em] uppercase">Das WM-Tippspiel</div>
           <div className="flex items-center justify-center gap-2 mt-1.5">
-            <img src="/pp3.webp" alt="Penny Piranha" className="w-[32px] h-[32px] object-contain animate-[breathe_3s_ease-in-out_infinite]" />
-            <span className="text-[24px] font-black text-white tracking-[-1px]">PENNY PIRANHA</span>
+            <span className="text-[28px] animate-[breathe_3s_ease-in-out_infinite]">🍺</span>
+            <span className="text-[24px] font-black text-white tracking-[-1px]">KRÜGERL PROPHETEN</span>
           </div>
         </div>
         <div className="w-full h-[100dvh] sm:h-[812px] sm:max-w-[375px] mx-auto bg-bg sm:rounded-[46px] overflow-hidden sm:border sm:border-white/5 sm:shadow-[0_50px_120px_rgba(0,0,0,0.85)] flex flex-col relative shrink-0 transform-gpu">

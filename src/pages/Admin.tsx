@@ -407,7 +407,7 @@ export default function Admin() {
       <div className="flex-1 flex flex-col bg-bg relative">
         <div className="absolute inset-0 z-[100] bg-[#02040C]/95 backdrop-blur-2xl flex flex-col items-center justify-center">
           <button onClick={() => navigate('/dashboard')} className="absolute top-6 left-6 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">✕</button>
-          <img src="/pp3.webp" alt="Penny Piranha" className="h-[70px] w-auto mb-3 animate-[float_3s_ease-in-out_infinite]" />
+          <span className="text-[64px] leading-none mb-3 animate-[float_3s_ease-in-out_infinite]">🍺</span>
           <div className="text-[18px] font-black text-white mb-1">Admin-Zugang</div>
           <div className="text-[12px] text-muted mb-7">Nur für den Host · PIN: 1234</div>
           <div className="flex gap-3 mb-8">
@@ -435,7 +435,7 @@ export default function Admin() {
       <div className="relative z-10 flex flex-col flex-1">
         <div className="p-3.5 px-5 border-b border-border flex items-center justify-between shrink-0">
           <div className="text-[17px] font-black text-white flex items-center gap-2">
-            <img src="/pp3.webp" alt="" className="h-5 w-auto" /> Admin Panel
+            <span className="text-[18px]">🍺</span> Admin Panel
           </div>
           <div className="text-[10px] font-black tracking-[0.1em] text-red bg-red/10 border border-red/30 rounded-lg px-2.5 py-1">HOST ONLY</div>
         </div>
