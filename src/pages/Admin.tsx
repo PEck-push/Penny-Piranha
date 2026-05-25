@@ -260,16 +260,9 @@ export default function Admin() {
     setWaTestStatus('loading');
     setWaTestMsg('');
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Nicht eingeloggt.');
-      const res = await fetch('/.netlify/functions/test-whatsapp', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await setDoc(doc(db, 'appState', 'global'), { waTestRequest: Date.now() }, { merge: true });
       setWaTestStatus('ok');
-      setWaTestMsg('✓ Testnachricht gesendet!');
+      setWaTestMsg('✓ Testanforderung gesendet — Nachricht erscheint in ~1 Min in der Gruppe.');
     } catch (err: any) {
       setWaTestStatus('error');
       setWaTestMsg(err.message || 'Fehler');
