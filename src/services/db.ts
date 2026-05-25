@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet, Answer, FeedEvent, ScheduleMatch } from '../store';
 
@@ -62,8 +62,14 @@ export const initFirebaseSync = () => {
     useStore.setState({ feed });
   }, err => console.error('[Firebase] feed Fehler:', err)));
 
-  sub(onSnapshot(collection(db, 'schedule'), snap => {
-    const schedule = snap.docs.map(d => ({ matchId: d.id, ...d.data() } as ScheduleMatch));
-    useStore.setState({ schedule });
-  }, err => console.error('[Firebase] schedule Fehler:', err)));
+  // Schedule ändert sich nur beim Admin-Import → einmalig laden statt Live-Listener.
+  // Spart bei jedem App-Start/Reload die Reads für ~100 Spielplan-Dokumente und
+  // vermeidet das Live-Echo. Nach einem Spielplan-Import müssen offene Clients
+  // einmal neu laden, um die neuen Spiele zu sehen.
+  getDocs(collection(db, 'schedule'))
+    .then(snap => {
+      const schedule = snap.docs.map(d => ({ matchId: d.id, ...d.data() } as ScheduleMatch));
+      useStore.setState({ schedule });
+    })
+    .catch(err => console.error('[Firebase] schedule Fehler:', err));
 };
