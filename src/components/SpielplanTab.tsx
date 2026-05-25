@@ -39,11 +39,8 @@ export default function SpielplanTab() {
   const currentUser = useStore(s => s.currentUser);
   const jackpot     = useStore(s => s.jackpot);
   const placeBet    = useStore(s => s.placeBet);
-  const logoutAuth  = useStore(s => s.logoutAuth);
   const liveSchedule = useStore(s => s.schedule);
   const me          = players.find(p => p.id === currentUser);
-
-  const [showProfile, setShowProfile] = useState(false);
 
   const now = Date.now();
 
@@ -261,61 +258,7 @@ export default function SpielplanTab() {
       {/* ── HEADER ──────────────────────────────────────────────────────────────── */}
       <div className="relative z-10 px-4 pt-3.5 pb-0 shrink-0 flex items-center justify-between mb-3">
         <div className="text-[22px] font-black text-white">Spielplan ⚽</div>
-        {me && (
-          <button
-            onClick={() => setShowProfile(true)}
-            className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full pl-2 pr-3 py-1.5 hover:bg-white/10 transition-colors"
-          >
-            <div className="w-5 h-5 rounded-full overflow-hidden bg-white/10 shrink-0">
-              {me.avatar ? <img src={me.avatar} className="w-full h-full object-cover" alt="" /> : null}
-            </div>
-            <span className="text-[11px] font-black text-white/80">{me.name ?? me.firstName}</span>
-          </button>
-        )}
       </div>
-
-      {/* ── PROFILE SHEET ───────────────────────────────────────────────────────── */}
-      {showProfile && me && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowProfile(false)} />
-          <div className="relative z-10 bg-bg border border-border border-b-0 rounded-t-[28px] w-full max-w-[430px] shadow-[0_-20px_60px_rgba(0,0,0,0.75)] pb-10">
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 bg-white/20 rounded-full" />
-            </div>
-            <div className="px-6 py-4 flex flex-col items-center text-center gap-3">
-              <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/5 border border-white/10">
-                {me.avatar
-                  ? <img src={me.avatar} className="w-full h-full object-contain" alt="" />
-                  : <div className="w-full h-full flex items-center justify-center text-[24px]">👤</div>
-                }
-              </div>
-              <div>
-                <div className="text-[18px] font-black text-white">{me.name}</div>
-                {me.email && <div className="text-[12px] text-muted mt-0.5">{me.email}</div>}
-              </div>
-              <div className="flex gap-3 w-full text-center">
-                <div className="flex-1 bg-card border border-border rounded-xl py-3">
-                  <div className="text-[9px] font-black text-muted uppercase tracking-wider mb-0.5">Guthaben</div>
-                  <div className="font-mono text-[16px] font-bold text-yellow">🪙 {me.tokens}</div>
-                </div>
-                <div className="flex-1 bg-card border border-border rounded-xl py-3">
-                  <div className="text-[9px] font-black text-muted uppercase tracking-wider mb-0.5">Streak</div>
-                  <div className="font-mono text-[16px] font-bold text-orange-400">
-                    {me.streakLevel === 'damn_hot' ? '🔥🔥' : me.streakLevel === 'on_fire' ? '🔥' : '⬜'}{' '}
-                    {me.currentStreak ?? 0}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => logoutAuth()}
-                className="w-full p-3.5 border border-red/30 rounded-xl bg-red/10 font-sans text-[14px] font-black text-red cursor-pointer hover:bg-red/20 transition-colors mt-1"
-              >
-                Abmelden
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── GROUP TABS ──────────────────────────────────────────────────────────── */}
       <div className="relative z-10 px-4 shrink-0">
