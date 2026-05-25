@@ -110,7 +110,7 @@ export interface Market {
   id: string;
   question: string;
   type: 'standard' | 'hot-take' | 'anonymous' | 'combo';
-  status: 'open' | 'locked' | 'resolved' | 'cancelled';
+  status: 'open' | 'locked' | 'resolved' | 'cancelled' | 'paused';
   options: MarketOption[];
   createdAt: number;
   expiresAt?: number;
@@ -257,6 +257,8 @@ interface AppState {
   resolveRollover: (marketId: string) => void;
   resolveStorno: (marketId: string) => void;
   lockMarket: (marketId: string) => void;
+  pauseMarket: (marketId: string) => Promise<void>;
+  reopenMarket: (marketId: string) => Promise<void>;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
@@ -730,6 +732,35 @@ export const useStore = create<AppState>()((set, get) => {
           await updateDoc(doc(db, 'markets', marketId), { status: 'locked' });
         } catch (err) {
           console.error('[Store] lockMarket Fehler:', err);
+        }
+      }
+    },
+
+    // Pausieren: Markt für Spieler ausblenden (Status 'paused'), Einsätze & Pools
+    // bleiben erhalten — keine Rückbuchung. Über reopenMarket wieder öffnen.
+    pauseMarket: async (marketId) => {
+      const m = get().markets.find(mk => mk.id === marketId);
+      if (!m || (m.status !== 'open' && m.status !== 'locked')) return;
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, status: 'paused' } : mk) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), { status: 'paused' });
+        } catch (err) {
+          console.error('[Store] pauseMarket Fehler:', err);
+        }
+      }
+    },
+
+    // Wieder öffnen: pausierten oder gesperrten Markt zurück auf 'open' setzen.
+    reopenMarket: async (marketId) => {
+      const m = get().markets.find(mk => mk.id === marketId);
+      if (!m || (m.status !== 'paused' && m.status !== 'locked')) return;
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, status: 'open' } : mk) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), { status: 'open' });
+        } catch (err) {
+          console.error('[Store] reopenMarket Fehler:', err);
         }
       }
     },

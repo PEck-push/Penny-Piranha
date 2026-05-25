@@ -123,6 +123,8 @@ export default function Admin() {
   const resolveRollover = useStore(s => s.resolveRollover);
   const resolveStorno = useStore(s => s.resolveStorno);
   const lockMarket = useStore(s => s.lockMarket);
+  const pauseMarket = useStore(s => s.pauseMarket);
+  const reopenMarket = useStore(s => s.reopenMarket);
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
@@ -1225,13 +1227,21 @@ export default function Admin() {
 
           {/* ── MANAGE MARKETS ──────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
-            <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Märkte verwalten</div>
+            <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">Märkte verwalten</div>
+            <div className="text-[10px] text-muted mb-3.5 leading-relaxed">
+              <b className="text-yellow">🔒 Sperren:</b> Wettannahme stoppt, Markt bleibt für Spieler sichtbar. ·{' '}
+              <b className="text-blue2">⏸ Pause:</b> Markt wird für Spieler ausgeblendet (Einsätze bleiben). ·{' '}
+              <b className="text-green">🔓 Öffnen:</b> macht Sperre/Pause rückgängig.
+            </div>
             {markets.filter(m => m.status !== 'resolved').map(m => (
               <div key={m.id} className="bg-input rounded-xl p-2.5 px-3 mb-1.5">
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                   <span className="flex-1 text-[12px] font-bold text-white truncate min-w-0">{m.question}</span>
                   {m.status === 'locked' && (
-                    <span className="text-[9px] font-black tracking-wider text-yellow bg-yellow/10 border border-yellow/30 rounded px-1.5 py-0.5 shrink-0">🔒 LOCKED</span>
+                    <span className="text-[9px] font-black tracking-wider text-yellow bg-yellow/10 border border-yellow/30 rounded px-1.5 py-0.5 shrink-0">🔒 GESPERRT</span>
+                  )}
+                  {m.status === 'paused' && (
+                    <span className="text-[9px] font-black tracking-wider text-blue2 bg-blue/10 border border-blue2/30 rounded px-1.5 py-0.5 shrink-0">⏸ PAUSIERT</span>
                   )}
                   {m.status === 'cancelled' && (
                     <>
@@ -1239,16 +1249,19 @@ export default function Admin() {
                       <button onClick={() => deleteMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10 shrink-0">🗑 ENTFERNEN</button>
                     </>
                   )}
+                  {(m.status === 'locked' || m.status === 'paused') && (
+                    <button onClick={() => reopenMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">🔓 ÖFFNEN</button>
+                  )}
+                  {m.status === 'open' && (
+                    <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">🔒 SPERREN</button>
+                  )}
                   {(m.status === 'open' || m.status === 'locked') && (
-                    <>
-                      {m.status === 'open' && (
-                        <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">LOCK</button>
-                      )}
-                      {m.noStake
-                        ? <button onClick={() => setPendingFreeClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
-                        : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
-                      }
-                    </>
+                    <button onClick={() => pauseMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-blue2 border-blue2/35 hover:bg-blue/10">⏸ PAUSE</button>
+                  )}
+                  {(m.status === 'open' || m.status === 'locked' || m.status === 'paused') && (
+                    m.noStake
+                      ? <button onClick={() => setPendingFreeClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
+                      : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
                   )}
                 </div>
                 {(m.status === 'open' || m.status === 'locked') && (
