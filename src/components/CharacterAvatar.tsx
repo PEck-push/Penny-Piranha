@@ -23,7 +23,7 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {hasCharacter ? (
         <>
           <img
-            src={`/characters/bodies/${player.bodyId}.png`}
+            src={`/characters/outfits/${player.bodyId}.png`}
             alt=""
             className="absolute inset-0 w-full h-full object-contain"
           />

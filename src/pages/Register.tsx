@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import { auth, db } from '../firebase';
 import { useStore } from '../store';
 import type { StreakLevel } from '../store';
+import { CHARACTER_MODE, HEADS, OUTFITS } from '../data/characterParts';
 
 // ─── Avatar data (existing webp sprites, used as character placeholder) ────────
 const AVATARS = [
@@ -47,14 +48,11 @@ const AVATARS = [
   { id: 'c36', n: 'Golo',          img: '/avatars/36.webp',         color: '#8e44ad' },
 ];
 
-const BODY_STYLES = [
-  { id: 'body_blau',    label: 'Austria Blau',  bg: 'from-blue-600 to-blue-900',   border: '#2563eb' },
-  { id: 'body_rot',     label: 'Feuer-Rot',     bg: 'from-red-500 to-orange-700',  border: '#ef4444' },
-  { id: 'body_gruen',   label: 'Waldgrün',      bg: 'from-green-500 to-green-800', border: '#16a34a' },
-  { id: 'body_lila',    label: 'Royal Lila',    bg: 'from-purple-500 to-purple-900',border: '#7c3aed' },
-  { id: 'body_weiss',   label: 'Klassik Weiß',  bg: 'from-gray-300 to-gray-500',   border: '#d1d5db' },
-  { id: 'body_schwarz', label: 'Stealth',       bg: 'from-gray-600 to-gray-900',   border: '#374151' },
-];
+// Anzahl Schritte hängt vom Charakter-Modus ab:
+//   fallback → Code, Konto, Charakter, Bestätigung      = 4
+//   builder  → Code, Konto, Kopf, Outfit, Bestätigung   = 5
+const TOTAL_STEPS = CHARACTER_MODE === 'builder' ? 5 : 4;
+const CONFIRM_STEP = TOTAL_STEPS;
 
 // ─── Step indicator ────────────────────────────────────────────────────────────
 function StepDots({ current, total }: { current: number; total: number }) {
@@ -100,11 +98,12 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
 
-  // Step 3
+  // Charakter — Fallback (1 Schritt)
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
 
-  // Step 4
-  const [selectedBody, setSelectedBody] = useState(BODY_STYLES[0]);
+  // Charakter — Builder (2 Schritte): Kopf + Outfit
+  const [selectedHead, setSelectedHead] = useState(HEADS[0] ?? '');
+  const [selectedOutfit, setSelectedOutfit] = useState(OUTFITS[0] ?? '');
 
 
   const displayName = [firstName, lastName].filter(Boolean).join(' ');
@@ -177,14 +176,18 @@ export default function Register() {
         }
       }
 
+      // Charakter-Felder je nach Modus: Fallback speichert das vorhandene
+      // Avatar-Bild, Builder die Kopf-/Outfit-IDs (CharacterAvatar setzt sie zusammen).
+      const characterFields = CHARACTER_MODE === 'builder'
+        ? { avatar: '', avatarId: '', avatarColor: '', headId: selectedHead, bodyId: selectedOutfit }
+        : { avatar: selectedAvatar.img, avatarId: selectedAvatar.id, avatarColor: selectedAvatar.color };
+
       await registerPlayer(uid, {
         name: displayName,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
-        avatar: selectedAvatar.img,
-        avatarId: selectedAvatar.id,
-        avatarColor: selectedAvatar.color,
+        ...characterFields,
         loggedIn: true,
         tokens: 1000,
         comboMalus: false,
@@ -206,7 +209,6 @@ export default function Register() {
 
       navigate('/dashboard');
     } catch (err: any) {
-      setShowFinalConfirm(false);
       switch (err.code) {
         case 'auth/email-already-in-use':
           setError('Diese E-Mail ist bereits registriert. Bitte melde dich an.');
@@ -246,7 +248,7 @@ export default function Register() {
             <img src="/logo-full.webp" alt="Krügerl Propheten — Das WM-Tippspiel" className="h-24 w-auto mx-auto" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
           </div>
 
-          <StepDots current={1} total={5} />
+          <StepDots current={1} total={TOTAL_STEPS} />
 
           <div className="text-[26px] font-black text-white leading-[1.1] mb-1">
             Einladungscode
@@ -304,7 +306,7 @@ export default function Register() {
             ‹ Zurück
           </button>
 
-          <StepDots current={2} total={5} />
+          <StepDots current={2} total={TOTAL_STEPS} />
 
           <div className="text-[24px] font-black text-white leading-[1.1] mb-1">
             Account erstellen
@@ -390,7 +392,53 @@ export default function Register() {
     );
   }
 
-  // ── Screen 3: Charakter wählen ───────────────────────────────────────────────
+  // ── Builder Schritt 1: Kopf wählen ───────────────────────────────────────────
+  if (step === 3 && CHARACTER_MODE === 'builder') {
+    return (
+      <div className="flex-1 flex flex-col bg-bg relative overflow-hidden">
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(139,61,255,.4)_0%,transparent_55%),radial-gradient(ellipse_at_20%_60%,rgba(0,229,255,.12)_0%,transparent_40%)]" />
+
+        <div className="relative z-20 px-5 py-3 flex items-center justify-between">
+          <button onClick={() => { setStep(2); setError(null); }}
+            className="text-[13px] font-bold text-muted bg-transparent border-none cursor-pointer">‹ Zurück</button>
+          <StepDots current={3} total={TOTAL_STEPS} />
+        </div>
+
+        <div className="relative z-10 flex-none h-[210px] flex items-end justify-center overflow-visible">
+          {selectedHead
+            ? <img src={`/characters/heads/${selectedHead}.png`} alt="" className="relative z-30 h-[240px] object-contain -mb-2.5" />
+            : <div className="text-[13px] text-muted self-center">Noch keine Köpfe hinterlegt</div>}
+        </div>
+
+        <div className="relative z-20 text-center px-5 pt-3">
+          <div className="text-[22px] font-black text-white drop-shadow-[0_0_40px_rgba(139,61,255,0.6)]">Kopf wählen</div>
+        </div>
+
+        <div className="relative z-20 px-4 pt-2 flex-1 overflow-y-auto no-scrollbar">
+          <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Schritt 1 von 2 — Kopf</div>
+          <div className="grid grid-cols-4 gap-2 pb-32">
+            {HEADS.map(id => (
+              <div key={id} className="flex flex-col items-center cursor-pointer group" onClick={() => setSelectedHead(id)}>
+                <div className={clsx('w-16 h-16 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all overflow-hidden',
+                  selectedHead === id ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-105' : 'border-border group-hover:border-blue/50 group-hover:scale-105')}>
+                  <img src={`/characters/heads/${id}.png`} alt="" className="w-full h-full object-contain" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-4 pb-8 px-5 z-30">
+          <button onClick={() => setStep(4)} disabled={!selectedHead}
+            className="w-full p-[14px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_30px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-[2px] disabled:opacity-40">
+            Weiter → Outfit wählen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Screen 3: Charakter wählen (Fallback) ────────────────────────────────────
   if (step === 3) {
     return (
       <div className="flex-1 flex flex-col bg-bg relative overflow-hidden">
@@ -403,7 +451,7 @@ export default function Register() {
           >
             ‹ Zurück
           </button>
-          <StepDots current={3} total={5} />
+          <StepDots current={3} total={TOTAL_STEPS} />
         </div>
 
         <div className="relative z-10 flex-none h-[210px] flex flex-col items-center justify-end overflow-visible">
@@ -467,75 +515,50 @@ export default function Register() {
     );
   }
 
-  // ── Screen 4: Stil/Trikot wählen ─────────────────────────────────────────────
-  if (step === 4) {
+  // ── Builder Schritt 2: Outfit wählen ─────────────────────────────────────────
+  if (step === 4 && CHARACTER_MODE === 'builder') {
     return (
-      <div className="flex-1 flex flex-col bg-bg relative">
-        {BG}
-        <div className="relative z-10 px-5 pt-6 flex-1 flex flex-col">
-          <button
-            onClick={() => { setStep(3); setError(null); }}
-            className="text-[13px] font-bold text-muted mb-4 text-left bg-transparent border-none cursor-pointer"
-          >
-            ‹ Zurück
-          </button>
+      <div className="flex-1 flex flex-col bg-bg relative overflow-hidden">
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(139,61,255,.4)_0%,transparent_55%),radial-gradient(ellipse_at_20%_60%,rgba(0,229,255,.12)_0%,transparent_40%)]" />
 
-          <StepDots current={4} total={5} />
+        <div className="relative z-20 px-5 py-3 flex items-center justify-between">
+          <button onClick={() => { setStep(3); setError(null); }}
+            className="text-[13px] font-bold text-muted bg-transparent border-none cursor-pointer">‹ Zurück</button>
+          <StepDots current={4} total={TOTAL_STEPS} />
+        </div>
 
-          <div className="text-[24px] font-black text-white leading-[1.1] mb-1">
-            Trikot wählen
+        {/* Live-Vorschau: Outfit + Kopf übereinander */}
+        <div className="relative z-10 flex-none h-[210px] flex items-end justify-center overflow-visible">
+          <div className="relative h-[240px] w-[240px] -mb-2.5">
+            {selectedOutfit && <img src={`/characters/outfits/${selectedOutfit}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-20" />}
+            {selectedHead && <img src={`/characters/heads/${selectedHead}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-30" />}
+            {!selectedOutfit && <div className="absolute inset-0 flex items-center justify-center text-[13px] text-muted">Noch keine Outfits hinterlegt</div>}
           </div>
-          <div className="text-[12px] text-muted mb-5">
-            In welchen Farben läufst du für den WM-Titel auf?
-          </div>
+        </div>
 
-          <div className="flex-1 flex flex-col gap-2.5">
-            {/* Preview: character + selected jersey color */}
-            <div className="flex items-center gap-4 bg-white/5 border border-border rounded-2xl p-4">
-              <img
-                src={selectedAvatar.img}
-                alt={selectedAvatar.n}
-                className="w-14 h-14 object-contain rounded-xl"
-              />
-              <div>
-                <div className="text-[14px] font-black text-white">{selectedAvatar.n}</div>
-                <div className="text-[11px] text-muted mt-0.5">{selectedBody.label}</div>
+        <div className="relative z-20 text-center px-5 pt-3">
+          <div className="text-[22px] font-black text-white drop-shadow-[0_0_40px_rgba(139,61,255,0.6)]">Outfit wählen</div>
+        </div>
+
+        <div className="relative z-20 px-4 pt-2 flex-1 overflow-y-auto no-scrollbar">
+          <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Schritt 2 von 2 — Outfit</div>
+          <div className="grid grid-cols-4 gap-2 pb-32">
+            {OUTFITS.map(id => (
+              <div key={id} className="flex flex-col items-center cursor-pointer group" onClick={() => setSelectedOutfit(id)}>
+                <div className={clsx('w-16 h-16 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all overflow-hidden',
+                  selectedOutfit === id ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-105' : 'border-border group-hover:border-blue/50 group-hover:scale-105')}>
+                  <img src={`/characters/outfits/${id}.png`} alt="" className="w-full h-full object-contain" />
+                </div>
               </div>
-              <div
-                className={`ml-auto w-10 h-10 rounded-full bg-gradient-to-br ${selectedBody.bg} border-2`}
-                style={{ borderColor: selectedBody.border }}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 mt-1">
-              {BODY_STYLES.map(style => (
-                <button
-                  key={style.id}
-                  onClick={() => setSelectedBody(style)}
-                  className={clsx(
-                    'flex flex-col items-center gap-2 rounded-2xl border-2 p-3 transition-all',
-                    selectedBody.id === style.id
-                      ? 'border-green bg-green/10 shadow-[0_0_20px_rgba(230,180,60,0.2)]'
-                      : 'border-border bg-white/5 hover:border-blue/40',
-                  )}
-                >
-                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${style.bg}`} />
-                  <span className="text-[10px] font-bold text-center leading-[1.2] text-white/80">
-                    {style.label}
-                  </span>
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
+        </div>
 
-          <div className="pb-8 pt-4">
-            <button
-              onClick={() => setStep(5)}
-              className="w-full p-[15px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_40px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-0.5"
-            >
-              Weiter → Bestätigung
-            </button>
-          </div>
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-bg via-bg/90 to-transparent pt-4 pb-8 px-5 z-30">
+          <button onClick={() => setStep(5)} disabled={!selectedOutfit}
+            className="w-full p-[14px] rounded-[16px] bg-gradient-to-br from-green to-[#B8860B] font-black text-[16px] text-bg shadow-[0_8px_30px_rgba(230,180,60,0.4)] transition-all hover:-translate-y-[2px] disabled:opacity-40">
+            Weiter → Bestätigung
+          </button>
         </div>
       </div>
     );
@@ -547,13 +570,13 @@ export default function Register() {
       {BG}
       <div className="relative z-10 px-5 pt-6 flex-1 flex flex-col">
         <button
-          onClick={() => { setStep(4); setError(null); }}
+          onClick={() => { setStep(CHARACTER_MODE === 'builder' ? 4 : 3); setError(null); }}
           className="text-[13px] font-bold text-muted mb-4 text-left bg-transparent border-none cursor-pointer"
         >
           ‹ Zurück
         </button>
 
-        <StepDots current={5} total={5} />
+        <StepDots current={CONFIRM_STEP} total={TOTAL_STEPS} />
 
         <div className="text-[24px] font-black text-white leading-[1.1] mb-1">
           Alles klar?
@@ -565,23 +588,28 @@ export default function Register() {
         {/* Character preview */}
         <div className="flex flex-col items-center gap-3 mb-6">
           <div className="relative">
-            <div
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[140px] h-[40px] rounded-full blur-[20px] opacity-60"
-              style={{ backgroundColor: selectedAvatar.color }}
-            />
-            <img
-              src={selectedAvatar.img}
-              alt={selectedAvatar.n}
-              className="relative z-10 h-[160px] w-auto object-contain"
-            />
+            {CHARACTER_MODE === 'builder' ? (
+              <div className="relative h-[160px] w-[160px] z-10">
+                {selectedOutfit && <img src={`/characters/outfits/${selectedOutfit}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-20" />}
+                {selectedHead && <img src={`/characters/heads/${selectedHead}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-30" />}
+              </div>
+            ) : (
+              <>
+                <div
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[140px] h-[40px] rounded-full blur-[20px] opacity-60"
+                  style={{ backgroundColor: selectedAvatar.color }}
+                />
+                <img
+                  src={selectedAvatar.img}
+                  alt={selectedAvatar.n}
+                  className="relative z-10 h-[160px] w-auto object-contain"
+                />
+              </>
+            )}
           </div>
           <div className="text-center">
             <div className="text-[20px] font-black text-white">{displayName || '—'}</div>
             <div className="text-[11px] text-muted mt-0.5">{email}</div>
-            <div className="flex items-center justify-center gap-1.5 mt-1.5">
-              <div className={`w-4 h-4 rounded-full bg-gradient-to-br ${selectedBody.bg}`} />
-              <span className="text-[11px] text-muted">{selectedBody.label}</span>
-            </div>
           </div>
         </div>
 
