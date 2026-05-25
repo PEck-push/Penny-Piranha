@@ -24,59 +24,67 @@ export default async () => {
   const now = Date.now();
 
   // ── 1. OPEN markets 48h before kickoff ────────────────────────────────────
-  const scheduleSnap = await db.collection('schedule').get();
-  const existingMarkets = await db.collection('markets').where('marketSubtype', '==', 'wm-match').get();
-  const marketByMatch = new Map<string, any>();
-  existingMarkets.forEach(d => {
-    const data = d.data();
-    if (data.matchId) marketByMatch.set(data.matchId, { id: d.id, ...data });
-  });
+  // Read-Optimierung: nur Spiele im 48h-Fenster lesen statt des ganzen Spielplans.
+  // Range-Query auf einem einzelnen Feld → kein Composite-Index nötig. Steht kein
+  // Spiel an (z.B. vor dem Turnier), wird auch der markets-Read übersprungen.
+  const scheduleSnap = await db
+    .collection('schedule')
+    .where('kickoffAt', '>', now)
+    .where('kickoffAt', '<=', now + OPEN_WINDOW_MS)
+    .get();
 
-  for (const doc of scheduleSnap.docs) {
-    const match = doc.data() as any;
-    const matchId = doc.id;
-    if (marketByMatch.has(matchId)) continue;
-    if (typeof match.kickoffAt !== 'number') continue;
-    if (match.kickoffAt <= now) continue;             // already started, never opened
-    if (match.kickoffAt - now > OPEN_WINDOW_MS) continue; // too far away
+  if (!scheduleSnap.empty) {
+    const existingMarkets = await db.collection('markets').where('marketSubtype', '==', 'wm-match').get();
+    const marketByMatch = new Map<string, any>();
+    existingMarkets.forEach(d => {
+      const data = d.data();
+      if (data.matchId) marketByMatch.set(data.matchId, { id: d.id, ...data });
+    });
 
-    const limits = PHASE_LIMITS[match.phase as string] ?? PHASE_LIMITS.gruppenphase;
-    const marketRef = db.collection('markets').doc();
-    await marketRef.set({
-      question: `${match.teamA} vs. ${match.teamB}`,
-      type: 'standard',
-      status: 'open',
-      createdBy: 'system',
-      createdAt: now,
-      options: [
-        { id: 'home', label: match.teamA, pool: 0 },
-        { id: 'draw', label: 'Unentschieden', pool: 0 },
-        { id: 'away', label: match.teamB, pool: 0 },
-      ],
-      winningOptionId: null,
-      resolutionType: null,
-      isOpenQuestion: false,
-      marketSubtype: 'wm-match',
-      matchId,
-      footballDataOrgId: match.footballDataOrgId ?? null,
-      teamA: match.teamA,
-      teamB: match.teamB,
-      kickoffAt: match.kickoffAt,
-      groupLabel: match.groupLabel ?? '',
-      phase: match.phase ?? 'gruppenphase',
-      minBet: limits.minBet,
-      maxBet: limits.maxBet,
-      autoDeductAmount: limits.autoDeduct,
-      autoDeductProcessed: false,
-    });
-    marketByMatch.set(matchId, { id: marketRef.id });
-    const feedRef = db.collection('feed').doc();
-    await feedRef.set({
-      type: 'market_locked',
-      marketId: marketRef.id,
-      text: `⚽ Markt offen: ${match.teamA} vs. ${match.teamB}`,
-      ts: FieldValue.serverTimestamp(),
-    });
+    for (const doc of scheduleSnap.docs) {
+      const match = doc.data() as any;
+      const matchId = doc.id;
+      if (marketByMatch.has(matchId)) continue;
+      if (typeof match.kickoffAt !== 'number') continue;
+
+      const limits = PHASE_LIMITS[match.phase as string] ?? PHASE_LIMITS.gruppenphase;
+      const marketRef = db.collection('markets').doc();
+      await marketRef.set({
+        question: `${match.teamA} vs. ${match.teamB}`,
+        type: 'standard',
+        status: 'open',
+        createdBy: 'system',
+        createdAt: now,
+        options: [
+          { id: 'home', label: match.teamA, pool: 0 },
+          { id: 'draw', label: 'Unentschieden', pool: 0 },
+          { id: 'away', label: match.teamB, pool: 0 },
+        ],
+        winningOptionId: null,
+        resolutionType: null,
+        isOpenQuestion: false,
+        marketSubtype: 'wm-match',
+        matchId,
+        footballDataOrgId: match.footballDataOrgId ?? null,
+        teamA: match.teamA,
+        teamB: match.teamB,
+        kickoffAt: match.kickoffAt,
+        groupLabel: match.groupLabel ?? '',
+        phase: match.phase ?? 'gruppenphase',
+        minBet: limits.minBet,
+        maxBet: limits.maxBet,
+        autoDeductAmount: limits.autoDeduct,
+        autoDeductProcessed: false,
+      });
+      marketByMatch.set(matchId, { id: marketRef.id });
+      const feedRef = db.collection('feed').doc();
+      await feedRef.set({
+        type: 'market_locked',
+        marketId: marketRef.id,
+        text: `⚽ Markt offen: ${match.teamA} vs. ${match.teamB}`,
+        ts: FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   // ── 2. LOCK markets at kickoff + auto-deductions ───────────────────────────
@@ -86,13 +94,20 @@ export default async () => {
     .where('marketSubtype', '==', 'wm-match')
     .get();
 
+  // Nur Märkte, deren Anpfiff erreicht ist und die noch nicht verarbeitet wurden.
+  const toLock = openSnap.docs.filter(d => {
+    const m = d.data() as any;
+    return typeof m.kickoffAt === 'number' && m.kickoffAt <= now && !m.autoDeductProcessed;
+  });
+
+  // players nur lesen, wenn wirklich gesperrt wird (spart Reads bei Leerlauf-Ticks).
+  if (toLock.length === 0) return new Response('ok');
+
   const playersSnap = await db.collection('players').get();
   const players = playersSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
-  for (const marketDoc of openSnap.docs) {
+  for (const marketDoc of toLock) {
     const market = marketDoc.data() as any;
-    if (typeof market.kickoffAt !== 'number' || market.kickoffAt > now) continue;
-    if (market.autoDeductProcessed) continue;
 
     const lockedPoolSnapshot: Record<string, number> = {};
     (market.options ?? []).forEach((o: any) => { lockedPoolSnapshot[o.id] = o.pool ?? 0; });
