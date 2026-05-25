@@ -1,0 +1,11 @@
+# Abhängigkeiten
+node_modules/
+
+# Secrets — NIEMALS committen
+service-account.json
+auth_info/
+.env
+.env.*
+
+# Logs
+*.log
