@@ -459,8 +459,19 @@ export default function SpielplanTab() {
               </div>
             )}
 
+            {/* ── Wettannahme geschlossen (Anpfiff erreicht, Server-Lock folgt) ── */}
+            {selectedMarket && !selectedMyBet && selectedMarket.status === 'open' && selectedMarket.kickoffAt && now >= selectedMarket.kickoffAt && (
+              <div className="p-4 pb-8">
+                <div className="bg-yellow/10 border border-yellow/25 rounded-2xl p-4 text-center">
+                  <div className="text-[24px] mb-1">🔒</div>
+                  <div className="text-[14px] font-black text-yellow">Wettannahme geschlossen</div>
+                  <div className="text-[12px] text-muted mt-1">Das Spiel hat bereits angepfiffen.</div>
+                </div>
+              </div>
+            )}
+
             {/* ── Bet form ── */}
-            {selectedMarket && !selectedMyBet && selectedMarket.status === 'open' && (
+            {selectedMarket && !selectedMyBet && selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
               <div className="p-4 pb-8">
                 {/* Odds */}
                 {selectedTotal > 0 && (

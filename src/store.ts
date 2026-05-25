@@ -475,6 +475,8 @@ export const useStore = create<AppState>()((set, get) => {
       if (!player || player.tokens < amount) return;
       const mkt = state.markets.find(m => m.id === marketId);
       if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
+      // Wett-Schluss bei Anpfiff: auch wenn der Server-Lock (Cron) erst später greift.
+      if (mkt?.kickoffAt && Date.now() >= mkt.kickoffAt) return;
       const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
       if (alreadyBet) return;
 
@@ -544,6 +546,7 @@ export const useStore = create<AppState>()((set, get) => {
       const player = state.players.find(p => p.id === uid);
       const market = state.markets.find(m => m.id === marketId);
       if (!oldBet || !player || !market || market.status !== 'open') return;
+      if (market.kickoffAt && Date.now() >= market.kickoffAt) return;
       if (player.tokens + oldBet.amount < newAmount) return;
       const newBet: Bet = { id: Math.random().toString(36).substring(7), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
       set(s => ({
