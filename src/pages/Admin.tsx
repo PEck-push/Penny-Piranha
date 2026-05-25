@@ -54,7 +54,19 @@ export default function Admin() {
   } | null>(null);
   // Close-market / delete confirmation
   const [pendingClose, setPendingClose] = useState<{ marketId: string; question: string } | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{ marketId: string; question: string } | null>(null);
+  // Gratis-/Jackpot-Wette schließen: Löschen ODER Absagen wählbar
+  const [pendingFreeClose, setPendingFreeClose] = useState<{ marketId: string; question: string } | null>(null);
+
+  // Jackpot/Hausbank manuell setzen
+  const [jackpotInput, setJackpotInput] = useState('');
+  const [pendingJackpot, setPendingJackpot] = useState<number | null>(null);
+
+  // Eigene Gratis-Wette erstellen (gleiches Prinzip wie Jackpot-Runden)
+  const [freeBetQuestion, setFreeBetQuestion] = useState('');
+  const [freeBetBinary, setFreeBetBinary] = useState(true);
+  const [freeBetOptions, setFreeBetOptions] = useState<string[]>(['', '']);
+  const [freeBetPrize, setFreeBetPrize] = useState('0');
+  const [freeBetMsg, setFreeBetMsg] = useState('');
 
   // Open question resolution
   const [openQModal, setOpenQModal] = useState<string | null>(null); // marketId
@@ -123,6 +135,7 @@ export default function Admin() {
   const placeTipAs = useStore(s => s.placeTipAs);
   const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
   const setAdminMessage = useStore(s => s.setAdminMessage);
+  const setJackpot = useStore(s => s.setJackpot);
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
   const whatsappGroupLink = useStore(s => s.whatsappGroupLink ?? '');
@@ -446,6 +459,56 @@ export default function Admin() {
     });
     setSpecialMsg(`„${tpl.title}" als Jackpot-Runde erstellt.`);
     setTimeout(() => setSpecialMsg(''), 3000);
+  };
+
+  // Eigene Gratis-Wette: frei definierte Frage, einsatzfrei (noStake), fester
+  // Haus-Preis — gleiches Auflösungsprinzip wie Jackpot-Runden.
+  const buildFreeBetOptions = (): MarketOption[] => {
+    if (freeBetBinary) return [{ id: 'yes', label: 'JA', pool: 0 }, { id: 'no', label: 'NEIN', pool: 0 }];
+    return freeBetOptions.filter(o => o.trim()).map(label => ({
+      id: Math.random().toString(36).substring(7), label: label.trim(), pool: 0,
+    }));
+  };
+  const canCreateFreeBet =
+    freeBetQuestion.trim() !== '' &&
+    (freeBetBinary || freeBetOptions.filter(o => o.trim()).length >= 2);
+  const createFreeBet = () => {
+    if (!canCreateFreeBet) return;
+    if (markets.some(m => m.question === freeBetQuestion.trim())) {
+      setFreeBetMsg('Eine Wette mit diesem Titel existiert bereits.');
+      setTimeout(() => setFreeBetMsg(''), 3000);
+      return;
+    }
+    createMarket({
+      question: freeBetQuestion.trim(),
+      type: 'standard',
+      status: 'open',
+      createdBy: 'admin',
+      options: buildFreeBetOptions(),
+      winningOptionId: null,
+      resolutionType: null,
+      isOpenQuestion: false,
+      marketSubtype: 'jackpot',
+      noStake: true,
+      fixedPrize: parseInt(freeBetPrize) || 0,
+      absorbsJackpotPot: false,
+      minBet: 0,
+      maxBet: 0,
+      autoDeductAmount: 0,
+      autoDeductProcessed: true,
+    });
+    setFreeBetMsg(`„${freeBetQuestion.trim()}" als Gratis-Wette erstellt.`);
+    setFreeBetQuestion('');
+    setFreeBetBinary(true);
+    setFreeBetOptions(['', '']);
+    setFreeBetPrize('0');
+    setTimeout(() => setFreeBetMsg(''), 4000);
+  };
+
+  const handleSetJackpot = () => {
+    const v = parseInt(jackpotInput);
+    if (isNaN(v) || v < 0) return;
+    setPendingJackpot(v);
   };
 
   const handleLoadInviteCode = async () => {
@@ -913,6 +976,81 @@ export default function Admin() {
             ))}
           </div>
 
+          {/* ── EIGENE GRATIS-WETTE ───────────────────────────────── */}
+          <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🆓</span>
+              <div className="text-[11px] font-black text-yellow tracking-[0.15em] uppercase">Eigene Gratis-Wette</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Frei definierte Frage nach dem Jackpot-Prinzip: einsatzfrei, Spieler tippen gratis.
+              Der feste Haus-Preis wird bei der Auflösung gleichmäßig auf alle richtigen Tipper
+              verteilt. Auflösung & Schließen über „Märkte verwalten".
+            </div>
+            {freeBetMsg && (
+              <div className="bg-yellow/10 border border-yellow/30 rounded-xl px-3 py-2 text-[12px] font-bold text-center text-yellow mb-3">
+                {freeBetMsg}
+              </div>
+            )}
+
+            <div className="mb-3">
+              <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Frage / Titel</label>
+              <input type="text" value={freeBetQuestion} onChange={e => setFreeBetQuestion(e.target.value)}
+                placeholder="z. B. Wer schießt das erste Tor?"
+                className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-yellow/60 placeholder:text-muted" />
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Antwort-Modus</label>
+              <div className="grid grid-cols-2 gap-1.5 mb-2">
+                <div onClick={() => setFreeBetBinary(true)}
+                  className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
+                    freeBetBinary ? "border-yellow/50 text-yellow bg-yellow/10" : "border-border text-muted hover:border-yellow/40")}>
+                  Binär (JA/NEIN)
+                </div>
+                <div onClick={() => setFreeBetBinary(false)}
+                  className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
+                    !freeBetBinary ? "border-yellow/50 text-yellow bg-yellow/10" : "border-border text-muted hover:border-yellow/40")}>
+                  Custom
+                </div>
+              </div>
+              {!freeBetBinary && (
+                <div className="flex flex-col gap-1.5">
+                  {freeBetOptions.map((opt, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 bg-yellow/20 text-yellow">{i + 1}</div>
+                      <input type="text" value={opt} onChange={e => { const n = [...freeBetOptions]; n[i] = e.target.value; setFreeBetOptions(n); }}
+                        placeholder={`Option ${i + 1}`}
+                        className="flex-1 bg-input border border-border rounded-xl p-2.5 px-3 text-white font-sans text-[13px] font-bold outline-none focus:border-yellow/60 placeholder:text-muted" />
+                      {freeBetOptions.length > 2 && (
+                        <button onClick={() => setFreeBetOptions(freeBetOptions.filter((_, idx) => idx !== i))}
+                          className="w-7 h-7 rounded-lg bg-red/10 border border-red/25 text-red text-[12px] flex items-center justify-center hover:bg-red/20">✕</button>
+                      )}
+                    </div>
+                  ))}
+                  {freeBetOptions.length < 8 && (
+                    <button onClick={() => setFreeBetOptions([...freeBetOptions, ''])}
+                      className="mt-1 w-full p-2 border border-dashed border-white/15 rounded-xl text-[11px] font-black text-muted hover:text-white hover:border-yellow/40 transition-colors">
+                      + Option hinzufügen
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Fester Haus-Preis (TKN)</label>
+              <input type="number" min="0" value={freeBetPrize} onChange={e => setFreeBetPrize(e.target.value)}
+                className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-yellow/60" />
+              <div className="text-[10px] text-muted mt-1.5">0 = reiner Gratis-Spaß-Tipp ohne Auszahlung.</div>
+            </div>
+
+            <button onClick={createFreeBet} disabled={!canCreateFreeBet}
+              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-yellow to-orange font-sans text-[13px] font-black text-bg cursor-pointer shadow-[0_4px_18px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed">
+              🆓 Gratis-Wette erstellen
+            </button>
+          </div>
+
           </>}
 
           {adminTab === 'maerkte' && <>
@@ -1095,18 +1233,25 @@ export default function Admin() {
                   {m.status === 'locked' && (
                     <span className="text-[9px] font-black tracking-wider text-yellow bg-yellow/10 border border-yellow/30 rounded px-1.5 py-0.5 shrink-0">🔒 LOCKED</span>
                   )}
+                  {m.status === 'cancelled' && (
+                    <>
+                      <span className="text-[9px] font-black tracking-wider text-muted bg-white/5 border border-white/15 rounded px-1.5 py-0.5 shrink-0">🚫 ABGESAGT</span>
+                      <button onClick={() => deleteMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10 shrink-0">🗑 ENTFERNEN</button>
+                    </>
+                  )}
                   {(m.status === 'open' || m.status === 'locked') && (
                     <>
                       {m.status === 'open' && (
                         <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">LOCK</button>
                       )}
                       {m.noStake
-                        ? <button onClick={() => setPendingDelete({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">🗑 LÖSCHEN</button>
+                        ? <button onClick={() => setPendingFreeClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
                         : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
                       }
                     </>
                   )}
                 </div>
+                {(m.status === 'open' || m.status === 'locked') && (
                 <div className="flex flex-wrap gap-1">
                   {m.isOpenQuestion ? (
                     // Open question: single button opens answer picker
@@ -1138,6 +1283,7 @@ export default function Admin() {
                     ↩️ STORNO
                   </button>
                 </div>
+                )}
                 {/* Sim-result: only for locked wm-match markets in testMode */}
                 {testMode && m.marketSubtype === 'wm-match' && m.status === 'locked' && (
                   <div className="mt-2">
@@ -1312,6 +1458,32 @@ export default function Admin() {
                   <div className="flex-1 bg-yellow/5 border border-yellow/20 rounded-xl px-3 py-2 text-center">
                     <div className="text-[10px] text-muted mb-0.5">Angespart (Finale)</div>
                     <div className="font-mono text-[16px] font-bold text-yellow">{jackpot} TKN</div>
+                  </div>
+                </div>
+
+                {/* Hausbank manuell setzen */}
+                <div className="border-t border-border mt-3 pt-3">
+                  <div className="text-[10px] font-black text-muted tracking-[0.1em] uppercase mb-2">Hausbank manuell setzen</div>
+                  <div className="text-[10px] text-muted mb-2">
+                    Setzt den angesparten Jackpot (Finale) auf einen exakten Wert. Offene Frage-Preise
+                    bleiben davon unberührt.
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      value={jackpotInput}
+                      onChange={e => setJackpotInput(e.target.value)}
+                      placeholder={`Aktuell: ${jackpot}`}
+                      className="flex-1 bg-white/5 border border-border rounded-xl px-3 py-2 text-[13px] text-white placeholder:text-muted/40 outline-none focus:border-yellow/60"
+                    />
+                    <button
+                      onClick={handleSetJackpot}
+                      disabled={jackpotInput.trim() === '' || isNaN(parseInt(jackpotInput)) || parseInt(jackpotInput) < 0}
+                      className="px-4 py-2 rounded-xl bg-yellow/20 border border-yellow/40 text-yellow text-[12px] font-black disabled:opacity-40"
+                    >
+                      Setzen
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1740,17 +1912,42 @@ export default function Admin() {
         </div>
       )}
 
-      {pendingDelete && (
+      {pendingFreeClose && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
           <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
-            <div className="w-16 h-16 rounded-full bg-red/10 border border-red/25 flex items-center justify-center text-[28px] mb-4">🗑</div>
-            <div className="text-[20px] font-black text-white mb-2">Frage löschen</div>
-            <div className="text-[13px] text-white/90 font-semibold mb-1 leading-snug">„{pendingDelete.question}"</div>
-            <div className="text-[13px] text-muted mb-2 leading-relaxed">Gratis-Tipps werden verworfen, keine Token-Auswirkung.</div>
+            <div className="w-16 h-16 rounded-full bg-red/10 border border-red/25 flex items-center justify-center text-[28px] mb-4">✕</div>
+            <div className="text-[20px] font-black text-white mb-2">Gratis-Wette schließen</div>
+            <div className="text-[13px] text-white/90 font-semibold mb-1 leading-snug">„{pendingFreeClose.question}"</div>
+            <div className="text-[13px] text-muted mb-1.5 leading-relaxed">Einsatzfrei — keine Token-Auswirkung. Wähle, wie geschlossen werden soll:</div>
+            <div className="text-[11px] text-muted/80 mb-4 leading-relaxed text-left w-full">
+              <b className="text-white">Löschen:</b> verschwindet sofort komplett.<br />
+              <b className="text-white">Absagen:</b> bleibt als „abgesagt" sichtbar.
+            </div>
             <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-5">Kann nicht rückgängig gemacht werden!</div>
+            <div className="flex flex-col gap-2.5 w-full">
+              <div className="flex gap-3 w-full">
+                <button onClick={async () => { await deleteMarket(pendingFreeClose.marketId); setPendingFreeClose(null); }} className="flex-1 p-3 rounded-xl font-black text-white bg-gradient-to-r from-red to-orange shadow-[0_0_15px_rgba(255,61,90,0.4)] transition-all">🗑 Löschen</button>
+                <button onClick={async () => { await closeMarket(pendingFreeClose.marketId); setPendingFreeClose(null); }} className="flex-1 p-3 rounded-xl font-black text-yellow bg-yellow/10 border border-yellow/40 hover:bg-yellow/20 transition-colors">🚫 Absagen</button>
+              </div>
+              <button onClick={() => setPendingFreeClose(null)} className="w-full p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingJackpot !== null && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
+          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <div className="w-16 h-16 rounded-full bg-yellow/10 border border-yellow/25 flex items-center justify-center text-[28px] mb-4">🪙</div>
+            <div className="text-[20px] font-black text-white mb-2">Hausbank setzen</div>
+            <div className="text-[13px] text-muted mb-2 leading-relaxed">
+              Angesparten Jackpot von <b className="text-white">{jackpot} TKN</b> auf{' '}
+              <b className="text-yellow">{pendingJackpot} TKN</b> setzen?
+            </div>
+            <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-5">Überschreibt den aktuellen Wert!</div>
             <div className="flex gap-3 w-full">
-              <button onClick={() => setPendingDelete(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
-              <button onClick={async () => { await deleteMarket(pendingDelete.marketId); setPendingDelete(null); }} className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-red to-orange shadow-[0_0_15px_rgba(255,61,90,0.4)] transition-all">🗑 Löschen</button>
+              <button onClick={() => setPendingJackpot(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
+              <button onClick={async () => { await setJackpot(pendingJackpot); setPendingJackpot(null); setJackpotInput(''); }} className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(230,180,60,0.4)] transition-all">✓ Setzen</button>
             </div>
           </div>
         </div>

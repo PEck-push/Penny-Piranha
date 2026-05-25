@@ -261,6 +261,7 @@ interface AppState {
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
   setWhatsappGroupLink: (url: string) => Promise<void>;
+  setJackpot: (value: number) => Promise<void>;
   resetState: () => void;
 }
 
@@ -772,6 +773,19 @@ export const useStore = create<AppState>()((set, get) => {
     setWhatsappGroupLink: async (url) => {
       set({ whatsappGroupLink: url });
       if (db) await setDoc(doc(db, 'appState', 'global'), { whatsappGroupLink: url }, { merge: true });
+    },
+
+    // Hausbank/Jackpot manuell auf einen exakten Wert setzen (Admin-Korrektur).
+    setJackpot: async (value) => {
+      const v = Math.max(0, Math.floor(value));
+      set({ jackpot: v });
+      if (db) {
+        try {
+          await setDoc(doc(db, 'appState', 'global'), { jackpot: v }, { merge: true });
+        } catch (err) {
+          console.error('[Store] setJackpot Fehler:', err);
+        }
+      }
     },
 
     resetState: () => {
