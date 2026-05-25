@@ -34,7 +34,11 @@ export default async () => {
     .get();
 
   if (!scheduleSnap.empty) {
-    const existingMarkets = await db.collection('markets').where('marketSubtype', '==', 'wm-match').get();
+    // Duplikat-Check nur für die Spiele im Fenster (matchId 'in'), statt ALLE
+    // wm-match-Märkte zu lesen. 'in' erlaubt max. 30 Werte — im 48h-Fenster
+    // liegen nie mehr als ein gutes Dutzend Spiele, daher unkritisch.
+    const windowMatchIds = scheduleSnap.docs.map(d => d.id).slice(0, 30);
+    const existingMarkets = await db.collection('markets').where('matchId', 'in', windowMatchIds).get();
     const marketByMatch = new Map<string, any>();
     existingMarkets.forEach(d => {
       const data = d.data();
