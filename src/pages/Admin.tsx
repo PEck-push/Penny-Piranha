@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useStore, MarketOption } from '../store';
+import { useStore, MarketOption, buildSelectionKey } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
@@ -36,6 +36,7 @@ export default function Admin() {
   const [newMarketType, setNewMarketType] = useState<'standard' | 'hot-take' | 'anonymous' | 'combo'>('standard');
   const [isBinary, setIsBinary] = useState(true);
   const [isOpenQuestion, setIsOpenQuestion] = useState(false);
+  const [isMultiSelect, setIsMultiSelect] = useState(false);
   const [customOptions, setCustomOptions] = useState<string[]>(['', '']);
   const [hotTakeMinutes, setHotTakeMinutes] = useState(5); // NEW: configurable timer
 
@@ -57,13 +58,16 @@ export default function Admin() {
   // Gratis-/Jackpot-Wette schließen: Löschen ODER Absagen wählbar
   const [pendingFreeClose, setPendingFreeClose] = useState<{ marketId: string; question: string } | null>(null);
 
+  // Multiple-Choice-Auflösung: richtige Options-Menge je Markt
+  const [mcResolveSel, setMcResolveSel] = useState<Record<string, string[]>>({});
+
   // Jackpot/Hausbank manuell setzen
   const [jackpotInput, setJackpotInput] = useState('');
   const [pendingJackpot, setPendingJackpot] = useState<number | null>(null);
 
   // Eigene Gratis-Wette erstellen (gleiches Prinzip wie Jackpot-Runden)
   const [freeBetQuestion, setFreeBetQuestion] = useState('');
-  const [freeBetBinary, setFreeBetBinary] = useState(true);
+  const [freeBetFormat, setFreeBetFormat] = useState<'binary' | 'single' | 'multi'>('binary');
   const [freeBetOptions, setFreeBetOptions] = useState<string[]>(['', '']);
   const [freeBetPrize, setFreeBetPrize] = useState('0');
   const [freeBetMsg, setFreeBetMsg] = useState('');
@@ -208,6 +212,7 @@ export default function Admin() {
         winningOptionId: null,
         resolutionType: null,
         isOpenQuestion: newMarketType === 'anonymous' ? isOpenQuestion : false,
+        multiSelect: isMultiSelect,
         ...(newMarketType === 'hot-take' ? { expiresAt: Date.now() + hotTakeMinutes * 60 * 1000 } : {}),
       });
     }
@@ -216,6 +221,7 @@ export default function Admin() {
     setCustomOptions(['', '']);
     setIsBinary(true);
     setIsOpenQuestion(false);
+    setIsMultiSelect(false);
     setComboLegs([{ question: '', optionA: 'JA', optionB: 'NEIN' }]);
     setHotTakeMinutes(5);
   };
@@ -466,14 +472,14 @@ export default function Admin() {
   // Eigene Gratis-Wette: frei definierte Frage, einsatzfrei (noStake), fester
   // Haus-Preis — gleiches Auflösungsprinzip wie Jackpot-Runden.
   const buildFreeBetOptions = (): MarketOption[] => {
-    if (freeBetBinary) return [{ id: 'yes', label: 'JA', pool: 0 }, { id: 'no', label: 'NEIN', pool: 0 }];
+    if (freeBetFormat === 'binary') return [{ id: 'yes', label: 'JA', pool: 0 }, { id: 'no', label: 'NEIN', pool: 0 }];
     return freeBetOptions.filter(o => o.trim()).map(label => ({
       id: Math.random().toString(36).substring(7), label: label.trim(), pool: 0,
     }));
   };
   const canCreateFreeBet =
     freeBetQuestion.trim() !== '' &&
-    (freeBetBinary || freeBetOptions.filter(o => o.trim()).length >= 2);
+    (freeBetFormat === 'binary' || freeBetOptions.filter(o => o.trim()).length >= 2);
   const createFreeBet = () => {
     if (!canCreateFreeBet) return;
     if (markets.some(m => m.question === freeBetQuestion.trim())) {
@@ -492,6 +498,7 @@ export default function Admin() {
       isOpenQuestion: false,
       marketSubtype: 'jackpot',
       noStake: true,
+      multiSelect: freeBetFormat === 'multi',
       fixedPrize: parseInt(freeBetPrize) || 0,
       absorbsJackpotPot: false,
       minBet: 0,
@@ -501,7 +508,7 @@ export default function Admin() {
     });
     setFreeBetMsg(`„${freeBetQuestion.trim()}" als Gratis-Wette erstellt.`);
     setFreeBetQuestion('');
-    setFreeBetBinary(true);
+    setFreeBetFormat('binary');
     setFreeBetOptions(['', '']);
     setFreeBetPrize('0');
     setTimeout(() => setFreeBetMsg(''), 4000);
@@ -1004,19 +1011,25 @@ export default function Admin() {
 
             <div className="mb-3">
               <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Antwort-Modus</label>
-              <div className="grid grid-cols-2 gap-1.5 mb-2">
-                <div onClick={() => setFreeBetBinary(true)}
-                  className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
-                    freeBetBinary ? "border-yellow/50 text-yellow bg-yellow/10" : "border-border text-muted hover:border-yellow/40")}>
-                  Binär (JA/NEIN)
-                </div>
-                <div onClick={() => setFreeBetBinary(false)}
-                  className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
-                    !freeBetBinary ? "border-yellow/50 text-yellow bg-yellow/10" : "border-border text-muted hover:border-yellow/40")}>
-                  Custom
-                </div>
+              <div className="grid grid-cols-3 gap-1.5 mb-2">
+                {([
+                  ['binary', 'Binär'],
+                  ['single', 'Single Choice'],
+                  ['multi',  'Multiple Choice'],
+                ] as const).map(([mode, label]) => (
+                  <div key={mode} onClick={() => setFreeBetFormat(mode)}
+                    className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
+                      freeBetFormat === mode ? "border-yellow/50 text-yellow bg-yellow/10" : "border-border text-muted hover:border-yellow/40")}>
+                    {label}
+                  </div>
+                ))}
               </div>
-              {!freeBetBinary && (
+              {freeBetFormat === 'multi' && (
+                <div className="text-[10px] text-blue2 bg-blue/10 border border-blue2/30 rounded-xl px-2.5 py-2 mb-2">
+                  ☑️ Spieler darf mehrere Antworten ankreuzen. Gewinn nur bei <b>exakt</b> richtiger Auswahl.
+                </div>
+              )}
+              {freeBetFormat !== 'binary' && (
                 <div className="flex flex-col gap-1.5">
                   {freeBetOptions.map((opt, i) => (
                     <div key={i} className="flex gap-2 items-center">
@@ -1073,7 +1086,7 @@ export default function Admin() {
               <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Markt-Typ</label>
               <div className="grid grid-cols-2 gap-1.5">
                 {(['standard','hot-take','anonymous','combo'] as const).map(t => (
-                  <div key={t} onClick={() => { setNewMarketType(t); setIsOpenQuestion(false); setComboLegs([]); }}
+                  <div key={t} onClick={() => { setNewMarketType(t); setIsOpenQuestion(false); setIsMultiSelect(false); setComboLegs([]); }}
                     className={clsx("bg-input border rounded-xl p-2.5 px-2 text-center text-[11px] font-extrabold cursor-pointer transition-all",
                       newMarketType === t ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40 hover:text-blue2")}>
                     {t === 'standard' ? 'Standard' : t === 'hot-take' ? '⚡ Hot Take' : t === 'anonymous' ? '🕵️ Anonym' : '🔗 Combo'}
@@ -1165,19 +1178,24 @@ export default function Admin() {
             {newMarketType !== 'combo' && (
               <div className="mb-3">
                 <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Antwort-Modus</label>
-                <div className={clsx("grid gap-1.5 mb-2", newMarketType === 'anonymous' ? 'grid-cols-3' : 'grid-cols-2')}>
-                  <div onClick={() => { setIsBinary(true); setIsOpenQuestion(false); }}
+                <div className={clsx("grid gap-1.5 mb-2", newMarketType === 'anonymous' ? 'grid-cols-4' : 'grid-cols-3')}>
+                  <div onClick={() => { setIsBinary(true); setIsOpenQuestion(false); setIsMultiSelect(false); }}
                     className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
-                      isBinary && !isOpenQuestion ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40")}>
-                    Binär (JA/NEIN)
+                      isBinary && !isOpenQuestion && !isMultiSelect ? "border-green/50 text-green bg-green/10" : "border-border text-muted hover:border-blue/40")}>
+                    Binär
                   </div>
-                  <div onClick={() => { setIsBinary(false); setIsOpenQuestion(false); }}
+                  <div onClick={() => { setIsBinary(false); setIsOpenQuestion(false); setIsMultiSelect(false); }}
                     className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
-                      !isBinary && !isOpenQuestion ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40")}>
-                    Custom
+                      !isBinary && !isOpenQuestion && !isMultiSelect ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40")}>
+                    Single
+                  </div>
+                  <div onClick={() => { setIsBinary(false); setIsOpenQuestion(false); setIsMultiSelect(true); }}
+                    className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
+                      isMultiSelect ? "border-blue2/50 text-blue2 bg-blue/10" : "border-border text-muted hover:border-blue/40")}>
+                    Multiple
                   </div>
                   {newMarketType === 'anonymous' && (
-                    <div onClick={() => { setIsOpenQuestion(true); setIsBinary(false); }}
+                    <div onClick={() => { setIsOpenQuestion(true); setIsBinary(false); setIsMultiSelect(false); }}
                       className={clsx("bg-input border rounded-xl p-2.5 text-center text-[11px] font-extrabold cursor-pointer transition-all",
                         isOpenQuestion ? "border-purple2/50 text-purple2 bg-purple/10" : "border-border text-muted hover:border-blue/40")}>
                       ✏️ Offen
@@ -1188,6 +1206,12 @@ export default function Admin() {
                 {isOpenQuestion && (
                   <div className="bg-purple/10 border border-purple2/30 rounded-xl p-2.5 text-[11px] text-purple2 font-bold">
                     ✏️ Spieler tippen frei. Antworten bleiben bis zur Auflösung anonym.
+                  </div>
+                )}
+
+                {isMultiSelect && (
+                  <div className="bg-blue/10 border border-blue2/30 rounded-xl p-2.5 text-[11px] text-blue2 font-bold mb-2">
+                    ☑️ Spieler kreuzt mehrere Antworten an. Gewinn nur bei <b>exakt</b> richtiger Auswahl; Topf wird unter exakten Treffern aufgeteilt.
                   </div>
                 )}
 
@@ -1273,6 +1297,41 @@ export default function Admin() {
                       className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">
                       ✏️ Antworten auswerten
                     </button>
+                  ) : m.multiSelect ? (
+                    // Multiple-Choice: richtige Menge ankreuzen, dann exakt auflösen
+                    (() => {
+                      const sel = mcResolveSel[m.id] ?? [];
+                      const toggle = (id: string) => setMcResolveSel(s => {
+                        const cur = s[m.id] ?? [];
+                        return { ...s, [m.id]: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
+                      });
+                      return (
+                        <div className="w-full flex flex-col gap-1.5">
+                          <div className="text-[10px] font-black text-blue2">☑️ Richtige Antworten ankreuzen:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {m.options.map(opt => {
+                              const on = sel.includes(opt.id);
+                              return (
+                                <button key={opt.id} onClick={() => toggle(opt.id)}
+                                  className={clsx('text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer font-sans whitespace-nowrap transition-all',
+                                    on ? 'text-green border-green/50 bg-green/15' : 'text-muted border-muted/35 hover:bg-white/5')}>
+                                  {on ? '☑ ' : '☐ '}{opt.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <button
+                            disabled={sel.length === 0}
+                            onClick={() => {
+                              const labels = m.options.filter(o => sel.includes(o.id)).map(o => o.label).join(' + ');
+                              setPendingResolution({ marketId: m.id, optionId: buildSelectionKey(sel), optionLabel: labels, type: 'win' });
+                            }}
+                            className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10 disabled:opacity-40 self-start">
+                            ✓ Exakt auflösen ({sel.length})
+                          </button>
+                        </div>
+                      );
+                    })()
                   ) : (
                     m.options.map((opt, i) => {
                       const colors = ['text-green border-green/35 hover:bg-green/10','text-red border-red/35 hover:bg-red/10','text-blue2 border-blue2/35 hover:bg-blue/10','text-yellow border-yellow/35 hover:bg-yellow/10','text-purple2 border-purple2/35 hover:bg-purple/10'];

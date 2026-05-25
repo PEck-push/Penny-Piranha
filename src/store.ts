@@ -144,6 +144,10 @@ export interface Market {
   jackpotBlockLabel?: string;  // z.B. "🏁 Ende Gruppenphase"
   fixedPrize?: number;         // fester Token-Preis dieser Frage (vom Haus)
   absorbsJackpotPot?: boolean; // Finale-Headline: schluckt angesparten jackpot
+  // Multiple-Choice: Spieler kreuzt mehrere Antworten an, gewinnt nur bei exakter
+  // Übereinstimmung mit der vom Admin gewählten richtigen Menge. Der Tipp wird als
+  // ein Bet gespeichert (optionId = kanonischer Schlüssel der Auswahl).
+  multiSelect?: boolean;
 }
 
 export interface Bet {
@@ -182,6 +186,12 @@ export interface ScheduleMatch {
 }
 
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
+
+// Kanonischer Schlüssel einer Multiple-Choice-Auswahl: sortierte Options-IDs,
+// per '|' verbunden. Tipp und Auflösung erzeugen denselben Schlüssel, sodass
+// „exakt richtig" über reinen String-Vergleich (b.optionId === winningOptionId)
+// funktioniert.
+export const buildSelectionKey = (ids: string[]) => [...ids].sort().join('|');
 
 // ─── Cookie helpers (nur für currentUser Session) ─────────────────────────────
 export const saveSessionCookie = (playerId: string, avatar: string, avatarColor: string) => {
@@ -315,6 +325,23 @@ export const useStore = create<AppState>()((set, get) => {
       } else {
         resType = 'no-winner';
         newJackpot = state.jackpot + totalPool;
+      }
+    } else if (market.multiSelect) {
+      // Einsatz-Multiple-Choice: Pools je Option sind hier leer (der Einsatz hängt
+      // an der Kombination). Parimutuel über die Summe ALLER Einsätze; nur exakt
+      // passende Tipps (b.optionId === winningOptionId) teilen den Topf anteilig.
+      const totalStake = allBets.reduce((s, b) => s + b.amount, 0);
+      const winStake = winBets.reduce((s, b) => s + b.amount, 0);
+      if (winStake === 0) {
+        resType = 'no-winner';
+        let refunded = 0;
+        allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
+        newJackpot = state.jackpot + (totalStake - refunded);
+      } else {
+        resType = 'normal';
+        let paid = 0;
+        winBets.forEach(b => { const p = Math.floor((b.amount / winStake) * totalStake); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
+        newJackpot = state.jackpot + Math.max(0, totalStake - paid);
       }
     } else if (!winOpt || winPool === 0) {
       resType = 'no-winner';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useStore, Market, getMarketTotal } from '../store';
+import { useStore, Market, getMarketTotal, buildSelectionKey } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle, User } from 'lucide-react';
@@ -47,24 +47,35 @@ function PoolBar({ market }: { market: Market }) {
 }
 
 // ── Tipp-Verteilung (anonymes Gruppenbild: wie viele tippten worauf) ──────────────
-function TipDistribution({ market, bets, accent }: { market: Market; bets: { marketId: string; optionId: string }[]; accent: string }) {
-  const counts = market.options.map(o => bets.filter(b => b.marketId === market.id && b.optionId === o.id).length);
-  const total = counts.reduce((s, n) => s + n, 0);
+function TipDistribution({ market, bets, accent }: { market: Market; bets: { marketId: string; optionId: string; optionLabel?: string }[]; accent: string }) {
+  // Multiple-Choice: nach Kombination (optionLabel) gruppieren statt je Einzeloption.
+  const rows = market.multiSelect
+    ? (() => {
+        const groups: Record<string, { label: string; count: number }> = {};
+        bets.filter(b => b.marketId === market.id).forEach(b => {
+          const k = b.optionId;
+          if (!groups[k]) groups[k] = { label: b.optionLabel || k, count: 0 };
+          groups[k].count++;
+        });
+        return Object.values(groups).map(g => ({ label: g.label, count: g.count }));
+      })()
+    : market.options.map(o => ({ label: o.label, count: bets.filter(b => b.marketId === market.id && b.optionId === o.id).length }));
+  const total = rows.reduce((s, r) => s + r.count, 0);
   if (total === 0) {
     return <div className="text-[10px] text-muted mb-2.5">Noch keine Tipps — sei der Erste!</div>;
   }
   return (
     <div className="flex flex-col gap-1 mb-2.5">
       <div className="text-[10px] font-bold text-muted mb-0.5">{total} {total === 1 ? 'Tipp' : 'Tipps'} bisher</div>
-      {market.options.map((opt, i) => {
-        const pct = Math.round((counts[i] / total) * 100);
+      {rows.map((r, i) => {
+        const pct = Math.round((r.count / total) * 100);
         return (
-          <div key={opt.id} className="flex items-center gap-2">
-            <span className="text-[10px] text-white/80 w-[42%] truncate shrink-0">{opt.label}</span>
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-[10px] text-white/80 w-[42%] truncate shrink-0">{r.label}</span>
             <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: accent }} />
             </div>
-            <span className="font-mono text-[10px] text-muted w-9 text-right shrink-0">{counts[i]} · {pct}%</span>
+            <span className="font-mono text-[10px] text-muted w-9 text-right shrink-0">{r.count} · {pct}%</span>
           </div>
         );
       })}
@@ -163,6 +174,8 @@ export default function Dashboard() {
   const [confirmTip, setConfirmTip] = useState<{ marketId: string; question: string; optionId: string; optionLabel: string } | null>(null);
   const [changingBetMarket, setChangingBetMarket] = useState<string | null>(null);
   const [changingTipMarket, setChangingTipMarket] = useState<string | null>(null);
+  // Multiple-Choice: angekreuzte Optionen je Markt (vor dem Bestätigen)
+  const [mcPick, setMcPick] = useState<Record<string, string[]>>({});
   const [openAnswerText, setOpenAnswerText] = useState('');
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
 
@@ -454,6 +467,53 @@ export default function Dashboard() {
                               </button>
                             )}
                           </div>
+                        ) : m.multiSelect ? (
+                          (() => {
+                            const pick = mcPick[m.id] ?? [];
+                            const toggle = (id: string) => setMcPick(s => {
+                              const cur = s[m.id] ?? [];
+                              return { ...s, [m.id]: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
+                            });
+                            const labels = m.options.filter(o => pick.includes(o.id)).map(o => o.label).join(' + ');
+                            return (
+                              <div className="flex flex-col gap-1.5">
+                                <div className="text-[10px] font-black text-blue2">☑️ {isChangingTip ? 'Neue Auswahl' : 'Mehrere ankreuzbar'} — exakt richtig gewinnt:</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {m.options.map(opt => {
+                                    const on = pick.includes(opt.id);
+                                    return (
+                                      <button key={opt.id} onClick={() => toggle(opt.id)}
+                                        className={clsx('text-[11px] font-bold rounded-lg px-2.5 py-1.5 border transition-all cursor-pointer',
+                                          on ? (aut ? 'text-[#EF3340] border-[#EF3340]/50 bg-[#EF3340]/15' : 'text-yellow border-yellow/50 bg-yellow/15')
+                                             : 'text-white bg-white/5 border-white/15 hover:border-white/30')}>
+                                        {on ? '☑ ' : '☐ '}{opt.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <div className="flex gap-1.5">
+                                  <button
+                                    disabled={pick.length === 0}
+                                    onClick={() => {
+                                      const key = buildSelectionKey(pick);
+                                      if (isChangingTip) { changeTip(m.id, key, labels); setChangingTipMarket(null); }
+                                      else setConfirmTip({ marketId: m.id, question: m.question, optionId: key, optionLabel: labels });
+                                      setMcPick(s => ({ ...s, [m.id]: [] }));
+                                    }}
+                                    className={clsx('text-[11px] font-black rounded-lg px-3 py-1.5 border transition-all cursor-pointer disabled:opacity-40',
+                                      aut ? 'text-[#EF3340] border-[#EF3340]/40 bg-[#EF3340]/10' : 'text-yellow border-yellow/40 bg-yellow/10')}>
+                                    {isChangingTip ? 'Übernehmen' : 'Tipp abgeben'} ({pick.length})
+                                  </button>
+                                  {isChangingTip && (
+                                    <button onClick={() => { setChangingTipMarket(null); setMcPick(s => ({ ...s, [m.id]: [] })); }}
+                                      className="text-[11px] text-muted border border-white/10 rounded-lg px-2.5 py-1.5 hover:text-white cursor-pointer">
+                                      Abbrechen
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <div className="flex flex-wrap gap-1.5">
                             {isChangingTip && (
@@ -958,20 +1018,32 @@ export default function Dashboard() {
 
                   {/* Pool */}
                   <div className="p-4 px-5 border-b border-border">
-                    <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Pool-Verteilung</div>
-                    <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
-                      {selectedMarket.options.map((opt, i) => (
-                        <div key={opt.id} className="h-full transition-all duration-500" style={{ width: `${(opt.pool / (getMarketTotal(selectedMarket)||1))*100}%`, backgroundColor: OPT_HEX[i] }} />
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between">
-                      {selectedMarket.options.map((opt, i) => (
-                        <div key={opt.id} className="flex flex-col gap-0.5">
-                          <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{opt.pool} TKN</span>
-                          <span className="text-[10px] text-muted font-bold">{opt.label} — {Math.round((opt.pool/(getMarketTotal(selectedMarket)||1))*100)}%</span>
+                    {selectedMarket.multiSelect ? (
+                      <>
+                        <div className="text-[10px] font-black text-blue2 tracking-[0.12em] uppercase mb-1.5">☑️ Multiple Choice</div>
+                        <div className="text-[11px] text-muted mb-1">
+                          Kreuze alle zutreffenden Antworten an. Gewinn nur bei <b className="text-white">exakt</b> richtiger Auswahl — der Topf wird unter den exakten Treffern aufgeteilt.
                         </div>
-                      ))}
-                    </div>
+                        <div className="text-[12px] text-muted">Topf: <b className="text-white">{bets.filter(b => b.marketId === selectedMarket.id).reduce((s, b) => s + b.amount, 0)} TKN</b> · {bets.filter(b => b.marketId === selectedMarket.id).length} Tipps</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Pool-Verteilung</div>
+                        <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
+                          {selectedMarket.options.map((opt, i) => (
+                            <div key={opt.id} className="h-full transition-all duration-500" style={{ width: `${(opt.pool / (getMarketTotal(selectedMarket)||1))*100}%`, backgroundColor: OPT_HEX[i] }} />
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between">
+                          {selectedMarket.options.map((opt, i) => (
+                            <div key={opt.id} className="flex flex-col gap-0.5">
+                              <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{opt.pool} TKN</span>
+                              <span className="text-[10px] text-muted font-bold">{opt.label} — {Math.round((opt.pool/(getMarketTotal(selectedMarket)||1))*100)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Bets list */}
@@ -979,7 +1051,8 @@ export default function Dashboard() {
                     <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Einsätze</div>
                     {bets.filter(b => b.marketId === selectedMarket.id).map(b => {
                       const p = players.find(pl => pl.id === b.playerId);
-                      const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                      const foundIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                      const optIdx = foundIdx >= 0 ? foundIdx : 0;
                       if (!p) return null;
                       return (
                         <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
@@ -1041,6 +1114,42 @@ export default function Dashboard() {
                               </button>
                             )}
                           </div>
+                        </div>
+                      );
+                    }
+                    if (selectedMarket.multiSelect) {
+                      const pick = mcPick[selectedMarket.id] ?? [];
+                      const toggle = (id: string) => setMcPick(s => {
+                        const cur = s[selectedMarket.id] ?? [];
+                        return { ...s, [selectedMarket.id]: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
+                      });
+                      const labels = selectedMarket.options.filter(o => pick.includes(o.id)).map(o => o.label).join(' + ');
+                      return (
+                        <div className="p-4 px-5 pb-7 flex flex-col gap-2">
+                          <div className="text-[11px] font-black text-blue2">☑️ Mehrere ankreuzbar — exakt richtig gewinnt</div>
+                          <div className={clsx('grid gap-2', selectedMarket.options.length > 2 ? 'grid-cols-2' : 'grid-cols-2')}>
+                            {selectedMarket.options.map(opt => {
+                              const on = pick.includes(opt.id);
+                              return (
+                                <button key={opt.id} onClick={() => toggle(opt.id)}
+                                  className={clsx('rounded-[14px] cursor-pointer font-sans border-2 transition-all py-2.5 px-2 text-[13px] font-black',
+                                    on ? 'border-green/60 bg-green/15 text-green' : 'border-border bg-transparent text-white hover:border-white/30')}>
+                                  {on ? '☑ ' : '☐ '}{opt.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <button
+                            disabled={pick.length === 0 || me.tokens + (myBet?.amount ?? 0) < betAmount}
+                            onClick={() => {
+                              const key = buildSelectionKey(pick);
+                              if (isChanging) { changeBet(selectedMarket.id, key, labels, betAmount); setChangingBetMarket(null); setSelectedMarket(null); }
+                              else handleBet(key, labels);
+                              setMcPick(s => ({ ...s, [selectedMarket.id]: [] }));
+                            }}
+                            className="mt-1 w-full p-3.5 rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(230,180,60,0.3)] disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isChanging ? 'Auswahl übernehmen' : `Wette setzen (${pick.length})`}
+                          </button>
                         </div>
                       );
                     }
