@@ -75,11 +75,14 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [index, total]);
 
-  if (!market) {
-    // Market not in store yet — skip
-    handleNext();
-    return null;
-  }
+  // Markt noch nicht im Store (z.B. direkt nach der Auflösung) → automatisch
+  // überspringen. WICHTIG: im useEffect, nicht im Render-Body (sonst React-Fehler
+  // „setState during render" / Endlosschleife genau im Reveal-Moment).
+  useEffect(() => {
+    if (marketId && !market) handleNext();
+  }, [marketId, market]);
+
+  if (!market) return null;
 
   const winOption = market.options.find(o => o.id === market.winningOptionId);
   const poolTotal = market.options.reduce((s, o) => s + o.pool, 0);

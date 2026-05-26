@@ -481,7 +481,7 @@ export const useStore = create<AppState>()((set, get) => {
       if (alreadyBet) return;
 
       const bet: Bet = {
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         marketId, playerId, optionId, optionLabel, amount,
         timestamp: Date.now(),
       };
@@ -524,7 +524,7 @@ export const useStore = create<AppState>()((set, get) => {
       if (alreadyTipped) return;
 
       const bet: Bet = {
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         marketId, playerId, optionId, optionLabel, amount: 0,
         timestamp: Date.now(),
       };
@@ -546,9 +546,10 @@ export const useStore = create<AppState>()((set, get) => {
       const player = state.players.find(p => p.id === uid);
       const market = state.markets.find(m => m.id === marketId);
       if (!oldBet || !player || !market || market.status !== 'open') return;
+      if (market.expiresAt && Date.now() > market.expiresAt) return;
       if (market.kickoffAt && Date.now() >= market.kickoffAt) return;
       if (player.tokens + oldBet.amount < newAmount) return;
-      const newBet: Bet = { id: Math.random().toString(36).substring(7), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
+      const newBet: Bet = { id: crypto.randomUUID(), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
       set(s => ({
         bets: [...s.bets.filter(b => b.id !== oldBet.id), newBet],
         players: s.players.map(p => p.id === uid ? { ...p, tokens: p.tokens + oldBet.amount - newAmount } : p),
@@ -574,7 +575,7 @@ export const useStore = create<AppState>()((set, get) => {
       const oldBet = state.bets.find(b => b.marketId === marketId && b.playerId === uid);
       const market = state.markets.find(m => m.id === marketId);
       if (!oldBet || !market || market.status !== 'open') return;
-      const newBet: Bet = { id: Math.random().toString(36).substring(7), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() };
+      const newBet: Bet = { id: crypto.randomUUID(), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() };
       set(s => ({ bets: [...s.bets.filter(b => b.id !== oldBet.id), newBet] }));
       if (db) {
         try {
@@ -668,7 +669,7 @@ export const useStore = create<AppState>()((set, get) => {
       const state = get();
       if (!state.currentUser) return;
       const answer: Answer = {
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         marketId, playerId: state.currentUser, text: text.trim(), timestamp: Date.now(),
       };
       set(s => ({ answers: [...s.answers, answer] }));
@@ -683,7 +684,7 @@ export const useStore = create<AppState>()((set, get) => {
 
     createMarket: async (marketData) => {
       const m: Market = {
-        ...marketData, id: Math.random().toString(36).substring(7),
+        ...marketData, id: crypto.randomUUID(),
         createdAt: Date.now(), winningOptionId: null, resolutionType: null,
       };
       set(s => ({ markets: [...s.markets, m] }));
@@ -857,7 +858,7 @@ export const useStore = create<AppState>()((set, get) => {
     // Erfundener Mitspieler (nur Testmodus). Wird in Firestore gespeichert, damit
     // er bei Wetten/Pools/Auflösung wie ein echter Spieler mitzählt.
     createTestPlayer: async (name) => {
-      const id = `test-${Math.random().toString(36).substring(2, 9)}`;
+      const id = `test-${crypto.randomUUID()}`;
       const finalName = name?.trim() || `${TEST_NAMES[Math.floor(Math.random() * TEST_NAMES.length)]} ${Math.floor(Math.random() * 90 + 10)}`;
       const color = TEST_COLORS[Math.floor(Math.random() * TEST_COLORS.length)];
       const player: Player = {

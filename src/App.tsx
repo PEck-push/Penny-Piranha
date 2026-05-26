@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { useStore } from './store';
+import { isAdminEmail } from './config/admins';
 import { initFirebaseSync, teardownFirebaseSync } from './services/db';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -62,6 +63,9 @@ function SplashScreen() {
 export default function App() {
   const currentUser = useStore(state => state.currentUser);
   const setCurrentUser = useStore(state => state.setCurrentUser);
+  const players = useStore(state => state.players);
+  const me = players.find(p => p.id === currentUser);
+  const isAdmin = !!me?.isAdmin || isAdminEmail(me?.email);
   const [authLoading, setAuthLoading] = useState(true);
   const [splashDone, setSplashDone]   = useState(false);
 
@@ -96,8 +100,8 @@ export default function App() {
               <Route path="/login" element={currentUser ? <Navigate to="/dashboard" /> : <Login />} />
               <Route path="/register" element={currentUser ? <Navigate to="/dashboard" /> : <Register />} />
               <Route path="/dashboard" element={currentUser ? <Dashboard /> : <Navigate to="/" />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/cashout" element={<Cashout />} />
+              <Route path="/admin" element={currentUser && isAdmin ? <Admin /> : <Navigate to="/dashboard" />} />
+              <Route path="/cashout" element={currentUser && isAdmin ? <Cashout /> : <Navigate to="/dashboard" />} />
               <Route path="/profile" element={currentUser ? <Profile /> : <Navigate to="/" />} />
               <Route path="/rules" element={currentUser ? <Rules /> : <Navigate to="/" />} />
             </Routes>

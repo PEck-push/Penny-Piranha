@@ -168,7 +168,7 @@ export default function Admin() {
     if (isOpenQuestion) return [{ id: 'open', label: 'Offene Antwort', pool: 0 }];
     if (isBinary) return [{ id: 'yes', label: 'JA', pool: 0 }, { id: 'no', label: 'NEIN', pool: 0 }];
     return customOptions.filter(o => o.trim()).map(label => ({
-      id: Math.random().toString(36).substring(7), label: label.trim(), pool: 0,
+      id: crypto.randomUUID(), label: label.trim(), pool: 0,
     }));
   };
 
@@ -184,7 +184,7 @@ export default function Admin() {
 
     if (newMarketType === 'combo') {
       const filledLegs = comboLegs.filter(l => l.question.trim() !== '');
-      const groupId = Math.random().toString(36).substring(7);
+      const groupId = crypto.randomUUID();
       filledLegs.forEach(leg => {
         createMarket({
           question: leg.question.trim(),
@@ -417,7 +417,7 @@ export default function Admin() {
       status: 'open',
       createdBy: 'admin',
       options: tpl.options.map(label => ({
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         label,
         pool: 0,
       })),
@@ -447,7 +447,7 @@ export default function Admin() {
       status: 'open',
       createdBy: 'admin',
       options: tpl.options.map(label => ({
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         label,
         pool: 0,
       })),
@@ -474,7 +474,7 @@ export default function Admin() {
   const buildFreeBetOptions = (): MarketOption[] => {
     if (freeBetFormat === 'binary') return [{ id: 'yes', label: 'JA', pool: 0 }, { id: 'no', label: 'NEIN', pool: 0 }];
     return freeBetOptions.filter(o => o.trim()).map(label => ({
-      id: Math.random().toString(36).substring(7), label: label.trim(), pool: 0,
+      id: crypto.randomUUID(), label: label.trim(), pool: 0,
     }));
   };
   const canCreateFreeBet =
