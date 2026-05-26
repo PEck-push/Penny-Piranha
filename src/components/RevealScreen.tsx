@@ -48,27 +48,27 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     onDone();
   };
 
+  // Sanftes Schließen (Ausblenden → finish).
+  const closeNow = () => {
+    if (doneRef.current) return;
+    setClosing(true);
+    setTimeout(() => { finish(); }, FADE_MS);
+  };
+
   // Zahl erscheint fix nach 4,3 s Video (nicht früher).
   useEffect(() => {
     const t = setTimeout(() => setShowNumber(true), NUMBER_DELAY_MS);
     return () => clearTimeout(t);
   }, []);
 
-  // Emoji-Platzhalter (kein Video) → Zahl nach kurzer Zeit.
+  // Emoji-Platzhalter (kein Video → kein onEnded): Zahl zeigen, dann schließen.
   useEffect(() => {
     if (!videoFailed) return;
-    const t = setTimeout(() => setShowNumber(true), FALLBACK_MS);
-    return () => clearTimeout(t);
-  }, [videoFailed]);
-
-  // Sobald die Zahl steht → kurz halten → ausblenden → schließen.
-  useEffect(() => {
-    if (!showNumber) return;
-    const t1 = setTimeout(() => setClosing(true), HOLD_MS);
-    const t2 = setTimeout(() => { finish(); }, HOLD_MS + FADE_MS);
+    const t1 = setTimeout(() => setShowNumber(true), FALLBACK_MS);
+    const t2 = setTimeout(() => closeNow(), FALLBACK_MS + HOLD_MS);
     return () => { clearTimeout(t1); clearTimeout(t2); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showNumber]);
+  }, [videoFailed]);
 
   void marketIds; // wird über unseenResolutions:[] geleert
 
@@ -98,6 +98,7 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
           autoPlay
           muted
           playsInline
+          onEnded={() => { setShowNumber(true); closeNow(); }}
           onError={() => setVideoFailed(true)}
           className="absolute inset-0 w-full h-full object-cover"
         />
