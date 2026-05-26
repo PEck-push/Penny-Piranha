@@ -1,7 +1,7 @@
 // ─── Accessoire-Katalog (rein kosmetisch) ─────────────────────────────────────
 // Gegenstände werden durch Ereignisse freigeschaltet (unlockedOverlays) und je
 // Slot getragen (activeAccessories). PNGs liegen unter
-//   public/overlays/accessories/<id>.png
+//   public/overlays/accessories/<id>.webp
 // und werden im Charakter über dem Body/Kopf gerendert. Solange ein PNG fehlt,
 // wird es im Charakter ausgeblendet (onError) — in Listen/Profil dient das Emoji
 // `icon` als Anzeige.

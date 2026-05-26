@@ -32,16 +32,16 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
     <div className={`relative ${DIM[size]} ${className}`}>
       {/* z-0: Hintergrund-Badge */}
       {player.activeBadgeId && (
-        <img src={`/overlays/badges/${player.activeBadgeId}.png`} alt="" onError={hideOnError}
+        <img src={`/overlays/badges/${player.activeBadgeId}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-0`} />
       )}
 
       {/* z-10: Charakter-Basis */}
       {hasCharacter ? (
         <>
-          <img src={`/characters/outfits/${player.bodyId}.png`} alt="" className={`${overlay} z-[10]`} />
+          <img src={`/characters/outfits/${player.bodyId}.webp`} alt="" className={`${overlay} z-[10]`} />
           {/* z-20: Kopf */}
-          <img src={`/characters/heads/${player.headId}.png`} alt={player.name} className={`${overlay} z-20`} />
+          <img src={`/characters/heads/${player.headId}.webp`} alt={player.name} className={`${overlay} z-20`} />
         </>
       ) : player.avatar ? (
         <img src={player.avatar} alt={player.name} referrerPolicy="no-referrer" className={`${overlay} z-[10]`} />
@@ -51,17 +51,17 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
 
       {/* z-15: Trikot-Accessoire */}
       {acc.torso && (
-        <img src={`/overlays/accessories/${acc.torso}.png`} alt="" onError={hideOnError}
+        <img src={`/overlays/accessories/${acc.torso}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-[15]`} />
       )}
       {/* z-30: Hand-Accessoire */}
       {acc.hand && (
-        <img src={`/overlays/accessories/${acc.hand}.png`} alt="" onError={hideOnError}
+        <img src={`/overlays/accessories/${acc.hand}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-30`} />
       )}
       {/* z-40: Kopf-Accessoire */}
       {acc.head && (
-        <img src={`/overlays/accessories/${acc.head}.png`} alt="" onError={hideOnError}
+        <img src={`/overlays/accessories/${acc.head}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-40`} />
       )}
     </div>

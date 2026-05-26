@@ -54,6 +54,11 @@ const AVATARS = [
 const TOTAL_STEPS = CHARACTER_MODE === 'builder' ? 5 : 4;
 const CONFIRM_STEP = TOTAL_STEPS;
 
+// Charaktername direkt aus dem Dateinamen ableiten (nur zur Orientierung):
+// "max_mustermann" → "Max Mustermann".
+const prettyName = (id: string) =>
+  id.replace(/\.\w+$/, '').replace(/[_-]+/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
+
 // ─── Step indicator ────────────────────────────────────────────────────────────
 function StepDots({ current, total }: { current: number; total: number }) {
   return (
@@ -406,12 +411,15 @@ export default function Register() {
 
         <div className="relative z-10 flex-none h-[210px] flex items-end justify-center overflow-visible">
           {selectedHead
-            ? <img src={`/characters/heads/${selectedHead}.png`} alt="" className="relative z-30 h-[240px] object-contain -mb-2.5" />
+            ? <img src={`/characters/heads/${selectedHead}.webp`} alt="" className="relative z-30 h-[240px] object-contain -mb-2.5" />
             : <div className="text-[13px] text-muted self-center">Noch keine Köpfe hinterlegt</div>}
         </div>
 
         <div className="relative z-20 text-center px-5 pt-3">
-          <div className="text-[22px] font-black text-white drop-shadow-[0_0_40px_rgba(139,61,255,0.6)]">Kopf wählen</div>
+          {selectedHead
+            ? <div className="text-[22px] font-black text-white drop-shadow-[0_0_40px_rgba(139,61,255,0.6)]">{prettyName(selectedHead)}</div>
+            : <div className="text-[22px] font-black text-white drop-shadow-[0_0_40px_rgba(139,61,255,0.6)]">Kopf wählen</div>}
+          {selectedHead && <div className="text-[11px] text-muted mt-0.5">Kopf wählen</div>}
         </div>
 
         <div className="relative z-20 px-4 pt-2 flex-1 overflow-y-auto no-scrollbar">
@@ -421,7 +429,7 @@ export default function Register() {
               <div key={id} className="flex flex-col items-center cursor-pointer group" onClick={() => setSelectedHead(id)}>
                 <div className={clsx('w-16 h-16 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all overflow-hidden',
                   selectedHead === id ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-105' : 'border-border group-hover:border-blue/50 group-hover:scale-105')}>
-                  <img src={`/characters/heads/${id}.png`} alt="" className="w-full h-full object-contain" />
+                  <img src={`/characters/heads/${id}.webp`} alt="" className="w-full h-full object-contain" />
                 </div>
               </div>
             ))}
@@ -530,8 +538,8 @@ export default function Register() {
         {/* Live-Vorschau: Outfit + Kopf übereinander */}
         <div className="relative z-10 flex-none h-[210px] flex items-end justify-center overflow-visible">
           <div className="relative h-[240px] w-[240px] -mb-2.5">
-            {selectedOutfit && <img src={`/characters/outfits/${selectedOutfit}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-20" />}
-            {selectedHead && <img src={`/characters/heads/${selectedHead}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-30" />}
+            {selectedOutfit && <img src={`/characters/outfits/${selectedOutfit}.webp`} alt="" className="absolute inset-0 w-full h-full object-contain z-20" />}
+            {selectedHead && <img src={`/characters/heads/${selectedHead}.webp`} alt="" className="absolute inset-0 w-full h-full object-contain z-30" />}
             {!selectedOutfit && <div className="absolute inset-0 flex items-center justify-center text-[13px] text-muted">Noch keine Outfits hinterlegt</div>}
           </div>
         </div>
@@ -547,7 +555,7 @@ export default function Register() {
               <div key={id} className="flex flex-col items-center cursor-pointer group" onClick={() => setSelectedOutfit(id)}>
                 <div className={clsx('w-16 h-16 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all overflow-hidden',
                   selectedOutfit === id ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-105' : 'border-border group-hover:border-blue/50 group-hover:scale-105')}>
-                  <img src={`/characters/outfits/${id}.png`} alt="" className="w-full h-full object-contain" />
+                  <img src={`/characters/outfits/${id}.webp`} alt="" className="w-full h-full object-contain" />
                 </div>
               </div>
             ))}
@@ -590,8 +598,8 @@ export default function Register() {
           <div className="relative">
             {CHARACTER_MODE === 'builder' ? (
               <div className="relative h-[160px] w-[160px] z-10">
-                {selectedOutfit && <img src={`/characters/outfits/${selectedOutfit}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-20" />}
-                {selectedHead && <img src={`/characters/heads/${selectedHead}.png`} alt="" className="absolute inset-0 w-full h-full object-contain z-30" />}
+                {selectedOutfit && <img src={`/characters/outfits/${selectedOutfit}.webp`} alt="" className="absolute inset-0 w-full h-full object-contain z-20" />}
+                {selectedHead && <img src={`/characters/heads/${selectedHead}.webp`} alt="" className="absolute inset-0 w-full h-full object-contain z-30" />}
               </div>
             ) : (
               <>
