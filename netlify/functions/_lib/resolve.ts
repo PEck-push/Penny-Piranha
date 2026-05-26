@@ -67,6 +67,7 @@ export async function resolveMarketAdmin(
       payouts[b.playerId] = (payouts[b.playerId] ?? 0) + each;
       batch.update(db.collection('players').doc(String(b.playerId)), {
         tokens: FieldValue.increment(each),
+        dailyNetGain: FieldValue.increment(each),
         unseenResolutions: FieldValue.arrayUnion(marketId),
       });
     }
