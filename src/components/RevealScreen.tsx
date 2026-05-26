@@ -10,11 +10,11 @@ interface RevealScreenProps {
   onDone: () => void;
 }
 
-// Zauberer-Videos (mp4). Vor Go-live ablegen:
-//   public/fx/win.mp4   — Zauberer füllt das Bierglas   (Gewinn)
-//   public/fx/loss.mp4  — Zauberer lässt das Glas fallen (Verlust)
-const WIN_VIDEO  = '/fx/win.mp4';
-const LOSS_VIDEO = '/fx/loss.mp4';
+// Zauberer-Videos (mp4) im public-Ordner:
+//   public/win.mp4   — Zauberer füllt das Bierglas   (Gewinn)
+//   public/loss.mp4  — Zauberer lässt das Glas fallen (Verlust)
+const WIN_VIDEO  = '/win.mp4';
+const LOSS_VIDEO = '/loss.mp4';
 
 // Timing in ms.
 const NUMBER_DELAY_MS = 4300; // Zahl erscheint erst NACH 4,3 s Video
