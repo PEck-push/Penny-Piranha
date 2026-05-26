@@ -17,10 +17,10 @@ const WIN_VIDEO  = '/fx/win.mp4';
 const LOSS_VIDEO = '/fx/loss.mp4';
 
 // Timing in ms.
-const MAX_VIDEO_MS = 9000; // Sicherheit: Zahl spätestens hier zeigen (falls Autoplay blockiert)
-const FALLBACK_MS  = 1500; // wenn kein Video lädt (Emoji-Platzhalter)
-const HOLD_MS      = 2500; // wie lange die Zahl danach steht
-const FADE_MS      = 450;  // Ausblend-Dauer
+const NUMBER_DELAY_MS = 4300; // Zahl erscheint erst NACH 4,3 s Video
+const FALLBACK_MS     = 1500; // wenn kein Video lädt (Emoji-Platzhalter)
+const HOLD_MS         = 2500; // wie lange die Zahl danach steht
+const FADE_MS         = 450;  // Ausblend-Dauer
 
 // Tägliche Bilanz: EIN Screen mit Zauberer-Video + Gold/Rot-Zahl, blendet sich
 // automatisch wieder aus. Die Summe kommt aus dailyNetGain (Auszahlung − Einsatz,
@@ -48,9 +48,9 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     onDone();
   };
 
-  // Sicherheits-Timer: Zahl spätestens nach MAX_VIDEO_MS zeigen.
+  // Zahl erscheint fix nach 4,3 s Video (nicht früher).
   useEffect(() => {
-    const t = setTimeout(() => setShowNumber(true), MAX_VIDEO_MS);
+    const t = setTimeout(() => setShowNumber(true), NUMBER_DELAY_MS);
     return () => clearTimeout(t);
   }, []);
 
@@ -98,7 +98,6 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
           autoPlay
           muted
           playsInline
-          onEnded={() => setShowNumber(true)}
           onError={() => setVideoFailed(true)}
           className="absolute inset-0 w-full h-full object-cover"
         />
