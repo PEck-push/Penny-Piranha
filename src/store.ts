@@ -280,6 +280,7 @@ interface AppState {
   setActiveAccessory: (slot: 'head' | 'hand' | 'torso', accessoryId: string | null) => Promise<void>;
   grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
   awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
+  simulateReveal: (net: number) => Promise<void>;
   resetState: () => void;
 }
 
@@ -853,6 +854,18 @@ export const useStore = create<AppState>()((set, get) => {
         } catch (err) {
           console.error('[Store] setJackpot Fehler:', err);
         }
+      }
+    },
+
+    // Test: setzt die Tagesbilanz des aktuellen Admins + markiert „ungesehen",
+    // damit der Reveal-Screen beim nächsten Dashboard-Besuch abspielt.
+    simulateReveal: async (net) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, dailyNetGain: net, unseenResolutions: ['sim-reveal'] } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', uid), { dailyNetGain: net, unseenResolutions: ['sim-reveal'] }); }
+        catch (err) { console.error('[Store] simulateReveal Fehler:', err); }
       }
     },
 

@@ -141,6 +141,7 @@ export default function Admin() {
   const autoBetTestPlayers = useStore(s => s.autoBetTestPlayers);
   const grantAccessory = useStore(s => s.grantAccessory);
   const awardBlockWinner = useStore(s => s.awardBlockWinner);
+  const simulateReveal = useStore(s => s.simulateReveal);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
   const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
@@ -687,6 +688,39 @@ export default function Admin() {
 
           {/* ── SYSTEM TAB ─────────────────────────────────────────── */}
           {adminTab === 'system' && <>
+
+          {/* ── REVEAL TESTEN ──────────────────────────────────────── */}
+          <div className="bg-card border border-purple2/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🎬</span>
+              <div className="text-[11px] font-black text-purple2 tracking-[0.15em] uppercase">Reveal testen</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Setzt deine Tagesbilanz auf einen Testwert und springt ins Dashboard — der
+              Reveal-Screen (Zauberer-Video + Zahl) spielt dann sofort ab.
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={async () => { await simulateReveal(Math.floor(Math.random() * 480 + 20)); navigate('/dashboard'); }}
+                className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
+                🎉 Gewinn
+              </button>
+              <button
+                onClick={async () => { await simulateReveal(-Math.floor(Math.random() * 480 + 20)); navigate('/dashboard'); }}
+                className="p-2.5 rounded-xl bg-red/15 border border-red/40 text-red text-[11px] font-black hover:bg-red/25 transition-colors">
+                💥 Verlust
+              </button>
+              <button
+                onClick={async () => {
+                  const v = Math.floor(Math.random() * 480 + 20) * (Math.random() < 0.5 ? -1 : 1);
+                  await simulateReveal(v);
+                  navigate('/dashboard');
+                }}
+                className="p-2.5 rounded-xl bg-purple/15 border border-purple2/40 text-purple2 text-[11px] font-black hover:bg-purple/25 transition-colors">
+                🎲 Zufall
+              </button>
+            </div>
+          </div>
 
           {/* ── TESTMODUS / LIVE GEHEN ─────────────────────────────── */}
           <div className={clsx(
