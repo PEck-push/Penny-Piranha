@@ -1,0 +1,13 @@
+{
+  "name": "Krügerl Propheten — Das WM-Tippspiel",
+  "short_name": "Krügerl Propheten",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#02040C",
+  "theme_color": "#02040C",
+  "icons": [
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

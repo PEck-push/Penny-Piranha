@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
+import InstallPrompt from '../components/InstallPrompt';
 
 function mapFirebaseError(code: string): string {
   switch (code) {
@@ -128,6 +129,8 @@ export default function Login() {
         >
           Passwort vergessen?
         </button>
+
+        <InstallPrompt />
 
         <div className="mt-auto pb-10 text-center text-[13px] text-muted pt-8">
           Noch kein Account?{' '}

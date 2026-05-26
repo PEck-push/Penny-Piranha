@@ -10,16 +10,17 @@ interface RevealScreenProps {
   onDone: () => void;
 }
 
-// Zauberer-Videos (animiertes WebP, einmal abspielend). Vor Go-live ablegen:
-//   public/fx/win.webp   — Zauberer füllt das Bierglas   (Gewinn)
-//   public/fx/loss.webp  — Zauberer lässt das Glas fallen (Verlust)
-const WIN_VIDEO  = '/fx/win.webp';
-const LOSS_VIDEO = '/fx/loss.webp';
+// Zauberer-Videos (mp4). Vor Go-live ablegen:
+//   public/fx/win.mp4   — Zauberer füllt das Bierglas   (Gewinn)
+//   public/fx/loss.mp4  — Zauberer lässt das Glas fallen (Verlust)
+const WIN_VIDEO  = '/fx/win.mp4';
+const LOSS_VIDEO = '/fx/loss.mp4';
 
-// Timing in ms — an die Länge deiner WebP anpassen.
-const VIDEO_MS = 3500; // Animationsdauer, danach erscheint die Zahl
-const HOLD_MS  = 2500; // wie lange die Zahl danach stehen bleibt
-const FADE_MS  = 450;  // Ausblend-Dauer
+// Timing in ms.
+const MAX_VIDEO_MS = 9000; // Sicherheit: Zahl spätestens hier zeigen (falls Autoplay blockiert)
+const FALLBACK_MS  = 1500; // wenn kein Video lädt (Emoji-Platzhalter)
+const HOLD_MS      = 2500; // wie lange die Zahl danach steht
+const FADE_MS      = 450;  // Ausblend-Dauer
 
 // Tägliche Bilanz: EIN Screen mit Zauberer-Video + Gold/Rot-Zahl, blendet sich
 // automatisch wieder aus. Die Summe kommt aus dailyNetGain (Auszahlung − Einsatz,
@@ -47,13 +48,27 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     onDone();
   };
 
+  // Sicherheits-Timer: Zahl spätestens nach MAX_VIDEO_MS zeigen.
   useEffect(() => {
-    const t1 = setTimeout(() => setShowNumber(true), VIDEO_MS);
-    const t2 = setTimeout(() => setClosing(true), VIDEO_MS + HOLD_MS);
-    const t3 = setTimeout(() => { finish(); }, VIDEO_MS + HOLD_MS + FADE_MS);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setShowNumber(true), MAX_VIDEO_MS);
+    return () => clearTimeout(t);
   }, []);
+
+  // Emoji-Platzhalter (kein Video) → Zahl nach kurzer Zeit.
+  useEffect(() => {
+    if (!videoFailed) return;
+    const t = setTimeout(() => setShowNumber(true), FALLBACK_MS);
+    return () => clearTimeout(t);
+  }, [videoFailed]);
+
+  // Sobald die Zahl steht → kurz halten → ausblenden → schließen.
+  useEffect(() => {
+    if (!showNumber) return;
+    const t1 = setTimeout(() => setClosing(true), HOLD_MS);
+    const t2 = setTimeout(() => { finish(); }, HOLD_MS + FADE_MS);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNumber]);
 
   void marketIds; // wird über unseenResolutions:[] geleert
 
@@ -74,16 +89,19 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
           : 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(255,61,90,.20)_0%,transparent_60%)]',
       )} />
 
-      {/* Zauberer-Video (oder CSS-Fallback, solange kein WebP vorliegt) */}
-      <div className="relative z-10 w-[min(78vw,320px)] aspect-square flex items-center justify-center">
+      {/* Zauberer-Video (oder Emoji-Fallback, solange kein mp4 vorliegt) */}
+      <div className="relative z-10 w-[min(82vw,360px)] aspect-square flex items-center justify-center">
         {videoFailed ? (
           <div className="text-[120px] leading-none" style={{ animation: 'auraGlow 2s ease-in-out infinite' }}>
             {isWin ? '🍺' : '💥'}
           </div>
         ) : (
-          <img
+          <video
             src={isWin ? WIN_VIDEO : LOSS_VIDEO}
-            alt=""
+            autoPlay
+            muted
+            playsInline
+            onEnded={() => setShowNumber(true)}
             onError={() => setVideoFailed(true)}
             className="w-full h-full object-contain"
           />
