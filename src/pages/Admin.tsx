@@ -122,10 +122,6 @@ export default function Admin() {
   const jackpot = useStore(s => s.jackpot);
   const testMode = useStore(s => s.testMode);
   const createMarket = useStore(s => s.createMarket);
-  const resolveMarket = useStore(s => s.resolveMarket);
-  const resolveOpenQuestion = useStore(s => s.resolveOpenQuestion);
-  const resolveRollover = useStore(s => s.resolveRollover);
-  const resolveStorno = useStore(s => s.resolveStorno);
   const lockMarket = useStore(s => s.lockMarket);
   const pauseMarket = useStore(s => s.pauseMarket);
   const reopenMarket = useStore(s => s.reopenMarket);
@@ -584,13 +580,40 @@ export default function Admin() {
     }
   };
 
+  // Zentrale, atomare Auflösung über den geschützten Server-Endpunkt. Ersetzt die
+  // alten Client-Store-Auflösungen → identische Logik (Streak/Underdog/Feed) und
+  // keine Lost-Update-Risiken. Das Ergebnis kommt per onSnapshot in die UI zurück.
+  const [resolveBusy, setResolveBusy] = useState(false);
+  const callResolve = async (payload: Record<string, unknown>): Promise<boolean> => {
+    setResolveBusy(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt.');
+      const res = await fetch('/.netlify/functions/resolve-market', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      return true;
+    } catch (err: any) {
+      alert(`Auflösung fehlgeschlagen: ${err.message || err}`);
+      return false;
+    } finally {
+      setResolveBusy(false);
+    }
+  };
+
   const executeResolution = async () => {
     if (!pendingResolution) return;
     const { marketId, optionId, type } = pendingResolution;
-    if (type === 'win') await resolveMarket(marketId, optionId);
-    else if (type === 'rollover') await resolveRollover(marketId);
-    else await resolveStorno(marketId);
-    setPendingResolution(null);
+    const ok = type === 'win'
+      ? await callResolve({ action: 'win', marketId, winningOptionId: optionId })
+      : type === 'rollover'
+        ? await callResolve({ action: 'rollover', marketId })
+        : await callResolve({ action: 'storno', marketId });
+    if (ok) setPendingResolution(null);
   };
 
   // ── PIN Screen ─────────────────────────────────────────────────────────────
@@ -1913,9 +1936,8 @@ export default function Admin() {
                 </button>
                 <button
                   onClick={async () => {
-                    await resolveOpenQuestion(openQModal, Array.from(selectedWinners));
-                    setOpenQModal(null);
-                    setSelectedWinners(new Set());
+                    const ok = await callResolve({ action: 'open', marketId: openQModal, winnerPlayerIds: Array.from(selectedWinners) });
+                    if (ok) { setOpenQModal(null); setSelectedWinners(new Set()); }
                   }}
                   className="flex-1 p-3 rounded-xl font-black text-white bg-gradient-to-r from-green to-[#B8860B] shadow-[0_0_15px_rgba(230,180,60,0.4)] transition-all">
                   {selectedWinners.size === 0 ? 'Keine Gewinner' : `${selectedWinners.size} Gewinner bestätigen ✓`}

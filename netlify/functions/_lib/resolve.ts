@@ -96,10 +96,33 @@ export async function resolveMarketAdmin(
 
   const payouts: Record<string, number> = {};
   let jackpotDelta = 0;
+  let resType: 'normal' | 'no-winner' | 'all-same-side' = 'normal';
 
-  if (winPool === 0) {
-    // No winner → whole bet pool flows into the jackpot. Seed credits forfeit.
+  if (market.multiSelect) {
+    // Exact-match: nur Tipps mit identischer Auswahl (kanonischer Key) gewinnen und
+    // teilen den Gesamteinsatz anteilig. Kein Underdog (keine Pro-Option-Pools).
+    const totalStake = allBets.reduce((s, b) => s + (b.amount || 0), 0);
+    const winStake = winBets.reduce((s, b) => s + (b.amount || 0), 0);
+    if (winStake === 0) {
+      resType = 'no-winner';
+      jackpotDelta += totalStake;
+    } else {
+      let paid = 0;
+      for (const b of winBets) {
+        const payout = Math.max(round((b.amount / winStake) * totalStake), b.amount + MIN_WIN_BONUS);
+        payouts[b.playerId] = (payouts[b.playerId] ?? 0) + payout;
+        paid += payout;
+      }
+      jackpotDelta += totalStake - paid;
+    }
+  } else if (winPool === 0) {
+    // Kein Gewinner → ganzer Einsatz-Pool in den Jackpot. Seed verfällt.
+    resType = 'no-winner';
     jackpotDelta += totalPool;
+  } else if (winPool === totalPool) {
+    // Alle auf derselben Seite: reine Einsatz-Rückzahlung, Jackpot unangetastet.
+    resType = 'all-same-side';
+    for (const b of winBets) payouts[b.playerId] = (payouts[b.playerId] ?? 0) + b.amount;
   } else {
     let paid = 0;
     for (const b of winBets) {
@@ -122,7 +145,7 @@ export async function resolveMarketAdmin(
   batch.update(marketRef, {
     status: 'resolved',
     winningOptionId,
-    resolutionType: 'normal',
+    resolutionType: resType,
     resolvedBy: by,
     resolvedAt: FieldValue.serverTimestamp(),
   });
@@ -197,4 +220,98 @@ export async function resolveMarketAdmin(
 
   await batch.commit();
   return { ok: true, payouts };
+}
+
+// ── Rollover: 50% Einsatz zurück, Rest → Jackpot (atomar) ─────────────────────
+export async function rolloverMarketAdmin(marketId: string, by: 'auto' | 'admin' = 'admin') {
+  const db = getDb();
+  const marketRef = db.collection('markets').doc(marketId);
+  const marketSnap = await marketRef.get();
+  if (!marketSnap.exists) throw new Error(`market ${marketId} not found`);
+  const market = marketSnap.data() as any;
+  if (market.status === 'resolved' || market.status === 'cancelled') return { ok: true, skipped: true };
+
+  const betsSnap = await db.collection('bets').where('marketId', '==', marketId).get();
+  const totalPool = (market.options ?? []).reduce((s: number, o: any) => s + (o.pool || 0), 0);
+
+  const batch = db.batch();
+  let refunded = 0;
+  betsSnap.forEach(d => {
+    const b = d.data() as any;
+    const r = Math.floor((b.amount || 0) * 0.5);
+    if (r > 0) {
+      batch.update(db.collection('players').doc(String(b.playerId)), { tokens: FieldValue.increment(r) });
+      refunded += r;
+    }
+  });
+  batch.update(marketRef, {
+    status: 'resolved', winningOptionId: null, resolutionType: 'rollover',
+    resolvedBy: by, resolvedAt: FieldValue.serverTimestamp(),
+  });
+  batch.update(db.collection('appState').doc('global'), { jackpot: FieldValue.increment(totalPool - refunded) });
+  batch.set(db.collection('feed').doc(), {
+    type: 'market_resolved', marketId,
+    text: `🎰 Rollover: ${market.question ?? marketId} — 50% Einsatz zurück`,
+    ts: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  return { ok: true };
+}
+
+// ── Storno: voller Einsatz zurück, Jackpot unangetastet (atomar) ──────────────
+export async function stornoMarketAdmin(marketId: string, by: 'auto' | 'admin' = 'admin') {
+  const db = getDb();
+  const marketRef = db.collection('markets').doc(marketId);
+  const marketSnap = await marketRef.get();
+  if (!marketSnap.exists) throw new Error(`market ${marketId} not found`);
+  const market = marketSnap.data() as any;
+  if (market.status === 'resolved' || market.status === 'cancelled') return { ok: true, skipped: true };
+
+  const betsSnap = await db.collection('bets').where('marketId', '==', marketId).get();
+  const batch = db.batch();
+  betsSnap.forEach(d => {
+    const b = d.data() as any;
+    if ((b.amount || 0) > 0) {
+      batch.update(db.collection('players').doc(String(b.playerId)), { tokens: FieldValue.increment(b.amount) });
+    }
+  });
+  batch.update(marketRef, {
+    status: 'cancelled', resolutionType: 'storno',
+    resolvedBy: by, resolvedAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(db.collection('feed').doc(), {
+    type: 'market_resolved', marketId,
+    text: `↩️ Storno: ${market.question ?? marketId} — Einsätze zurück`,
+    ts: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  return { ok: true };
+}
+
+// ── Offene Frage: Gewinner markieren (Belohnung vergibt Admin per giveTokens) ──
+export async function resolveOpenQuestionAdmin(marketId: string, winnerPlayerIds: string[], by: 'auto' | 'admin' = 'admin') {
+  const db = getDb();
+  const marketRef = db.collection('markets').doc(marketId);
+  const marketSnap = await marketRef.get();
+  if (!marketSnap.exists) throw new Error(`market ${marketId} not found`);
+  const market = marketSnap.data() as any;
+  if (market.status === 'resolved' || market.status === 'cancelled') return { ok: true, skipped: true };
+
+  const batch = db.batch();
+  batch.update(marketRef, {
+    status: 'resolved',
+    winningOptionId: winnerPlayerIds.join(',') || null,
+    resolutionType: 'normal',
+    resolvedBy: by, resolvedAt: FieldValue.serverTimestamp(),
+  });
+  for (const pid of winnerPlayerIds) {
+    batch.update(db.collection('players').doc(String(pid)), { unseenResolutions: FieldValue.arrayUnion(marketId) });
+  }
+  batch.set(db.collection('feed').doc(), {
+    type: 'market_resolved', marketId,
+    text: `✏️ Auswertung: ${market.question ?? marketId}`,
+    ts: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  return { ok: true };
 }
