@@ -76,57 +76,53 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     <div
       onClick={finish}
       className={clsx(
-        'fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#02040C] cursor-pointer transition-opacity',
+        'fixed inset-0 z-[100] bg-[#02040C] cursor-pointer transition-opacity overflow-hidden',
         closing ? 'opacity-0' : 'opacity-100',
       )}
       style={{ transitionDuration: `${FADE_MS}ms` }}
     >
-      {/* Hintergrund-Glow je nach Ergebnis */}
-      <div className={clsx(
-        'absolute inset-0',
-        isWin
-          ? 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(230,180,60,.28)_0%,transparent_60%)]'
-          : 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(255,61,90,.20)_0%,transparent_60%)]',
-      )} />
-
-      {/* Zauberer-Video (oder Emoji-Fallback, solange kein mp4 vorliegt) */}
-      <div className="relative z-10 w-[min(82vw,360px)] aspect-square flex items-center justify-center">
-        {videoFailed ? (
-          <div className="text-[120px] leading-none" style={{ animation: 'auraGlow 2s ease-in-out infinite' }}>
+      {/* Zauberer-Video full-screen (oder Emoji-Fallback, solange kein mp4 vorliegt) */}
+      {videoFailed ? (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className={clsx('absolute inset-0',
+            isWin
+              ? 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(230,180,60,.28)_0%,transparent_60%)]'
+              : 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(255,61,90,.20)_0%,transparent_60%)]')} />
+          <div className="relative text-[140px] leading-none" style={{ animation: 'auraGlow 2s ease-in-out infinite' }}>
             {isWin ? '🍺' : '💥'}
           </div>
-        ) : (
-          <video
-            src={isWin ? WIN_VIDEO : LOSS_VIDEO}
-            autoPlay
-            muted
-            playsInline
-            onEnded={() => setShowNumber(true)}
-            onError={() => setVideoFailed(true)}
-            className="w-full h-full object-contain"
-          />
-        )}
-      </div>
+        </div>
+      ) : (
+        <video
+          src={isWin ? WIN_VIDEO : LOSS_VIDEO}
+          autoPlay
+          muted
+          playsInline
+          onEnded={() => setShowNumber(true)}
+          onError={() => setVideoFailed(true)}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
 
-      {/* +/- Tokenzahl */}
-      <div className="relative z-10 h-[80px] mt-2 flex items-center justify-center">
-        {showNumber && (
+      {/* Abdunklung unten für die Lesbarkeit der Zahl */}
+      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
+
+      {/* +/- Tokenzahl als Überlagerung */}
+      {showNumber && (
+        <div className="absolute inset-x-0 bottom-[18%] flex flex-col items-center px-6">
           <div
             className={clsx(
-              'font-black tracking-[-1px] drop-shadow-[0_0_30px_rgba(0,0,0,0.6)]',
+              'font-black tracking-[-1px] drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)]',
               isWin ? 'text-yellow' : 'text-red',
             )}
-            style={{ fontSize: 56, animation: 'tokenPop 600ms cubic-bezier(.2,1.4,.4,1) both' }}
+            style={{ fontSize: 72, animation: 'tokenPop 600ms cubic-bezier(.2,1.4,.4,1) both' }}
           >
             {isWin ? '+' : '−'}{Math.abs(net)}
-            <span className="text-[24px] ml-1.5 align-middle opacity-80">TKN</span>
+            <span className="text-[30px] ml-2 align-middle opacity-80">TKN</span>
           </div>
-        )}
-      </div>
-
-      {showNumber && (
-        <div className="relative z-10 text-[12px] font-bold text-muted mt-1">
-          {isWin ? 'Deine Bilanz seit zuletzt' : 'Autsch — deine Bilanz seit zuletzt'} · tippen zum Schließen
+          <div className="text-[12px] font-bold text-white/70 mt-2">
+            {isWin ? 'Deine Bilanz seit zuletzt' : 'Autsch — deine Bilanz seit zuletzt'} · tippen zum Schließen
+          </div>
         </div>
       )}
     </div>
