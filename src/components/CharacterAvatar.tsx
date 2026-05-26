@@ -25,30 +25,49 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
           <img
             src={`/characters/outfits/${player.bodyId}.png`}
             alt=""
-            className="absolute inset-0 w-full h-full object-contain"
+            className="absolute inset-0 w-full h-full object-contain z-[10]"
           />
           <img
             src={`/characters/heads/${player.headId}.png`}
             alt={player.name}
-            className="absolute inset-0 w-full h-full object-contain"
+            className="absolute inset-0 w-full h-full object-contain z-30"
           />
         </>
       ) : player.avatar ? (
         <img
           src={player.avatar}
           alt={player.name}
-          className="absolute inset-0 w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain z-[10]"
           referrerPolicy="no-referrer"
         />
       ) : (
         <div className="absolute inset-0 w-full h-full rounded-full bg-white/5" />
       )}
 
-      {player.activeAccessoryId && (
+      {/* Accessoire-Slots (rein kosmetisch). Fehlt das PNG noch, wird es per
+          onError ausgeblendet, damit kein „kaputtes Bild"-Icon erscheint. */}
+      {player.activeAccessories?.torso && (
         <img
-          src={`/overlays/accessories/${player.activeAccessoryId}.png`}
+          src={`/overlays/accessories/${player.activeAccessories.torso}.png`}
           alt=""
-          className="absolute bottom-0 right-0 w-1/3 h-1/3 object-contain pointer-events-none"
+          onError={e => { e.currentTarget.style.display = 'none'; }}
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none z-[21]"
+        />
+      )}
+      {player.activeAccessories?.head && (
+        <img
+          src={`/overlays/accessories/${player.activeAccessories.head}.png`}
+          alt=""
+          onError={e => { e.currentTarget.style.display = 'none'; }}
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-2/3 object-contain pointer-events-none z-[31]"
+        />
+      )}
+      {player.activeAccessories?.hand && (
+        <img
+          src={`/overlays/accessories/${player.activeAccessories.hand}.png`}
+          alt=""
+          onError={e => { e.currentTarget.style.display = 'none'; }}
+          className="absolute bottom-0 right-0 w-1/3 h-1/3 object-contain pointer-events-none z-[32]"
         />
       )}
       {player.activeBadgeId && (

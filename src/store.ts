@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ACCESSORIES } from './data/accessories';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -86,6 +87,8 @@ export interface Player {
   // PNG-Overlays
   unlockedOverlays?: string[];
   activeAccessoryId?: string | null;
+  // Getragene Accessoires je Slot (rein kosmetisch). IDs aus data/accessories.ts.
+  activeAccessories?: { head?: string | null; hand?: string | null; torso?: string | null };
   activeBadgeId?: BadgeId | null;
   // Credits / Buyback
   buybackUsed?: boolean;
@@ -274,6 +277,9 @@ interface AppState {
   setAdminMessage: (msg: string) => Promise<void>;
   setWhatsappGroupLink: (url: string) => Promise<void>;
   setJackpot: (value: number) => Promise<void>;
+  setActiveAccessory: (slot: 'head' | 'hand' | 'torso', accessoryId: string | null) => Promise<void>;
+  grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
+  awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
   resetState: () => void;
 }
 
@@ -848,6 +854,60 @@ export const useStore = create<AppState>()((set, get) => {
           console.error('[Store] setJackpot Fehler:', err);
         }
       }
+    },
+
+    // Accessoire eines Slots beim aktuellen Spieler an-/abwählen (rein kosmetisch).
+    setActiveAccessory: async (slot, accessoryId) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      set(s => ({
+        players: s.players.map(p => p.id === uid
+          ? { ...p, activeAccessories: { ...(p.activeAccessories ?? {}), [slot]: accessoryId } }
+          : p),
+      }));
+      const p = get().players.find(pl => pl.id === uid);
+      if (db && p) {
+        try { await updateDoc(doc(db, 'players', uid), { activeAccessories: p.activeAccessories ?? {} }); }
+        catch (err) { console.error('[Store] setActiveAccessory Fehler:', err); }
+      }
+    },
+
+    // Accessoire freischalten (Auto-Vergabe oder Admin/Test).
+    grantAccessory: async (playerId, accessoryId) => {
+      set(s => ({
+        players: s.players.map(p => p.id === playerId
+          ? { ...p, unlockedOverlays: Array.from(new Set([...(p.unlockedOverlays ?? []), accessoryId])) }
+          : p),
+      }));
+      const p = get().players.find(pl => pl.id === playerId);
+      if (db && p) {
+        try { await updateDoc(doc(db, 'players', playerId), { unlockedOverlays: p.unlockedOverlays ?? [] }); }
+        catch (err) { console.error('[Store] grantAccessory Fehler:', err); }
+      }
+    },
+
+    // Block-Sieger küren: Spieler mit den meisten richtigen Tipps im jeweiligen
+    // Gratis-Block erhalten alle Block-Preis-Accessoires (z.B. Österreich-Trikot).
+    awardBlockWinner: async (block) => {
+      const { markets, bets, players } = get();
+      const prizeIds = ACCESSORIES.filter(a => a.block === block).map(a => a.id);
+      if (prizeIds.length === 0) return { winners: [] };
+      const blockMarkets = markets.filter(m =>
+        m.marketSubtype === 'jackpot' && m.jackpotBlock === block &&
+        m.status === 'resolved' && m.winningOptionId);
+      const correct: Record<string, number> = {};
+      for (const m of blockMarkets) {
+        bets.filter(b => b.marketId === m.id && b.optionId === m.winningOptionId)
+          .forEach(b => { correct[b.playerId] = (correct[b.playerId] || 0) + 1; });
+      }
+      const vals = Object.values(correct);
+      const max = vals.length ? Math.max(...vals) : 0;
+      if (max === 0) return { winners: [] };
+      const winnerIds = Object.keys(correct).filter(pid => correct[pid] === max);
+      for (const pid of winnerIds) {
+        for (const aid of prizeIds) await get().grantAccessory(pid, aid);
+      }
+      return { winners: winnerIds.map(pid => players.find(p => p.id === pid)?.name ?? pid) };
     },
 
     resetState: () => {

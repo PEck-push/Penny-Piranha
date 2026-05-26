@@ -196,10 +196,17 @@ export async function resolveMarketAdmin(
       dailyNetGain: FieldValue.increment(basePayout - (myBet?.amount ?? 0)),
     };
     if (correct && isUnderdog) upd.underdogCorrect = FieldValue.increment(1);
-    if (overlayAdds.length > 0) {
-      upd.unlockedOverlays = FieldValue.arrayUnion(...overlayAdds);
-      upd.activeBadgeId = overlayAdds[overlayAdds.length - 1];
-    }
+
+    // Accessoires automatisch freischalten (rein kosmetisch, nicht auto-getragen).
+    const accessoryAdds: string[] = [];
+    if (correct && newStreak === 4) accessoryAdds.push('flames');        // Kopf: Flammen
+    if (correct && isUnderdog)      accessoryAdds.push('underdog_medal'); // Hand: Underdog-Orden
+
+    const allOverlayAdds = [...overlayAdds, ...accessoryAdds];
+    if (allOverlayAdds.length > 0) upd.unlockedOverlays = FieldValue.arrayUnion(...allOverlayAdds);
+    // activeBadgeId nur aus den Badge-Overlays (nicht aus Accessoires) setzen.
+    if (overlayAdds.length > 0) upd.activeBadgeId = overlayAdds[overlayAdds.length - 1];
+
     batch.update(ps.ref, upd);
   }
 

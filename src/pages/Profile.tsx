@@ -10,6 +10,8 @@ import {
 import { BADGE_LABELS } from '../store';
 import { clsx } from 'clsx';
 import { ChevronLeft } from 'lucide-react';
+import CharacterAvatar from '../components/CharacterAvatar';
+import { ACCESSORIES, ACCESSORY_SLOTS } from '../data/accessories';
 
 const STREAK_LABELS: Record<string, string> = {
   none:   '—',
@@ -25,6 +27,7 @@ export default function Profile() {
   const bets      = useStore(s => s.bets);
   const markets   = useStore(s => s.markets);
   const logoutAuth = useStore(s => s.logoutAuth);
+  const setActiveAccessory = useStore(s => s.setActiveAccessory);
 
   // ── Passwort-Änderung ────────────────────────────────────────────────
   const [currentPw, setCurrentPw] = useState('');
@@ -100,11 +103,8 @@ export default function Profile() {
 
       {/* Avatar + Name */}
       <div className="relative z-10 flex flex-col items-center pt-2 pb-5 shrink-0">
-        <div className="w-[140px] h-[140px] mb-3">
-          {me.avatar
-            ? <img src={me.avatar} alt={me.name} className="w-full h-full object-contain" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
-            : <img src="/logo-icon.webp" alt="" className="w-full h-full object-contain" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
-          }
+        <div className="w-[140px] h-[140px] mb-3" style={{ animation: 'auraGlow 4s ease-in-out infinite' }}>
+          <CharacterAvatar player={me} size="lg" className="w-full h-full" />
         </div>
         <div className="text-[22px] font-black text-white tracking-[-0.5px]">{me.name}</div>
         {me.email && <div className="text-[12px] text-muted mt-0.5">{me.email}</div>}
@@ -174,6 +174,50 @@ export default function Profile() {
             </div>
           </div>
         )}
+
+        {/* Accessoires */}
+        <div className="bg-card border border-border rounded-2xl p-4">
+          <div className="text-[10px] font-black text-muted tracking-[0.15em] uppercase mb-3">Accessoires</div>
+          {ACCESSORY_SLOTS.map(({ slot, label }) => {
+            const items    = ACCESSORIES.filter(a => a.slot === slot);
+            const unlocked = items.filter(a => (me.unlockedOverlays ?? []).includes(a.id));
+            const locked   = items.filter(a => !(me.unlockedOverlays ?? []).includes(a.id));
+            const active   = me.activeAccessories?.[slot] ?? null;
+            return (
+              <div key={slot} className="mb-3 last:mb-0">
+                <div className="text-[10px] font-black text-muted/80 uppercase tracking-wide mb-1.5">{label}</div>
+                {unlocked.length === 0 ? (
+                  <div className="text-[11px] text-muted/50 italic">Noch nichts freigeschaltet.</div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button onClick={() => setActiveAccessory(slot, null)}
+                      className={clsx('text-[11px] font-bold rounded-full px-2.5 py-1 border transition-colors',
+                        active === null ? 'border-green/50 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-muted hover:text-white')}>
+                      — Keins
+                    </button>
+                    {unlocked.map(a => (
+                      <button key={a.id} onClick={() => setActiveAccessory(slot, active === a.id ? null : a.id)}
+                        className={clsx('text-[11px] font-bold rounded-full px-2.5 py-1 border transition-colors',
+                          active === a.id ? 'border-green/50 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-white hover:border-white/30')}>
+                        {a.icon} {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {locked.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {locked.map(a => (
+                      <span key={a.id} title={a.desc}
+                        className="text-[10px] text-muted/50 bg-white/3 border border-white/8 rounded-full px-2 py-0.5">
+                        🔒 {a.icon} {a.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         {/* Passwort ändern */}
         <div className="bg-card border border-border rounded-2xl p-4">

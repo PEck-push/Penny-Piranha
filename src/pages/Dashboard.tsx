@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore, Market, getMarketTotal, buildSelectionKey } from '../store';
+import { ACCESSORY_BY_ID } from '../data/accessories';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle, User } from 'lucide-react';
@@ -734,6 +735,18 @@ export default function Dashboard() {
 
   // ─── LEADERBOARD TAB ───────────────────────────────────────────────────────
   const renderLeaderboard = () => {
+    // Kleine Achievement-Icons (aktive Accessoires) für die Rangliste.
+    const accIcons = (p: typeof players[0]) => {
+      const ids = [p.activeAccessories?.head, p.activeAccessories?.hand, p.activeAccessories?.torso]
+        .filter(Boolean) as string[];
+      const items = ids.map(id => ACCESSORY_BY_ID[id]).filter(Boolean);
+      if (items.length === 0) return null;
+      return (
+        <span className="flex items-center gap-0.5 shrink-0">
+          {items.map((a, i) => <span key={i} title={a.label} className="text-[12px] leading-none">{a.icon}</span>)}
+        </span>
+      );
+    };
     const playerTotal = (p: typeof players[0]) =>
       p.tokens + bets.filter(b => b.playerId === p.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s, b) => s + b.amount, 0);
     const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
@@ -803,6 +816,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-[14px] font-black text-white truncate">{p.name}</span>
                   {p.id === me.id && <span className="text-[10px] text-green font-black shrink-0">(Du)</span>}
+                  {accIcons(p)}
                 </div>
                 {(p.streakLevel === 'damn_hot' || p.streakLevel === 'on_fire') && (
                   <span className={clsx(

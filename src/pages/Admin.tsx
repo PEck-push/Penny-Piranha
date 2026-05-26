@@ -9,6 +9,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
+import { ACCESSORIES } from '../data/accessories';
 import { isAdminEmail } from '../config/admins';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
@@ -60,6 +61,11 @@ export default function Admin() {
 
   // Multiple-Choice-Auflösung: richtige Options-Menge je Markt
   const [mcResolveSel, setMcResolveSel] = useState<Record<string, string[]>>({});
+
+  // Accessoires & Block-Preise
+  const [accPlayer, setAccPlayer] = useState('');
+  const [accId, setAccId] = useState('');
+  const [accMsg, setAccMsg] = useState('');
 
   // Jackpot/Hausbank manuell setzen
   const [jackpotInput, setJackpotInput] = useState('');
@@ -133,6 +139,8 @@ export default function Admin() {
   const deleteMarket = useStore(s => s.deleteMarket);
   const createTestPlayer = useStore(s => s.createTestPlayer);
   const autoBetTestPlayers = useStore(s => s.autoBetTestPlayers);
+  const grantAccessory = useStore(s => s.grantAccessory);
+  const awardBlockWinner = useStore(s => s.awardBlockWinner);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
   const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
@@ -1443,6 +1451,70 @@ export default function Admin() {
 
           {/* ── SPIELER TAB ────────────────────────────────────────── */}
           {adminTab === 'spieler' && <>
+
+          {/* ── ACCESSOIRES & BLOCK-PREISE ─────────────────────────── */}
+          <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🎁</span>
+              <div className="text-[11px] font-black text-yellow tracking-[0.15em] uppercase">Accessoires & Preise</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Rein kosmetisch. „Block-Sieger küren" vergibt die Block-Preise (z.B. Österreich-Trikot)
+              an den/die Spieler mit den meisten richtigen Tipps im Block. Manuelles Vergeben dient
+              auch zum Testen der Anzeige.
+            </div>
+            {accMsg && (
+              <div className="bg-yellow/10 border border-yellow/30 rounded-xl px-3 py-2 text-[12px] font-bold text-center text-yellow mb-3">
+                {accMsg}
+              </div>
+            )}
+
+            {/* Block-Sieger küren */}
+            <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">Block-Sieger küren</div>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(['block1', 'austria', 'block2', 'finale'] as const).map(block => (
+                <button key={block}
+                  onClick={async () => {
+                    const { winners } = await awardBlockWinner(block);
+                    setAccMsg(winners.length
+                      ? `🏆 ${JACKPOT_BLOCK_LABELS[block]}: ${winners.join(', ')}`
+                      : `Keine richtigen Tipps im Block „${JACKPOT_BLOCK_LABELS[block]}" gefunden.`);
+                    setTimeout(() => setAccMsg(''), 5000);
+                  }}
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 text-white font-black text-[11px] hover:border-yellow/50 transition-all text-left">
+                  {JACKPOT_BLOCK_LABELS[block]}
+                </button>
+              ))}
+            </div>
+
+            {/* Manuell vergeben (Test) */}
+            <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">Manuell vergeben</div>
+            <div className="flex flex-col gap-2">
+              <select value={accPlayer} onChange={e => setAccPlayer(e.target.value)}
+                className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-yellow/60">
+                <option value="">Spieler wählen…</option>
+                {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <select value={accId} onChange={e => setAccId(e.target.value)}
+                className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-yellow/60">
+                <option value="">Accessoire wählen…</option>
+                {ACCESSORIES.map(a => <option key={a.id} value={a.id}>{a.icon} {a.label} ({a.slot})</option>)}
+              </select>
+              <button
+                onClick={async () => {
+                  if (!accPlayer || !accId) return;
+                  await grantAccessory(accPlayer, accId);
+                  const pName = players.find(p => p.id === accPlayer)?.name ?? '?';
+                  const aLabel = ACCESSORIES.find(a => a.id === accId)?.label ?? accId;
+                  setAccMsg(`✓ „${aLabel}" an ${pName} vergeben.`);
+                  setTimeout(() => setAccMsg(''), 4000);
+                }}
+                disabled={!accPlayer || !accId}
+                className="w-full p-2.5 rounded-xl bg-yellow/20 border border-yellow/40 text-yellow text-[12px] font-black disabled:opacity-40">
+                🎁 Freischalten
+              </button>
+            </div>
+          </div>
 
           {/* ── BUYBACK ─────────────────────────────────────────── */}
           {(() => {
