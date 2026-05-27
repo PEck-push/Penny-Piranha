@@ -65,6 +65,17 @@ const prettyName = (id: string) =>
     .trim()
     .replace(/\b\w/g, c => c.toUpperCase());
 
+// Kopf-Auswahl: in die Kopf-Region des 1080er-Bilds zoomen (Kopf füllt die
+// Vorschau, mittig). HEAD_FOCUS_Y = vertikale Mitte des Kopfes (0=oben,1=unten).
+const HEAD_ZOOM = 2;
+const HEAD_FOCUS_Y = 0.27;
+const headZoomStyle = {
+  width: `${HEAD_ZOOM * 100}%`,
+  height: `${HEAD_ZOOM * 100}%`,
+  left: `${(0.5 - 0.5 * HEAD_ZOOM) * 100}%`,
+  top: `${(0.5 - HEAD_FOCUS_Y * HEAD_ZOOM) * 100}%`,
+};
+
 // ─── Step indicator ────────────────────────────────────────────────────────────
 function StepDots({ current, total }: { current: number; total: number }) {
   return (
@@ -423,7 +434,9 @@ export default function Register() {
 
         <div className="relative z-10 flex-none h-[210px] flex items-end justify-center overflow-visible">
           {selectedHead
-            ? <img src={`/characters/heads/${encodeURIComponent(selectedHead)}.webp`} alt="" className="relative z-30 h-[240px] object-contain -mb-2.5" />
+            ? <div className="relative z-30 w-[210px] h-[210px] overflow-hidden">
+                <img src={`/characters/heads/${encodeURIComponent(selectedHead)}.webp`} alt="" className="absolute object-contain" style={headZoomStyle} />
+              </div>
             : <div className="text-[13px] text-muted self-center">Noch keine Köpfe hinterlegt</div>}
         </div>
 
@@ -453,9 +466,9 @@ export default function Register() {
           <div className="grid grid-cols-4 gap-2 pb-32">
             {shownHeads.map(id => (
               <div key={id} className="flex flex-col items-center cursor-pointer group" onClick={() => setSelectedHead(id)}>
-                <div className={clsx('w-16 h-16 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all overflow-hidden',
+                <div className={clsx('relative w-16 h-16 rounded-xl bg-card border-[1.5px] overflow-hidden transition-all',
                   selectedHead === id ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-105' : 'border-border group-hover:border-blue/50 group-hover:scale-105')}>
-                  <img src={`/characters/heads/${encodeURIComponent(id)}.webp`} alt="" className="w-full h-full object-contain" />
+                  <img src={`/characters/heads/${encodeURIComponent(id)}.webp`} alt="" className="absolute object-contain" style={headZoomStyle} />
                 </div>
                 <div className="text-[8px] font-bold text-center leading-[1.2] text-muted mt-[3px] truncate w-full">{prettyName(id)}</div>
               </div>
