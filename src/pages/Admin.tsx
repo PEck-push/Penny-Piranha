@@ -10,6 +10,7 @@ import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
 import { ACCESSORIES } from '../data/accessories';
+import CharacterAvatar from '../components/CharacterAvatar';
 import { isAdminEmail } from '../config/admins';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
@@ -2173,9 +2174,7 @@ export default function Admin() {
                       )}
                     >
                       <div className="w-8 h-8 rounded-lg bg-card border border-border shrink-0 overflow-hidden">
-                        {player?.avatar
-                          ? <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full bg-white/5" />}
+                        {player ? <CharacterAvatar player={player} size="sm" className="w-full h-full" /> : <div className="w-full h-full bg-white/5" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-black text-white">{player?.name ?? '?'}</div>

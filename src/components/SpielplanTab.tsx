@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import { flag, deName, isAustriaTeam } from '../utils/teams';
+import CharacterAvatar from './CharacterAvatar';
 
 type WmMatch = ScheduleMatch;
 
@@ -435,7 +436,7 @@ export default function SpielplanTab() {
                       return (
                         <div key={b.id} className="flex items-center gap-2 py-1.5 border-b border-border/60 last:border-0">
                           <div className="w-6 h-6 rounded-md bg-white/5 overflow-hidden shrink-0">
-                            {p?.avatar ? <img src={p.avatar} className="w-full h-full object-cover" alt="" /> : null}
+                            {p && <CharacterAvatar player={p} size="sm" className="w-full h-full" />}
                           </div>
                           <span className="flex-1 text-[12px] font-bold text-white truncate">{p?.name ?? '?'}</span>
                           <span className={clsx('text-[10px] font-black px-1.5 py-0.5 rounded-md border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore, Market, getMarketTotal, buildSelectionKey } from '../store';
 import { ACCESSORY_BY_ID } from '../data/accessories';
+import CharacterAvatar from '../components/CharacterAvatar';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle, User } from 'lucide-react';
@@ -778,7 +779,7 @@ export default function Dashboard() {
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[260px] h-[70px] rounded-full bg-yellow/35 blur-[32px]" />
           <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[28px] z-40 animate-[crownBob_2s_ease-in-out_infinite]">👑</div>
           <div className={clsx("absolute top-10 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]", dim(top))}>
-            {top?.avatar ? <img src={top.avatar} alt={top.name} className="w-[180px] h-[180px] object-contain" /> : <div className="w-[180px] h-[180px] rounded-full bg-white/5" />}
+            {top ? <CharacterAvatar player={top} size="lg" className="w-[180px] h-[180px]" /> : <div className="w-[180px] h-[180px] rounded-full bg-white/5" />}
           </div>
           <div className={clsx("relative z-30 flex flex-col items-center mt-[120px] mb-3.5", dim(top))}>
             <div className="flex items-center gap-2.5 mb-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1 backdrop-blur-md">
@@ -797,7 +798,7 @@ export default function Dashboard() {
             <div className={clsx("flex-1 bg-card border border-[#C0C0DC]/30 rounded-2xl p-3 flex flex-col items-center gap-1.5 relative overflow-hidden", dim(sorted[1]))}>
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C8C8F0]/50 to-transparent" />
               <div className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md text-[#C8C8F0] bg-[#C8C8F0]/10 border border-[#C8C8F0]/25">#2 🥈</div>
-              <div className="w-9 h-9">{sorted[1].avatar ? <img src={sorted[1].avatar} alt={sorted[1].name} className="w-full h-full object-cover rounded-full" /> : <div className="w-full h-full rounded-full bg-white/5" />}</div>
+              <div className="w-9 h-9"><CharacterAvatar player={sorted[1]} size="sm" className="w-full h-full" /></div>
               <div className="text-[14px] font-black text-white text-center">{sorted[1].name}</div>
               <div className="font-mono text-[15px] font-bold text-green">{playerTotal(sorted[1])} TKN</div>
               {playerTotal(sorted[1]) !== sorted[1].tokens && <div className="text-[10px] text-muted font-mono">{sorted[1].tokens} frei</div>}
@@ -807,7 +808,7 @@ export default function Dashboard() {
             <div className={clsx("flex-1 bg-card border border-[#CD7F32]/35 rounded-2xl p-3 flex flex-col items-center gap-1.5 relative overflow-hidden", dim(sorted[2]))}>
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#CD7F32]/50 to-transparent" />
               <div className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md text-[#CD7F32] bg-[#CD7F32]/10 border border-[#CD7F32]/25">#3 🥉</div>
-              <div className="w-9 h-9">{sorted[2].avatar ? <img src={sorted[2].avatar} alt={sorted[2].name} className="w-full h-full object-cover rounded-full" /> : <div className="w-full h-full rounded-full bg-white/5" />}</div>
+              <div className="w-9 h-9"><CharacterAvatar player={sorted[2]} size="sm" className="w-full h-full" /></div>
               <div className="text-[14px] font-black text-white text-center">{sorted[2].name}</div>
               <div className="font-mono text-[15px] font-bold text-green">{playerTotal(sorted[2])} TKN</div>
               {playerTotal(sorted[2]) !== sorted[2].tokens && <div className="text-[10px] text-muted font-mono">{sorted[2].tokens} frei</div>}
@@ -823,7 +824,7 @@ export default function Dashboard() {
               {p.id === me.id && <div className="absolute left-0 top-1/5 bottom-1/5 w-[3px] rounded-r-sm bg-green shadow-[0_0_10px_rgba(230,180,60,1)]" />}
               <div className={clsx("font-mono text-[14px] font-bold w-6 text-center", p.id === me.id ? "text-yellow" : total === 0 ? "text-red" : "text-muted")}>#{i+4}</div>
               <div className="w-9 h-9 rounded-lg bg-input flex items-center justify-center border border-border shrink-0 overflow-hidden">
-                {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
+                <CharacterAvatar player={p} size="sm" className="w-full h-full" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
@@ -894,10 +895,9 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_60%,rgba(59,110,255,.25)_0%,transparent_65%)] animate-[flareMove_15s_ease-in-out_infinite]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[280px] h-[80px] rounded-full bg-blue/30 blur-[35px]" />
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
-            {me.avatar
-              ? <img src={me.avatar} alt={me.name} onClick={() => navigate('/profile')} className="w-[200px] h-[200px] object-contain cursor-pointer select-none" />
-              : <div onClick={() => navigate('/profile')} className="w-[200px] h-[200px] rounded-full bg-white/5 cursor-pointer" />
-            }
+            <div onClick={() => navigate('/profile')} className="w-[200px] h-[200px] cursor-pointer select-none">
+              <CharacterAvatar player={me} size="lg" className="w-full h-full" />
+            </div>
           </div>
           <div className="relative z-30 flex flex-col items-center gap-3 mt-[220px]">
             <div className="flex items-center gap-3">
@@ -1084,7 +1084,7 @@ export default function Dashboard() {
                       return (
                         <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
                           <div className="w-[30px] h-[30px] rounded-lg bg-card flex items-center justify-center shrink-0 overflow-hidden">
-                            {p.avatar ? <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
+                            <CharacterAvatar player={p} size="sm" className="w-full h-full" />
                           </div>
                           <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
                           <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
