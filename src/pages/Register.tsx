@@ -124,7 +124,7 @@ export default function Register() {
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
 
   // Charakter — Builder (2 Schritte): Kopf + Outfit
-  const [selectedHead, setSelectedHead] = useState(HEADS[0] ?? '');
+  const [selectedHead, setSelectedHead] = useState(HEADS.includes('Toni') ? 'Toni' : (HEADS[0] ?? ''));
   const [selectedOutfit, setSelectedOutfit] = useState(OUTFITS[0] ?? '');
   // Kopf-Kategorie: 'person' (Persönlichkeiten, Standard) oder 'asv'
   const [headCategory, setHeadCategory] = useState<'person' | 'asv'>('person');
