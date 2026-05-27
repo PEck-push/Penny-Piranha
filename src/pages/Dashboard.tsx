@@ -891,15 +891,15 @@ export default function Dashboard() {
 
       {/* Hero */}
       {activeTab === 'dashboard' && (
-        <div className="relative z-20 h-[290px] flex flex-col items-center shrink-0 overflow-hidden">
+        <div className="relative z-20 h-[330px] flex flex-col items-center shrink-0 overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_60%,rgba(59,110,255,.25)_0%,transparent_65%)] animate-[flareMove_15s_ease-in-out_infinite]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[280px] h-[80px] rounded-full bg-blue/30 blur-[35px]" />
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
-            <div onClick={() => navigate('/profile')} className="w-[200px] h-[200px] cursor-pointer select-none">
+            <div onClick={() => navigate('/profile')} className="w-[250px] h-[250px] cursor-pointer select-none">
               <CharacterAvatar player={me} size="lg" className="w-full h-full" />
             </div>
           </div>
-          <div className="relative z-30 flex flex-col items-center gap-3 mt-[220px]">
+          <div className="relative z-30 flex flex-col items-center gap-3 mt-[255px]">
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Konto</span>
