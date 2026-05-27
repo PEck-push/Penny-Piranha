@@ -3,17 +3,35 @@ import { getDb } from './_lib/firebaseAdmin';
 import { fetchMatches } from './_lib/footballData';
 import { resolveMarketAdmin } from './_lib/resolve';
 
-// Runs every 5 minutes. Fetches FINISHED matches from football-data.org and
-// resolves the corresponding locked WM markets automatically. Also keeps the
-// `schedule` docs in sync with the live scores.
+// Läuft alle 15 Min. Löst gesperrte WM-/Test-Märkte auf, sobald die API das
+// Spiel als FINISHED meldet. WICHTIG (Read-/API-Sparen): Wenn KEIN Markt auf ein
+// Ergebnis wartet (kein gesperrter wm-match-Markt), bricht die Funktion sofort ab
+// — kein API-Call, keine weiteren Lesevorgänge. Sie arbeitet also nur im Fenster
+// zwischen Anpfiff (Markt wird gesperrt) und Auflösung.
 export default async () => {
   const db = getDb();
 
-  // Wettbewerbe, deren FINISHED-Spiele aufgelöst werden. WC = WM; CL = Champions
-  // League (fürs Golden-Test-Finale). Per Env RESOLVE_COMPETITIONS überschreibbar.
+  // 1) Gesperrte Märkte zuerst (eine günstige Query). Nichts gesperrt → Schluss.
+  const lockedSnap = await db
+    .collection('markets')
+    .where('status', '==', 'locked')
+    .where('marketSubtype', '==', 'wm-match')
+    .get();
+  if (lockedSnap.empty) return new Response('idle-no-locked', { status: 200 });
+
+  const marketByFdoId = new Map<number, { id: string; data: any }>();
+  lockedSnap.forEach(d => {
+    const data = d.data();
+    if (typeof data.footballDataOrgId === 'number') {
+      marketByFdoId.set(data.footballDataOrgId, { id: d.id, data });
+    }
+  });
+  // Kein gesperrter Markt mit footballDataOrgId → nichts automatisch aufzulösen.
+  if (marketByFdoId.size === 0) return new Response('idle-no-api-markets', { status: 200 });
+
+  // 2) Erst jetzt die API abfragen (WC + CL; per RESOLVE_COMPETITIONS überschreibbar).
   const comps = (process.env.RESOLVE_COMPETITIONS ?? 'WC,CL')
     .split(',').map(c => c.trim()).filter(Boolean);
-
   const finished: any[] = [];
   for (const c of comps) {
     try {
@@ -24,34 +42,19 @@ export default async () => {
   }
   if (finished.length === 0) return new Response('no-finished', { status: 200 });
 
-  // Locked WM markets keyed by footballDataOrgId
-  const lockedSnap = await db
-    .collection('markets')
-    .where('status', '==', 'locked')
-    .where('marketSubtype', '==', 'wm-match')
-    .get();
-
-  const marketByFdoId = new Map<number, { id: string; data: any }>();
-  lockedSnap.forEach(d => {
-    const data = d.data();
-    if (typeof data.footballDataOrgId === 'number') {
-      marketByFdoId.set(data.footballDataOrgId, { id: d.id, data });
-    }
-  });
-
   let resolved = 0;
 
   for (const m of finished) {
+    const entry = marketByFdoId.get(m.id);
+    if (!entry) continue; // kein passender gesperrter Markt → überspringen (auch kein Write)
+
     const home = m.score?.fullTime?.home;
     const away = m.score?.fullTime?.away;
     if (home === null || away === null || home === undefined || away === undefined) continue;
 
-    // Keep schedule doc in sync
-    const schedRef = db.collection('schedule').doc(`wc-${m.id}`);
-    await schedRef.set({ status: 'finished', scoreA: home, scoreB: away }, { merge: true });
-
-    const entry = marketByFdoId.get(m.id);
-    if (!entry) continue;
+    // Schedule-Doc einmalig aktualisieren (nur für Märkte, die wir auflösen).
+    await db.collection('schedule').doc(`wc-${m.id}`).set(
+      { status: 'finished', scoreA: home, scoreB: away }, { merge: true });
 
     const options: Array<{ id: string }> = entry.data.options ?? [];
     let winningOptionId: string;
