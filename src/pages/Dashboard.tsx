@@ -178,6 +178,8 @@ export default function Dashboard() {
   const [changingTipMarket, setChangingTipMarket] = useState<string | null>(null);
   // Multiple-Choice: angekreuzte Optionen je Markt (vor dem Bestätigen)
   const [mcPick, setMcPick] = useState<Record<string, string[]>>({});
+  // Profil-Popup in der Rangliste
+  const [profilePlayer, setProfilePlayer] = useState<typeof players[0] | null>(null);
   const [openAnswerText, setOpenAnswerText] = useState('');
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
 
@@ -778,10 +780,10 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_70%,rgba(255,212,71,.22)_0%,transparent_65%)]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[260px] h-[70px] rounded-full bg-yellow/35 blur-[32px]" />
           <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[28px] z-40 animate-[crownBob_2s_ease-in-out_infinite]">👑</div>
-          <div className={clsx("absolute top-10 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]", dim(top))}>
+          <div onClick={() => top && setProfilePlayer(top)} className={clsx("absolute top-10 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite] cursor-pointer", dim(top))}>
             {top ? <CharacterAvatar player={top} size="lg" className="w-[180px] h-[180px]" /> : <div className="w-[180px] h-[180px] rounded-full bg-white/5" />}
           </div>
-          <div className={clsx("relative z-30 flex flex-col items-center mt-[120px] mb-3.5", dim(top))}>
+          <div onClick={() => top && setProfilePlayer(top)} className={clsx("relative z-30 flex flex-col items-center mt-[120px] mb-3.5 cursor-pointer", dim(top))}>
             <div className="flex items-center gap-2.5 mb-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1 backdrop-blur-md">
               <div className="text-[20px] font-black text-white">{top?.name}</div>
               <div className="bg-gradient-to-br from-yellow to-orange text-bg font-mono text-[11px] font-bold rounded-lg px-2.5 py-1">#1</div>
@@ -795,7 +797,7 @@ export default function Dashboard() {
         </div>
         <div className="relative z-20 flex gap-2 px-4 pb-2.5 shrink-0">
           {sorted[1] && (
-            <div className={clsx("flex-1 bg-card border border-[#C0C0DC]/30 rounded-2xl p-3 flex flex-col items-center gap-1.5 relative overflow-hidden", dim(sorted[1]))}>
+            <div onClick={() => setProfilePlayer(sorted[1])} className={clsx("flex-1 bg-card border border-[#C0C0DC]/30 rounded-2xl p-3 flex flex-col items-center gap-1.5 relative overflow-hidden cursor-pointer", dim(sorted[1]))}>
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#C8C8F0]/50 to-transparent" />
               <div className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md text-[#C8C8F0] bg-[#C8C8F0]/10 border border-[#C8C8F0]/25">#2 🥈</div>
               <div className="w-9 h-9"><CharacterAvatar player={sorted[1]} size="sm" className="w-full h-full" /></div>
@@ -805,7 +807,7 @@ export default function Dashboard() {
             </div>
           )}
           {sorted[2] && (
-            <div className={clsx("flex-1 bg-card border border-[#CD7F32]/35 rounded-2xl p-3 flex flex-col items-center gap-1.5 relative overflow-hidden", dim(sorted[2]))}>
+            <div onClick={() => setProfilePlayer(sorted[2])} className={clsx("flex-1 bg-card border border-[#CD7F32]/35 rounded-2xl p-3 flex flex-col items-center gap-1.5 relative overflow-hidden cursor-pointer", dim(sorted[2]))}>
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#CD7F32]/50 to-transparent" />
               <div className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md text-[#CD7F32] bg-[#CD7F32]/10 border border-[#CD7F32]/25">#3 🥉</div>
               <div className="w-9 h-9"><CharacterAvatar player={sorted[2]} size="sm" className="w-full h-full" /></div>
@@ -819,7 +821,7 @@ export default function Dashboard() {
           {sorted.slice(3).map((p, i) => {
             const total = playerTotal(p);
             return (
-            <div key={p.id} className={clsx("flex items-center gap-3 bg-card border rounded-[14px] p-3 mb-1.5 relative",
+            <div key={p.id} onClick={() => setProfilePlayer(p)} className={clsx("flex items-center gap-3 bg-card border rounded-[14px] p-3 mb-1.5 relative cursor-pointer",
               p.id === me.id ? "border-green/40 bg-green/5" : "border-border hover:border-blue/30", total === 0 && "border-red/25", dim(p))}>
               {p.id === me.id && <div className="absolute left-0 top-1/5 bottom-1/5 w-[3px] rounded-r-sm bg-green shadow-[0_0_10px_rgba(230,180,60,1)]" />}
               <div className={clsx("font-mono text-[14px] font-bold w-6 text-center", p.id === me.id ? "text-yellow" : total === 0 ? "text-red" : "text-muted")}>#{i+4}</div>
@@ -849,6 +851,55 @@ export default function Dashboard() {
             );
           })}
         </div>
+
+        {/* ── Profil-Popup ─────────────────────────────────────── */}
+        {profilePlayer && (() => {
+          const p = profilePlayer;
+          const total = playerTotal(p);
+          const rank = sorted.findIndex(x => x.id === p.id) + 1;
+          const pBets = bets.filter(b => b.playerId === p.id && b.amount > 0);
+          const pResolved = pBets.filter(b => {
+            const m = markets.find(mk => mk.id === b.marketId);
+            return m?.status === 'resolved' && m.winningOptionId != null;
+          });
+          const pWins = pResolved.filter(b => markets.find(mk => mk.id === b.marketId)?.winningOptionId === b.optionId);
+          const winRate = pResolved.length ? Math.round((pWins.length / pResolved.length) * 100) : null;
+          const streakIcon = p.streakLevel === 'damn_hot' ? '🔥🔥' : p.streakLevel === 'on_fire' ? '🔥' : '';
+          const accIds = [p.activeAccessories?.head, p.activeAccessories?.hand, p.activeAccessories?.torso].filter(Boolean) as string[];
+          const tiles: [string, string | number][] = [
+            ['Gesamt', total], ['Frei', p.tokens], ['Quote', winRate !== null ? `${winRate}%` : '—'],
+            ['Wetten', pBets.length], ['Richtig', pWins.length], ['Streak', `${streakIcon} ${p.currentStreak ?? 0}`.trim()],
+          ];
+          return (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5" onClick={() => setProfilePlayer(null)}>
+              <div className="bg-card border border-border rounded-[24px] w-full max-w-[330px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)]" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-end">
+                  <button onClick={() => setProfilePlayer(null)} className="text-muted hover:text-white text-[18px] leading-none w-7 h-7 flex items-center justify-center">✕</button>
+                </div>
+                <div className="flex flex-col items-center -mt-2">
+                  <div className="w-[150px] h-[150px]"><CharacterAvatar player={p} size="lg" className="w-full h-full" /></div>
+                  <div className="text-[20px] font-black text-white mt-1">{p.name}</div>
+                  <div className="text-[12px] text-muted">Rang #{rank}{p.approved === false && ' · ⏳ Zahlung ausständig'}</div>
+                  {accIds.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {accIds.map((id, i) => ACCESSORY_BY_ID[id] && (
+                        <span key={i} title={ACCESSORY_BY_ID[id].label} className="text-[16px]">{ACCESSORY_BY_ID[id].icon}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-4">
+                  {tiles.map(([label, value]) => (
+                    <div key={label} className="bg-white/5 border border-white/8 rounded-xl p-2.5 flex flex-col items-center">
+                      <span className="text-[9px] font-bold text-muted uppercase tracking-wide leading-none">{label}</span>
+                      <span className="font-mono text-[14px] font-black text-white mt-1">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   };
