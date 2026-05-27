@@ -22,8 +22,8 @@ const DIM: Record<NonNullable<Props['size']>, string> = {
 //   40 Kopf-Accessoire
 // Fehlt ein PNG noch, wird die jeweilige Ebene per onError ausgeblendet.
 export default function CharacterAvatar({ player, size = 'md', className = '' }: Props) {
-  const hasCharacter = Boolean(player.headId && player.bodyId);
   const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = 'none'; };
+  const enc = encodeURIComponent; // Dateinamen mit Leerzeichen URL-sicher machen
   const acc = player.activeAccessories ?? {};
 
   const overlay = 'absolute inset-0 w-full h-full object-contain pointer-events-none';
@@ -36,17 +36,17 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
           className={`${overlay} z-0`} />
       )}
 
-      {/* z-10: Charakter-Basis */}
-      {hasCharacter ? (
-        <>
-          <img src={`/characters/outfits/${player.bodyId}.webp`} alt="" className={`${overlay} z-[10]`} />
-          {/* z-20: Kopf */}
-          <img src={`/characters/heads/${player.headId}.webp`} alt={player.name} className={`${overlay} z-20`} />
-        </>
-      ) : player.avatar ? (
-        <img src={player.avatar} alt={player.name} referrerPolicy="no-referrer" className={`${overlay} z-[10]`} />
-      ) : (
-        <div className="absolute inset-0 w-full h-full rounded-full bg-white/5" />
+      {/* z-10/20: Charakter-Basis — Körper und Kopf unabhängig (Kopf optional). */}
+      {player.bodyId && (
+        <img src={`/characters/outfits/${enc(player.bodyId)}.webp`} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
+      )}
+      {player.headId && (
+        <img src={`/characters/heads/${enc(player.headId)}.webp`} alt={player.name} onError={hideOnError} className={`${overlay} z-20`} />
+      )}
+      {!player.bodyId && !player.headId && (
+        player.avatar
+          ? <img src={player.avatar} alt={player.name} referrerPolicy="no-referrer" className={`${overlay} z-[10]`} />
+          : <div className="absolute inset-0 w-full h-full rounded-full bg-white/5" />
       )}
 
       {/* z-15: Trikot-Accessoire */}

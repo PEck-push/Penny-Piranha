@@ -16,7 +16,7 @@
 export type CharacterMode = 'fallback' | 'builder';
 
 // HIER vor Go-live auf 'builder' umstellen.
-export const CHARACTER_MODE: CharacterMode = 'fallback';
+export const CHARACTER_MODE: CharacterMode = 'builder';
 
 // Dateinamen OHNE Endung. Reihenfolge = Anzeigereihenfolge im Auswahlraster.
 // Beispiel: HEADS = ['head_01', 'head_02'] → public/characters/heads/head_01.webp
@@ -24,5 +24,14 @@ export const CHARACTER_MODE: CharacterMode = 'fallback';
 // Kopf-Kategorien (nur Anzeige in der Auswahl):
 //   • Standard "Persönlichkeiten": normaler Dateiname, z. B. 'messi'
 //   • "ASV": Dateiname beginnt mit 'ASV-', z. B. 'ASV-mueller' → angezeigt "Mueller"
-export const HEADS: string[] = [];
-export const OUTFITS: string[] = [];
+export const HEADS: string[] = [
+  'ASV-1000 TT', 'ASV-Bombi', 'ASV-Coach', 'ASV-Dejo', 'ASV-Franzi', 'ASV-Michi', 'ASV-Zobo',
+  'Albert', 'Alf', 'Andrea', 'Diego', 'Edgar', 'Falco', 'Fraunz', 'Gianni Pace', 'Gigi',
+  'Konfetti', 'Lemmy', 'Oli', 'Pele', 'Peppi Skandaloso', 'Roberto', 'Ronaldinho', 'Ronaldo',
+  'Ruud', 'Salt', 'Schneckerl', 'Sigi', 'Toni', 'Tsubasa', 'Woiferl', 'Zauner', 'Zinedine',
+];
+export const OUTFITS: string[] = [
+  '001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013',
+  '014', '015', '015-1', '016', '017', '018', '019', '021', '022', '023', '025', '028', '029',
+  '032', '033', '034', '035', '039', '040', '041', '042',
+];
