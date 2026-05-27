@@ -20,5 +20,9 @@ export const CHARACTER_MODE: CharacterMode = 'fallback';
 
 // Dateinamen OHNE Endung. Reihenfolge = Anzeigereihenfolge im Auswahlraster.
 // Beispiel: HEADS = ['head_01', 'head_02'] → public/characters/heads/head_01.webp
+//
+// Kopf-Kategorien (nur Anzeige in der Auswahl):
+//   • Standard "Persönlichkeiten": normaler Dateiname, z. B. 'messi'
+//   • "ASV": Dateiname beginnt mit 'ASV-', z. B. 'ASV-mueller' → angezeigt "Mueller"
 export const HEADS: string[] = [];
 export const OUTFITS: string[] = [];

@@ -55,9 +55,15 @@ const TOTAL_STEPS = CHARACTER_MODE === 'builder' ? 5 : 4;
 const CONFIRM_STEP = TOTAL_STEPS;
 
 // Charaktername direkt aus dem Dateinamen ableiten (nur zur Orientierung):
-// "max_mustermann" → "Max Mustermann".
+// "max_mustermann" → "Max Mustermann". ASV-Köpfe (Dateiname beginnt mit "ASV-")
+// zeigen nur den Teil nach dem "-".
+const isAsvHead = (id: string) => /^asv-/i.test(id);
 const prettyName = (id: string) =>
-  id.replace(/\.\w+$/, '').replace(/[_-]+/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
+  id.replace(/^asv-/i, '')
+    .replace(/\.\w+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
 
 // ─── Step indicator ────────────────────────────────────────────────────────────
 function StepDots({ current, total }: { current: number; total: number }) {
@@ -109,6 +115,8 @@ export default function Register() {
   // Charakter — Builder (2 Schritte): Kopf + Outfit
   const [selectedHead, setSelectedHead] = useState(HEADS[0] ?? '');
   const [selectedOutfit, setSelectedOutfit] = useState(OUTFITS[0] ?? '');
+  // Kopf-Kategorie: 'person' (Persönlichkeiten, Standard) oder 'asv'
+  const [headCategory, setHeadCategory] = useState<'person' | 'asv'>('person');
 
 
   const displayName = [firstName, lastName].filter(Boolean).join(' ');
@@ -399,6 +407,10 @@ export default function Register() {
 
   // ── Builder Schritt 1: Kopf wählen ───────────────────────────────────────────
   if (step === 3 && CHARACTER_MODE === 'builder') {
+    const personHeads = HEADS.filter(h => !isAsvHead(h));
+    const asvHeads = HEADS.filter(h => isAsvHead(h));
+    const hasBothCats = personHeads.length > 0 && asvHeads.length > 0;
+    const shownHeads = hasBothCats ? (headCategory === 'asv' ? asvHeads : personHeads) : HEADS;
     return (
       <div className="flex-1 flex flex-col bg-bg relative overflow-hidden">
         <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(139,61,255,.4)_0%,transparent_55%),radial-gradient(ellipse_at_20%_60%,rgba(0,229,255,.12)_0%,transparent_40%)]" />
@@ -424,13 +436,28 @@ export default function Register() {
 
         <div className="relative z-20 px-4 pt-2 flex-1 overflow-y-auto no-scrollbar">
           <div className="font-mono text-[9px] text-muted tracking-[0.2em] uppercase mb-2.5">Schritt 1 von 2 — Kopf</div>
+
+          {/* Kategorie-Tabs (nur wenn beide Kategorien vorhanden sind) */}
+          {hasBothCats && (
+            <div className="flex gap-1.5 mb-3">
+              {([['person', 'Persönlichkeiten'], ['asv', 'ASV']] as const).map(([cat, label]) => (
+                <button key={cat} onClick={() => setHeadCategory(cat)}
+                  className={clsx('flex-1 py-2 rounded-xl text-[11px] font-black transition-all border',
+                    headCategory === cat ? 'bg-white/10 text-white border-white/15' : 'text-muted border-transparent hover:text-white')}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-4 gap-2 pb-32">
-            {HEADS.map(id => (
+            {shownHeads.map(id => (
               <div key={id} className="flex flex-col items-center cursor-pointer group" onClick={() => setSelectedHead(id)}>
                 <div className={clsx('w-16 h-16 rounded-xl bg-card border-[1.5px] flex items-center justify-center transition-all overflow-hidden',
                   selectedHead === id ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-105' : 'border-border group-hover:border-blue/50 group-hover:scale-105')}>
                   <img src={`/characters/heads/${id}.webp`} alt="" className="w-full h-full object-contain" />
                 </div>
+                <div className="text-[8px] font-bold text-center leading-[1.2] text-muted mt-[3px] truncate w-full">{prettyName(id)}</div>
               </div>
             ))}
           </div>
