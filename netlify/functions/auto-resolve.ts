@@ -9,13 +9,20 @@ import { resolveMarketAdmin } from './_lib/resolve';
 export default async () => {
   const db = getDb();
 
-  let finished;
-  try {
-    finished = await fetchMatches('WC', 'FINISHED');
-  } catch (err: any) {
-    console.error('[auto-resolve] API error:', err.message);
-    return new Response('api-error', { status: 200 });
+  // Wettbewerbe, deren FINISHED-Spiele aufgelöst werden. WC = WM; CL = Champions
+  // League (fürs Golden-Test-Finale). Per Env RESOLVE_COMPETITIONS überschreibbar.
+  const comps = (process.env.RESOLVE_COMPETITIONS ?? 'WC,CL')
+    .split(',').map(c => c.trim()).filter(Boolean);
+
+  const finished: any[] = [];
+  for (const c of comps) {
+    try {
+      finished.push(...await fetchMatches(c, 'FINISHED'));
+    } catch (err: any) {
+      console.error(`[auto-resolve] ${c} API error:`, err.message);
+    }
   }
+  if (finished.length === 0) return new Response('no-finished', { status: 200 });
 
   // Locked WM markets keyed by footballDataOrgId
   const lockedSnap = await db

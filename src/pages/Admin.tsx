@@ -122,6 +122,10 @@ export default function Admin() {
   const [simScoreB, setSimScoreB] = useState('');
   const [simStatus, setSimStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [simMsg, setSimMsg] = useState('');
+  // Golden-Test: echtes Spiel (z.B. CL-Finale) laden + Markt anlegen
+  const [clStatus, setClStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [clMsg, setClMsg] = useState('');
+  const [clMatches, setClMatches] = useState<{ id: number; home: string; away: string; utcDate: string; status: string }[]>([]);
 
   const markets = useStore(s => s.markets);
   const answers = useStore(s => s.answers);
@@ -315,6 +319,42 @@ export default function Admin() {
     } catch (err: any) {
       setForceOpenStatus('error');
       setForceOpenMsg(err.message || 'Fehler');
+    }
+  };
+
+  const callTestMatch = async (payload: Record<string, unknown>) => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error('Nicht eingeloggt.');
+    const res = await fetch('/.netlify/functions/create-test-match', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  };
+
+  const handleLoadCl = async () => {
+    setClStatus('loading'); setClMsg(''); setClMatches([]);
+    try {
+      const data = await callTestMatch({ action: 'list', competition: 'CL' });
+      setClMatches(data.matches ?? []);
+      setClStatus('ok');
+      setClMsg(`✓ API liefert ${data.count} CL-Spiele.`);
+    } catch (err: any) {
+      setClStatus('error'); setClMsg(err.message || 'Fehler');
+    }
+  };
+
+  const handleCreateCl = async (id: number) => {
+    setClStatus('loading'); setClMsg('');
+    try {
+      const data = await callTestMatch({ action: 'create', competition: 'CL', footballDataOrgId: id });
+      setClStatus('ok');
+      setClMsg(data.skipped ? 'Markt existiert bereits.' : `✓ Markt erstellt: ${data.question} (${data.status})`);
+    } catch (err: any) {
+      setClStatus('error'); setClMsg(err.message || 'Fehler');
     }
   };
 
@@ -819,6 +859,51 @@ export default function Admin() {
             >
               {apiCheckStatus === 'loading' ? 'Prüfe…' : '🔍 API jetzt prüfen'}
             </button>
+          </div>
+
+          {/* ── GOLDEN TEST: echtes Spiel (CL-Finale) ──────────── */}
+          <div className="bg-card border border-purple2/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🏆</span>
+              <div className="text-[11px] font-black text-purple2 tracking-[0.15em] uppercase">Golden Test (CL-Finale)</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Lädt echte Champions-League-Spiele von der API (= API-Test) und legt für ein Spiel
+              einen Markt an. Nach Abpfiff löst <b className="text-white">auto-resolve</b> ihn
+              automatisch auf — End-to-End-Test der ganzen Pipeline.
+            </div>
+            {clMsg && (
+              <div className={clsx('rounded-xl px-3 py-2 text-[12px] font-bold text-center mb-3',
+                clStatus === 'ok' ? 'bg-green/10 border border-green/30 text-green' :
+                clStatus === 'error' ? 'bg-red/10 border border-red/30 text-red' :
+                'bg-blue/10 border border-blue2/30 text-blue2')}>
+                {clStatus === 'loading' ? 'Lädt…' : clMsg}
+              </div>
+            )}
+            <button onClick={handleLoadCl} disabled={clStatus === 'loading'}
+              className="w-full p-3 border-none rounded-xl bg-gradient-to-br from-blue to-purple font-sans text-[13px] font-black text-white cursor-pointer shadow-[0_4px_18px_rgba(59,110,255,0.3)] transition-all hover:-translate-y-px disabled:opacity-50 mb-2">
+              🌐 CL-Spiele laden
+            </button>
+            {clMatches.length > 0 && (
+              <div className="flex flex-col gap-1.5 max-h-[260px] overflow-y-auto no-scrollbar">
+                {clMatches.map(m => {
+                  const exists = markets.some(mk => (mk as any).footballDataOrgId === m.id);
+                  return (
+                    <div key={m.id} className="flex items-center gap-2 bg-input rounded-xl p-2 px-2.5">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] font-bold text-white truncate">{m.home} vs. {m.away}</div>
+                        <div className="text-[9px] text-muted">{toCEST(new Date(m.utcDate).getTime())} · {m.status}</div>
+                      </div>
+                      <button onClick={() => handleCreateCl(m.id)} disabled={exists || clStatus === 'loading'}
+                        className={clsx('text-[10px] font-black rounded-lg px-2 py-1.5 border whitespace-nowrap shrink-0',
+                          exists ? 'border-green/20 bg-green/5 text-muted opacity-60' : 'border-purple2/40 bg-purple/10 text-purple2 hover:bg-purple/20')}>
+                        {exists ? '✓ Markt da' : '+ Markt'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* ── FORCE-OPEN MARKET (testMode only) ──────────────── */}
