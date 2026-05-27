@@ -60,12 +60,31 @@ function SplashScreen() {
   );
 }
 
+function PendingApproval({ name, onLogout }: { name?: string; onLogout: () => void }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center bg-bg px-8 gap-5 text-center">
+      <img src="/logo-icon.webp" alt="" className="w-20 h-20 object-contain" style={{ animation: 'auraGlow 4s ease-in-out infinite' }} />
+      <div className="text-[20px] font-black text-white">Fast geschafft{name ? `, ${name}` : ''}!</div>
+      <div className="text-[13px] text-muted leading-relaxed max-w-[300px]">
+        Dein Account ist angelegt und wartet auf die <b className="text-yellow">Freigabe durch den Admin</b>
+        {' '}(nach deiner Einzahlung). Sobald du freigeschaltet bist, geht's los — einfach die Seite neu laden.
+      </div>
+      <button onClick={onLogout} className="text-[12px] text-muted underline underline-offset-2 bg-transparent border-none cursor-pointer">
+        Abmelden
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const currentUser = useStore(state => state.currentUser);
   const setCurrentUser = useStore(state => state.setCurrentUser);
   const players = useStore(state => state.players);
+  const logoutAuth = useStore(state => state.logoutAuth);
   const me = players.find(p => p.id === currentUser);
   const isAdmin = !!me?.isAdmin || isAdminEmail(me?.email);
+  // Pending: eingeloggt, aber noch nicht vom Admin freigegeben (Admins ausgenommen).
+  const pendingBlocked = !!currentUser && !!me && me.approved === false && !isAdmin;
   const [authLoading, setAuthLoading] = useState(true);
   const [splashDone, setSplashDone]   = useState(false);
 
@@ -95,6 +114,9 @@ export default function App() {
         <div className="w-full h-[100dvh] sm:h-[812px] sm:max-w-[375px] mx-auto bg-bg sm:rounded-[46px] overflow-hidden sm:border sm:border-white/5 sm:shadow-[0_50px_120px_rgba(0,0,0,0.85)] flex flex-col relative shrink-0 transform-gpu">
           <div className="hidden sm:block h-[44px] shrink-0 relative z-50" />
           <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col relative">
+            {pendingBlocked ? (
+              <PendingApproval name={me?.firstName} onLogout={() => logoutAuth()} />
+            ) : (
             <Routes>
               <Route path="/" element={currentUser ? <Navigate to="/dashboard" /> : <Login />} />
               <Route path="/login" element={currentUser ? <Navigate to="/dashboard" /> : <Login />} />
@@ -105,6 +127,7 @@ export default function App() {
               <Route path="/profile" element={currentUser ? <Profile /> : <Navigate to="/" />} />
               <Route path="/rules" element={currentUser ? <Rules /> : <Navigate to="/" />} />
             </Routes>
+            )}
           </div>
         </div>
       </div>

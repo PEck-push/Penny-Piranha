@@ -749,7 +749,7 @@ export default function Dashboard() {
     };
     const playerTotal = (p: typeof players[0]) =>
       p.tokens + bets.filter(b => b.playerId === p.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s, b) => s + b.amount, 0);
-    const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
+    const sorted = [...players].filter(p => p.approved !== false).sort((a, b) => playerTotal(b) - playerTotal(a));
     const top = sorted[0];
     return (
       <div className="flex-1 flex flex-col relative z-10">

@@ -107,6 +107,10 @@ export interface Player {
   isTestPlayer?: boolean;
   // Admin-Rolle (in Firestore per Hand oder über Admin-UI setzen)
   isAdmin?: boolean;
+  // Freigabe-Status: neue Spieler sind 'pending' (approved=false) und müssen vom
+  // Admin manuell freigegeben werden (nach erfolgter Einzahlung). Bestandsspieler
+  // ohne Feld (undefined) gelten als freigegeben.
+  approved?: boolean;
 }
 
 export interface Market {
@@ -259,6 +263,7 @@ interface AppState {
   changeTip: (marketId: string, newOptionId: string, newOptionLabel: string) => Promise<void>;
   closeMarket: (marketId: string) => Promise<void>;
   setPlayerAdmin: (playerId: string, isAdmin: boolean) => Promise<void>;
+  setPlayerApproved: (playerId: string, approved: boolean) => Promise<void>;
   deleteMarket: (marketId: string) => Promise<void>;
   createTestPlayer: (name?: string) => Promise<void>;
   autoBetTestPlayers: () => Promise<void>;
@@ -635,6 +640,15 @@ export const useStore = create<AppState>()((set, get) => {
         try {
           await updateDoc(doc(db, 'players', playerId), { isAdmin });
         } catch (err) { console.error('[Store] setPlayerAdmin Fehler:', err); }
+      }
+    },
+
+    setPlayerApproved: async (playerId, approved) => {
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, approved } : p) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'players', playerId), { approved });
+        } catch (err) { console.error('[Store] setPlayerApproved Fehler:', err); }
       }
     },
 

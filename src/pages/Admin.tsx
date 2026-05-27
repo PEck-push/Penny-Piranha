@@ -149,6 +149,7 @@ export default function Admin() {
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
   const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
+  const setPlayerApproved = useStore(s => s.setPlayerApproved);
   const setAdminMessage = useStore(s => s.setAdminMessage);
   const setJackpot = useStore(s => s.setJackpot);
   const adminMessage = useStore(s => s.adminMessage);
@@ -1570,6 +1571,37 @@ export default function Admin() {
 
           {/* ── SPIELER TAB ────────────────────────────────────────── */}
           {adminTab === 'spieler' && <>
+
+          {/* ── SPIELER-FREIGABE (Pending) ─────────────────────────── */}
+          <div className="bg-card border border-green/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">✅</span>
+              <div className="text-[11px] font-black text-green tracking-[0.15em] uppercase">Spieler freigeben</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Neue Spieler sind <b className="text-yellow">pending</b> und können erst spielen, wenn du sie
+              freigibst (z. B. nach erfolgter Einzahlung).
+            </div>
+            {(() => {
+              const pending = players.filter(p => !p.isTestPlayer && p.approved === false);
+              if (pending.length === 0) return <div className="text-[12px] text-muted text-center py-2">Keine offenen Freigaben.</div>;
+              return pending.map(p => (
+                <div key={p.id} className="flex items-center gap-3 bg-input rounded-xl p-3 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-black text-white truncate flex items-center gap-1.5">
+                      {p.name}
+                      <span className="text-[9px] font-black text-yellow bg-yellow/10 border border-yellow/25 rounded px-1.5 py-0.5">PENDING</span>
+                    </div>
+                    {p.email && <div className="text-[10px] text-muted truncate">{p.email}</div>}
+                  </div>
+                  <button onClick={() => setPlayerApproved(p.id, true)}
+                    className="shrink-0 px-3 py-2 rounded-xl bg-green/15 border border-green/40 text-green font-black text-[12px] hover:bg-green/25 transition-colors cursor-pointer font-sans">
+                    ✓ Freigeben
+                  </button>
+                </div>
+              ));
+            })()}
+          </div>
 
           {/* ── ACCESSOIRES & BLOCK-PREISE ─────────────────────────── */}
           <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { clsx } from 'clsx';
 import { auth, db } from '../firebase';
 import { useStore } from '../store';
@@ -200,6 +200,21 @@ export default function Register() {
         }
       }
 
+      // Name muss eindeutig sein (case-insensitive). Erst jetzt prüfbar, da wir
+      // nach der Account-Erstellung eingeloggt sind und players lesen dürfen.
+      const wanted = displayName.trim().toLowerCase();
+      const playersSnap = await getDocs(collection(db, 'players'));
+      const nameTaken = playersSnap.docs.some(
+        d => d.id !== uid && ((d.data() as any).name ?? '').trim().toLowerCase() === wanted,
+      );
+      if (nameTaken) {
+        await signOut(auth).catch(() => {});
+        setError('Dieser Name ist bereits vergeben. Bitte wähle einen anderen.');
+        setStep(2);
+        setLoading(false);
+        return;
+      }
+
       // Charakter-Felder je nach Modus: Fallback speichert das vorhandene
       // Avatar-Bild, Builder die Kopf-/Outfit-IDs (CharacterAvatar setzt sie zusammen).
       const characterFields = CHARACTER_MODE === 'builder'
@@ -217,7 +232,8 @@ export default function Register() {
         comboMalus: false,
         badges: [],
         buybackUsed: false,
-        characterLocked: true,
+        characterLocked: false,
+        approved: false,
         currentStreak: 0,
         bestStreak: 0,
         streakLevel: 'none' as StreakLevel,
@@ -630,7 +646,7 @@ export default function Register() {
           Alles klar?
         </div>
         <div className="text-[12px] text-muted mb-5">
-          Überprüfe dein Profil — danach ist es gesperrt.
+          Überprüfe dein Profil. Dein <b className="text-white">Name ist fix &amp; einmalig</b>.
         </div>
 
         {/* Character preview */}
@@ -670,10 +686,11 @@ export default function Register() {
         {/* Warning */}
         <div className="bg-yellow/10 border border-yellow/25 rounded-xl p-3 mb-5">
           <div className="text-[11px] font-black text-yellow text-center">
-            ⚠️ Diese Wahl kann nicht mehr geändert werden!
+            ⏳ Freischaltung durch den Admin nötig
           </div>
           <div className="text-[10px] text-muted text-center mt-0.5">
-            Charakter und Name sind nach der Registrierung gesperrt.
+            Nach der Registrierung wirst du vom Admin freigegeben (nach Einzahlung).
+            Dein <b className="text-white/80">Name</b> ist einmalig und fix.
           </div>
         </div>
 
