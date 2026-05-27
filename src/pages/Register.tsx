@@ -66,14 +66,14 @@ const prettyName = (id: string) =>
     .replace(/\b\w/g, c => c.toUpperCase());
 
 // Kopf-Auswahl: in die Kopf-Region des 1080er-Bilds zoomen (Kopf füllt die
-// Vorschau, mittig). HEAD_FOCUS_Y = vertikale Mitte des Kopfes (0=oben,1=unten).
+// Vorschau, mittig). FOCUS_X/Y = Mitte des Kopfes im Bild (0=oben/links,1=unten/rechts).
+// Per CSS-transform (ignoriert Tailwinds max-width auf <img>).
 const HEAD_ZOOM = 2;
-const HEAD_FOCUS_Y = 0.27;
+const HEAD_FOCUS_X = 0.5;
+const HEAD_FOCUS_Y = 0.26;
 const headZoomStyle = {
-  width: `${HEAD_ZOOM * 100}%`,
-  height: `${HEAD_ZOOM * 100}%`,
-  left: `${(0.5 - 0.5 * HEAD_ZOOM) * 100}%`,
-  top: `${(0.5 - HEAD_FOCUS_Y * HEAD_ZOOM) * 100}%`,
+  transformOrigin: '0 0',
+  transform: `translate(${(0.5 - HEAD_FOCUS_X * HEAD_ZOOM) * 100}%, ${(0.5 - HEAD_FOCUS_Y * HEAD_ZOOM) * 100}%) scale(${HEAD_ZOOM})`,
 };
 
 // ─── Step indicator ────────────────────────────────────────────────────────────
@@ -435,7 +435,7 @@ export default function Register() {
         <div className="relative z-10 flex-none h-[210px] flex items-end justify-center overflow-visible">
           {selectedHead
             ? <div className="relative z-30 w-[210px] h-[210px] overflow-hidden">
-                <img src={`/characters/heads/${encodeURIComponent(selectedHead)}.webp`} alt="" className="absolute object-contain" style={headZoomStyle} />
+                <img src={`/characters/heads/${encodeURIComponent(selectedHead)}.webp`} alt="" className="absolute inset-0 w-full h-full object-contain" style={headZoomStyle} />
               </div>
             : <div className="text-[13px] text-muted self-center">Noch keine Köpfe hinterlegt</div>}
         </div>
@@ -468,7 +468,7 @@ export default function Register() {
               <div key={id} className="flex flex-col items-center cursor-pointer group" onClick={() => setSelectedHead(id)}>
                 <div className={clsx('relative w-16 h-16 rounded-xl bg-card border-[1.5px] overflow-hidden transition-all',
                   selectedHead === id ? 'border-green border-2 bg-green/10 shadow-[0_0_16px_rgba(230,180,60,0.35)] scale-105' : 'border-border group-hover:border-blue/50 group-hover:scale-105')}>
-                  <img src={`/characters/heads/${encodeURIComponent(id)}.webp`} alt="" className="absolute object-contain" style={headZoomStyle} />
+                  <img src={`/characters/heads/${encodeURIComponent(id)}.webp`} alt="" className="absolute inset-0 w-full h-full object-contain" style={headZoomStyle} />
                 </div>
                 <div className="text-[8px] font-bold text-center leading-[1.2] text-muted mt-[3px] truncate w-full">{prettyName(id)}</div>
               </div>
