@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
+import { clsx } from 'clsx';
 
 const SECTIONS: { icon: string; title: string; body: string }[] = [
   {
@@ -69,8 +71,54 @@ const SECTIONS: { icon: string; title: string; body: string }[] = [
   },
 ];
 
+// ── Strategie-Tipps (speziell zum Parimutuel-System, für Einsteiger) ──────────
+const TIPS: { icon: string; title: string; body: string }[] = [
+  {
+    icon: '🧠',
+    title: 'Erst das System verstehen: der gemeinsame Topf',
+    body: 'Du spielst NICHT gegen feste Quoten wie beim Wettbüro. Alle Einsätze eines Marktes landen in EINEM Topf, und die richtigen Tipper teilen ihn im Verhältnis ihrer Einsätze. Heißt: Dein Gewinn hängt davon ab, wie viele andere dasselbe tippen — nicht nur davon, ob du recht hast.',
+  },
+  {
+    icon: '🚫',
+    title: 'Der Anfänger-Fehler Nr. 1: viel auf den klaren Favoriten',
+    body: 'Beispiel Deutschland – Curaçao: 9 von 10 tippen auf Deutschland. Setzt du 100 Token auf Deutschland und Deutschland gewinnt, teilen sich fast alle den Topf — du bekommst vielleicht 105 zurück (+5). Patzt Deutschland aber doch, sind deine 100 Token weg. 100 riskieren für +5 ist ein mieser Deal.',
+  },
+  {
+    icon: '⚖️',
+    title: 'Risiko vs. Ertrag — immer abwägen',
+    body: 'Faustregel: Je klarer der Ausgang, desto kleiner der mögliche Gewinn pro Token — aber das Verlustrisiko bleibt voll. Auf „todsichere" Spiele gehört nur der Mindesteinsatz. Hohe Beträge nur, wenn der mögliche Gewinn das Risiko wirklich rechtfertigt.',
+  },
+  {
+    icon: '💎',
+    title: 'Wo das echte Geld liegt: enge Spiele & Außenseiter',
+    body: 'Ausgeglichene Spiele (Topf gut verteilt) zahlen pro Token deutlich mehr. Und: Tippst du einen Außenseiter (unter 15 % des Topfes) richtig, gibt es zusätzlich den Underdog-Bonus. Genau hier macht man Plätze gut — nicht bei Deutschland – Curaçao.',
+  },
+  {
+    icon: '🍳',
+    title: 'Nicht alle Eier in einen Korb',
+    body: 'Verteile deine Token über mehrere Spiele, statt alles auf eines zu setzen. Ein einziger Fehltipp soll dich nicht aus dem Rennen werfen. Konstanz schlägt das große Zocken — vor allem in der Gruppenphase.',
+  },
+  {
+    icon: '⚡',
+    title: 'Pflicht-Tipp: lieber klein als gar nicht',
+    body: 'Jedes offene Spiel MUSS getippt werden. Wer nicht tippt, zahlt automatisch den Strafbetrag in den Jackpot — geschenkt. Selbst wenn du unsicher bist: der Mindesteinsatz ist immer besser als die Strafe fürs Nicht-Tippen.',
+  },
+  {
+    icon: '🎟️',
+    title: 'Spar dir Pulver für die K.-o.-Phase',
+    body: 'In der Gruppenphase ist der Maximaleinsatz bewusst niedrig (100 Token) — damit niemand sich früh selbst zerlegt. In den K.-o.-Runden steigen die Limits deutlich. Wer mit Polster reinkommt, kann dort die großen Schritte machen.',
+  },
+  {
+    icon: '🎰',
+    title: 'Gratis-Runden immer mitnehmen',
+    body: 'Die Jackpot-Sonderrunden (inkl. Österreich) kosten keinen Einsatz — nur Gewinnchance, kein Risiko. Lass nie eine aus.',
+  },
+];
+
 export default function Rules() {
   const navigate = useNavigate();
+  const [tab, setTab] = useState<'regeln' | 'tipps'>('regeln');
+  const items = tab === 'tipps' ? TIPS : SECTIONS;
 
   return (
     <div className="flex-1 flex flex-col bg-bg relative overflow-y-auto no-scrollbar">
@@ -94,9 +142,28 @@ export default function Rules() {
         </div>
       </div>
 
-      {/* Sections */}
+      {/* Tab-Umschalter */}
+      <div className="relative z-10 flex gap-1.5 px-4 mb-3 shrink-0">
+        {([['regeln', '📜 Regeln'], ['tipps', '💡 Tipps']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={clsx('flex-1 py-2.5 rounded-xl text-[12px] font-black transition-all border',
+              tab === id ? 'bg-white/10 text-white border-white/15' : 'text-muted border-transparent hover:text-white')}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'tipps' && (
+        <div className="relative z-10 px-4 mb-1">
+          <div className="bg-yellow/10 border border-yellow/25 rounded-2xl p-3 text-[12px] text-yellow/90 leading-relaxed">
+            ⚽ <b>Neu im Spiel?</b> Diese Tipps erklären, wie man im gemeinsamen Topf (Parimutuel) klug setzt — und typische Anfängerfehler vermeidet.
+          </div>
+        </div>
+      )}
+
+      {/* Sections / Tipps */}
       <div className="relative z-10 flex flex-col gap-2.5 px-4 pb-10">
-        {SECTIONS.map((s, i) => (
+        {items.map((s, i) => (
           <div key={i} className="bg-card border border-border rounded-2xl p-4 flex gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center text-[18px] shrink-0">
               {s.icon}

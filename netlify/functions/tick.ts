@@ -10,7 +10,7 @@ import { getDb, FieldValue } from './_lib/firebaseAdmin';
 const OPEN_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 const PHASE_LIMITS: Record<string, { minBet: number; maxBet: number; autoDeduct: number }> = {
-  gruppenphase:      { minBet: 10,  maxBet: 150, autoDeduct: 10 },
+  gruppenphase:      { minBet: 10,  maxBet: 100, autoDeduct: 10 },
   sechzehntelfinale: { minBet: 25,  maxBet: 250, autoDeduct: 25 },
   achtelfinale:      { minBet: 50,  maxBet: 400, autoDeduct: 50 },
   viertelfinale:     { minBet: 75,  maxBet: 600, autoDeduct: 75 },
