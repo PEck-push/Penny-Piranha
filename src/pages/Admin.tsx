@@ -66,6 +66,9 @@ export default function Admin() {
   const [accPlayer, setAccPlayer] = useState('');
   const [accId, setAccId] = useState('');
   const [accMsg, setAccMsg] = useState('');
+  // Avatar-Reset (Test)
+  const [resetCharPlayer, setResetCharPlayer] = useState('');
+  const [resetCharMsg, setResetCharMsg] = useState('');
 
   // Jackpot/Hausbank manuell setzen
   const [jackpotInput, setJackpotInput] = useState('');
@@ -150,6 +153,7 @@ export default function Admin() {
   const placeTipAs = useStore(s => s.placeTipAs);
   const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
   const setPlayerApproved = useStore(s => s.setPlayerApproved);
+  const resetPlayerCharacter = useStore(s => s.resetPlayerCharacter);
   const setAdminMessage = useStore(s => s.setAdminMessage);
   const setJackpot = useStore(s => s.setJackpot);
   const adminMessage = useStore(s => s.adminMessage);
@@ -1602,6 +1606,43 @@ export default function Admin() {
               ));
             })()}
           </div>
+
+          {/* ── AVATAR-RESET (nur Testmodus) ───────────────────────── */}
+          {testMode && (
+            <div className="bg-card border border-red/25 rounded-2xl p-4 mb-2.5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[18px]">🔁</span>
+                <div className="text-[11px] font-black text-red tracking-[0.15em] uppercase">Avatar-Reset (Test)</div>
+              </div>
+              <div className="text-[10px] text-muted mb-3">
+                Setzt den Charakter eines Spielers zurück. Beim nächsten Aufruf muss er einen
+                <b className="text-white"> neuen Charakter erstellen</b>. Tokens & Wetten bleiben unberührt.
+              </div>
+              {resetCharMsg && (
+                <div className="bg-red/10 border border-red/30 rounded-xl px-3 py-2 text-[12px] font-bold text-center text-red mb-3">{resetCharMsg}</div>
+              )}
+              <div className="flex flex-col gap-2">
+                <select value={resetCharPlayer} onChange={e => setResetCharPlayer(e.target.value)}
+                  className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-red/60">
+                  <option value="">Spieler wählen…</option>
+                  {players.filter(p => !p.isTestPlayer).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <button
+                  onClick={async () => {
+                    if (!resetCharPlayer) return;
+                    const name = players.find(p => p.id === resetCharPlayer)?.name ?? '?';
+                    await resetPlayerCharacter(resetCharPlayer);
+                    setResetCharMsg(`✓ Charakter von ${name} zurückgesetzt.`);
+                    setResetCharPlayer('');
+                    setTimeout(() => setResetCharMsg(''), 4000);
+                  }}
+                  disabled={!resetCharPlayer}
+                  className="w-full p-2.5 rounded-xl bg-red/15 border border-red/40 text-red text-[12px] font-black disabled:opacity-40">
+                  🔁 Charakter zurücksetzen
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── ACCESSOIRES & BLOCK-PREISE ─────────────────────────── */}
           <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">

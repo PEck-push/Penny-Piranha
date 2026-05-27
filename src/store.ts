@@ -111,6 +111,8 @@ export interface Player {
   // Admin manuell freigegeben werden (nach erfolgter Einzahlung). Bestandsspieler
   // ohne Feld (undefined) gelten als freigegeben.
   approved?: boolean;
+  // Test/Admin: erzwingt beim nächsten Aufruf eine neue Charakter-Erstellung.
+  needsCharacter?: boolean;
 }
 
 export interface Market {
@@ -264,6 +266,8 @@ interface AppState {
   closeMarket: (marketId: string) => Promise<void>;
   setPlayerAdmin: (playerId: string, isAdmin: boolean) => Promise<void>;
   setPlayerApproved: (playerId: string, approved: boolean) => Promise<void>;
+  resetPlayerCharacter: (playerId: string) => Promise<void>;
+  saveCharacter: (uid: string, fields: Partial<Pick<Player, 'headId' | 'bodyId' | 'avatar' | 'avatarId' | 'avatarColor'>>) => Promise<void>;
   deleteMarket: (marketId: string) => Promise<void>;
   createTestPlayer: (name?: string) => Promise<void>;
   autoBetTestPlayers: () => Promise<void>;
@@ -649,6 +653,26 @@ export const useStore = create<AppState>()((set, get) => {
         try {
           await updateDoc(doc(db, 'players', playerId), { approved });
         } catch (err) { console.error('[Store] setPlayerApproved Fehler:', err); }
+      }
+    },
+
+    // Test/Admin: Charakter eines Spielers zurücksetzen → erzwingt Neuerstellung.
+    resetPlayerCharacter: async (playerId) => {
+      const cleared = { headId: '', bodyId: '', avatar: '', avatarId: '', avatarColor: '', characterLocked: false, needsCharacter: true };
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, ...cleared } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', playerId), cleared); }
+        catch (err) { console.error('[Store] resetPlayerCharacter Fehler:', err); }
+      }
+    },
+
+    // Neuen Charakter des aktuellen Spielers speichern (beendet needsCharacter).
+    saveCharacter: async (uid, fields) => {
+      const upd = { ...fields, needsCharacter: false };
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, ...upd } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', uid), upd); }
+        catch (err) { console.error('[Store] saveCharacter Fehler:', err); }
       }
     },
 

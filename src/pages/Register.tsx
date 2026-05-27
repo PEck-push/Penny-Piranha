@@ -6,7 +6,7 @@ import { clsx } from 'clsx';
 import { auth, db } from '../firebase';
 import { useStore } from '../store';
 import type { StreakLevel } from '../store';
-import { CHARACTER_MODE, HEADS, OUTFITS } from '../data/characterParts';
+import { CHARACTER_MODE, HEADS, OUTFITS, isAsvHead, prettyName, headZoomStyle } from '../data/characterParts';
 
 // ─── Avatar data (existing webp sprites, used as character placeholder) ────────
 const AVATARS = [
@@ -53,28 +53,6 @@ const AVATARS = [
 //   builder  → Code, Konto, Kopf, Outfit, Bestätigung   = 5
 const TOTAL_STEPS = CHARACTER_MODE === 'builder' ? 5 : 4;
 const CONFIRM_STEP = TOTAL_STEPS;
-
-// Charaktername direkt aus dem Dateinamen ableiten (nur zur Orientierung):
-// "max_mustermann" → "Max Mustermann". ASV-Köpfe (Dateiname beginnt mit "ASV-")
-// zeigen nur den Teil nach dem "-".
-const isAsvHead = (id: string) => /^asv-/i.test(id);
-const prettyName = (id: string) =>
-  id.replace(/^asv-/i, '')
-    .replace(/\.\w+$/, '')
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .replace(/\b\w/g, c => c.toUpperCase());
-
-// Kopf-Auswahl: in die Kopf-Region des 1080er-Bilds zoomen (Kopf füllt die
-// Vorschau, mittig). FOCUS_X/Y = Mitte des Kopfes im Bild (0=oben/links,1=unten/rechts).
-// Per CSS-transform (ignoriert Tailwinds max-width auf <img>).
-const HEAD_ZOOM = 2;
-const HEAD_FOCUS_X = 0.5;
-const HEAD_FOCUS_Y = 0.26;
-const headZoomStyle = {
-  transformOrigin: '0 0',
-  transform: `translate(${(0.5 - HEAD_FOCUS_X * HEAD_ZOOM) * 100}%, ${(0.5 - HEAD_FOCUS_Y * HEAD_ZOOM) * 100}%) scale(${HEAD_ZOOM})`,
-};
 
 // ─── Step indicator ────────────────────────────────────────────────────────────
 function StepDots({ current, total }: { current: number; total: number }) {

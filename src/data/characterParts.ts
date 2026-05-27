@@ -35,3 +35,23 @@ export const OUTFITS: string[] = [
   '014', '015', '015-1', '016', '017', '018', '019', '021', '022', '023', '025', '028', '029',
   '032', '033', '034', '035', '039', '040', '041', '042',
 ];
+
+// ─── Anzeige-Helfer (von Register & CharacterSetup genutzt) ────────────────────
+// ASV-Köpfe: Dateiname beginnt mit 'ASV-'; Anzeigename = Teil nach dem '-'.
+export const isAsvHead = (id: string) => /^asv-/i.test(id);
+export const prettyName = (id: string) =>
+  id.replace(/^asv-/i, '')
+    .replace(/\.\w+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
+
+// Kopf-Auswahl: 2x in die Kopf-Region zoomen (mittig). Per CSS-transform
+// (ignoriert Tailwinds max-width auf <img>). FOCUS = Mitte des Kopfes im 1080er-Bild.
+export const HEAD_ZOOM = 2;
+export const HEAD_FOCUS_X = 0.5;
+export const HEAD_FOCUS_Y = 0.26;
+export const headZoomStyle = {
+  transformOrigin: '0 0',
+  transform: `translate(${(0.5 - HEAD_FOCUS_X * HEAD_ZOOM) * 100}%, ${(0.5 - HEAD_FOCUS_Y * HEAD_ZOOM) * 100}%) scale(${HEAD_ZOOM})`,
+};
