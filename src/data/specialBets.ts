@@ -20,6 +20,7 @@ export const JACKPOT_BLOCK_LABELS: Record<string, string> = {
   austria: '🇦🇹 Österreich-Jackpot',
   block2: '🥊 Block 2 — Ende Sechzehntel-/Achtelfinale',
   finale: '🏆 Finale-Jackpot',
+  special: '⭐ Special',
 };
 
 export const INTERNATIONAL_SPECIALS: SpecialBetTemplate[] = [

@@ -552,6 +552,8 @@ export default function Admin() {
       multiSelect: freeBetFormat === 'multi',
       fixedPrize: parseInt(freeBetPrize) || 0,
       absorbsJackpotPot: false,
+      jackpotBlock: 'special',
+      jackpotBlockLabel: JACKPOT_BLOCK_LABELS.special,
       minBet: 0,
       maxBet: 0,
       autoDeductAmount: 0,
@@ -1415,8 +1417,10 @@ export default function Admin() {
             </div>
             {markets.filter(m => m.status !== 'resolved').map(m => (
               <div key={m.id} className="bg-input rounded-xl p-2.5 px-3 mb-1.5">
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <span className="flex-1 text-[12px] font-bold text-white truncate min-w-0">{m.question}</span>
+                {/* Zeile 1: Frage in voller Breite (mit Ellipsis bei Overflow) */}
+                <div className="text-[12px] font-bold text-white truncate mb-1.5">{m.question}</div>
+                {/* Zeile 2: Status-Badges + Aktions-Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap">
                   {m.status === 'locked' && (
                     <span className="text-[9px] font-black tracking-wider text-yellow bg-yellow/10 border border-yellow/30 rounded px-1.5 py-0.5 shrink-0">🔒 GESPERRT</span>
                   )}
