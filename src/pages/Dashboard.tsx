@@ -932,7 +932,7 @@ export default function Dashboard() {
             <span className="font-mono text-[11px] font-bold text-yellow">{totalJackpot} TKN</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/rules')} className="w-8 h-8 rounded-full bg-yellow/10 border border-yellow/30 flex items-center justify-center text-yellow hover:bg-yellow/20 transition-colors">
+            <button onClick={() => navigate('/rules')} data-tour="help" className="w-8 h-8 rounded-full bg-yellow/10 border border-yellow/30 flex items-center justify-center text-yellow hover:bg-yellow/20 transition-colors">
               <HelpCircle className="w-4 h-4" />
             </button>
             {isAdmin && (
@@ -953,7 +953,7 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_60%,rgba(59,110,255,.25)_0%,transparent_65%)] animate-[flareMove_15s_ease-in-out_infinite]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[280px] h-[80px] rounded-full bg-blue/30 blur-[35px]" />
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite]">
-            <div onClick={() => navigate('/profile')} className="w-[250px] h-[250px] cursor-pointer select-none">
+            <div onClick={() => navigate('/profile')} data-tour="profile" className="w-[250px] h-[250px] cursor-pointer select-none">
               <CharacterAvatar player={me} size="lg" className="w-full h-full" />
             </div>
           </div>
@@ -1021,7 +1021,7 @@ export default function Dashboard() {
             ['my-bets',   'Wetten',    Target],
             ['leaderboard','Liga',     Trophy],
           ] as const).map(([tab, label, Icon]) => (
-            <div key={tab} onClick={() => setActiveTab(tab)} className="flex flex-col items-center px-1 pt-3 pb-3 gap-1.5 cursor-pointer relative">
+            <div key={tab} data-tour={tab === 'spielplan' ? 'tab-spielplan' : undefined} onClick={() => setActiveTab(tab)} className="flex flex-col items-center px-1 pt-3 pb-3 gap-1.5 cursor-pointer relative">
               <Icon className={clsx('w-5 h-5', activeTab === tab ? 'text-green' : 'text-muted')} strokeWidth={2} />
               <span className={clsx('text-[9px] font-black tracking-[0.06em] uppercase', activeTab === tab ? 'text-green' : 'text-muted')}>
                 {label}
