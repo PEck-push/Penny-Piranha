@@ -25,8 +25,9 @@ export const CHARACTER_MODE: CharacterMode = 'builder';
 //   • Standard "Persönlichkeiten": normaler Dateiname, z. B. 'messi'
 //   • "ASV": Dateiname beginnt mit 'ASV-', z. B. 'ASV-mueller' → angezeigt "Mueller"
 export const HEADS: string[] = [
-  'ASV-1000 TT', 'ASV-Bombi', 'ASV-Coach', 'ASV-Dejo', 'ASV-Franzi', 'ASV-Michi', 'ASV-Zobo',
-  'Albert', 'Alf', 'Andrea', 'Diego', 'Edgar', 'Falco', 'Fraunz', 'Gianni Pace', 'Gigi',
+  'ASV-1000 TT', 'ASV-Bombi', 'ASV-Coach', 'ASV-Dejo', 'ASV-Franzi', 'ASV-Lizzaran',
+  'ASV-Michi', 'ASV-Samba', 'ASV-Saschi', 'ASV-Zobo',
+  'Albert', 'Alf', 'Andrea', 'Diego', 'Edgar', 'Falco', 'Fraunz', 'Gianni Money', 'Gigi',
   'Konfetti', 'Lemmy', 'Oli', 'Pele', 'Peppi Skandaloso', 'Roberto', 'Ronaldinho', 'Ronaldo',
   'Ruud', 'Salt', 'Schneckerl', 'Sigi', 'Toni', 'Tsubasa', 'Woiferl', 'Zauner', 'Zinedine',
 ];
