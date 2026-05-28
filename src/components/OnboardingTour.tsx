@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { clsx } from 'clsx';
 
 interface Step {
@@ -63,12 +64,14 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
       : { bottom: 100, left: '50%', transform: 'translateX(-50%)' }
     : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
 
-  return (
-    <div className={clsx('fixed inset-0 z-[200]', !rect && 'bg-black/65 backdrop-blur-[1px]')}>
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className={clsx('fixed inset-0 z-[2147483646]', !rect && 'bg-black/65 backdrop-blur-[1px]')}>
       {/* Spotlight-Ring + Dim außenrum via box-shadow-Trick */}
       {rect && (
         <div
-          className="fixed pointer-events-none z-[210] rounded-2xl"
+          className="fixed pointer-events-none z-[2147483646] rounded-2xl"
           style={{
             top: rect.top - 8,
             left: rect.left - 8,
@@ -82,7 +85,7 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
       )}
 
       {/* Karte */}
-      <div className="fixed z-[220] w-[calc(100%-32px)] max-w-[330px]" style={cardStyle}>
+      <div className="fixed z-[2147483647] w-[calc(100%-32px)] max-w-[330px]" style={cardStyle}>
         <div className="bg-card border border-border rounded-[24px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.85)]">
           <div className="flex items-center gap-1.5 mb-4">
             {STEPS.map((_, idx) => (
@@ -111,6 +114,7 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
