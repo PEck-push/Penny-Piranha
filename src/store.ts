@@ -113,6 +113,8 @@ export interface Player {
   approved?: boolean;
   // Test/Admin: erzwingt beim nächsten Aufruf eine neue Charakter-Erstellung.
   needsCharacter?: boolean;
+  // Onboarding-Tour beim ersten Dashboard-Aufruf gezeigt? (false = noch zeigen)
+  onboardingDone?: boolean;
 }
 
 export interface Market {
@@ -268,6 +270,7 @@ interface AppState {
   setPlayerApproved: (playerId: string, approved: boolean) => Promise<void>;
   resetPlayerCharacter: (playerId: string) => Promise<void>;
   saveCharacter: (uid: string, fields: Partial<Pick<Player, 'headId' | 'bodyId' | 'avatar' | 'avatarId' | 'avatarColor'>>) => Promise<void>;
+  setOnboardingDone: (done: boolean) => Promise<void>;
   deleteMarket: (marketId: string) => Promise<void>;
   createTestPlayer: (name?: string) => Promise<void>;
   autoBetTestPlayers: () => Promise<void>;
@@ -673,6 +676,17 @@ export const useStore = create<AppState>()((set, get) => {
       if (db) {
         try { await updateDoc(doc(db, 'players', uid), upd); }
         catch (err) { console.error('[Store] saveCharacter Fehler:', err); }
+      }
+    },
+
+    // Onboarding-Tour als gesehen markieren (oder zurücksetzen → erneut starten).
+    setOnboardingDone: async (done) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, onboardingDone: done } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', uid), { onboardingDone: done }); }
+        catch (err) { console.error('[Store] setOnboardingDone Fehler:', err); }
       }
     },
 

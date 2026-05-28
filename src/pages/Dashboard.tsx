@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore, Market, getMarketTotal, buildSelectionKey } from '../store';
 import { ACCESSORY_BY_ID } from '../data/accessories';
 import CharacterAvatar from '../components/CharacterAvatar';
+import OnboardingTour from '../components/OnboardingTour';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle, User } from 'lucide-react';
@@ -197,6 +198,7 @@ export default function Dashboard() {
   const changeTip = useStore(s => s.changeTip);
   const logoutAuth = useStore(s => s.logoutAuth);
   const submitAnswer = useStore(s => s.submitAnswer);
+  const setOnboardingDone = useStore(s => s.setOnboardingDone);
   const me = players.find(p => p.id === currentUser);
   const isAdmin = me?.isAdmin || isAdminEmail(me?.email);
   const [revealDone, setRevealDone] = useState(false);
@@ -322,6 +324,11 @@ export default function Dashboard() {
   // ─── DASHBOARD TAB ─────────────────────────────────────────────────────────
   const renderDashboard = () => (
     <div className="flex-1 overflow-y-auto no-scrollbar pb-[90px] pt-3.5 px-4 relative z-10">
+
+      {/* Onboarding-Tour beim ersten Dashboard-Aufruf (onboardingDone === false) */}
+      {me.onboardingDone === false && (
+        <OnboardingTour onDone={() => setOnboardingDone(true)} />
+      )}
 
       {/* Hinweis: Account noch nicht freigegeben (Zahlung ausständig) */}
       {me.approved === false && (

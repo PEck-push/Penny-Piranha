@@ -212,6 +212,7 @@ export default function Register() {
         buybackUsed: false,
         characterLocked: false,
         approved: false,
+        onboardingDone: false,
         currentStreak: 0,
         bestStreak: 0,
         streakLevel: 'none' as StreakLevel,

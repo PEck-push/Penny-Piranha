@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useStore } from '../store';
 
 const SECTIONS: { icon: string; title: string; body: string }[] = [
   {
@@ -117,8 +118,13 @@ const TIPS: { icon: string; title: string; body: string }[] = [
 
 export default function Rules() {
   const navigate = useNavigate();
+  const setOnboardingDone = useStore(s => s.setOnboardingDone);
   const [tab, setTab] = useState<'regeln' | 'tipps'>('regeln');
   const items = tab === 'tipps' ? TIPS : SECTIONS;
+  const replayTour = async () => {
+    await setOnboardingDone(false);
+    navigate('/dashboard');
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-bg relative overflow-y-auto no-scrollbar">
@@ -174,6 +180,11 @@ export default function Rules() {
             </div>
           </div>
         ))}
+
+        <button onClick={replayTour}
+          className="mt-3 w-full p-3 rounded-2xl bg-blue/10 border border-blue2/30 text-blue2 font-black text-[13px] hover:bg-blue/20 transition-colors">
+          🧭 Einsteiger-Tour erneut starten
+        </button>
 
         <div className="text-center text-[11px] text-muted/70 font-mono tracking-wider uppercase mt-3">
           ✦ Möge der beste Prophet gewinnen ✦
