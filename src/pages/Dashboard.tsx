@@ -927,7 +927,7 @@ export default function Dashboard() {
       {/* Top Bar */}
       {activeTab === 'dashboard' && (
         <div className="relative z-30 px-5 pt-2.5 flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
+          <div data-tour="jackpot" className="flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
             <span className="text-[14px]">🎰</span>
             <span className="font-mono text-[11px] font-bold text-yellow">{totalJackpot} TKN</span>
           </div>
@@ -958,7 +958,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="relative z-30 flex flex-col items-center gap-3 mt-[255px]">
-            <div className="flex items-center gap-3">
+            <div data-tour="tokens" className="flex items-center gap-3">
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Konto</span>
                 <div className="flex items-center gap-1.5">

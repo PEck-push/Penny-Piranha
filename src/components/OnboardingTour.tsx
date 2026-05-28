@@ -5,15 +5,19 @@ import { clsx } from 'clsx';
 interface Step {
   title: string;
   body: string;
-  /** data-tour-Attribut des hervorzuhebenden Elements (optional). */
-  target?: string;
+  /** data-tour-Attribut(e) der hervorzuhebenden Elemente. */
+  target?: string | string[];
 }
 
 const STEPS: Step[] = [
   {
-    // Reine Erklärung, kein Element-Highlight.
     title: 'Willkommen, Prophet! 🍺',
-    body: 'Du startest mit 1.000 Token. Der Jackpot ist vor allem die Preiskasse für die Gratis-Sonderwetten — das Geld kommt aus der Hausbank. Liegt bei einer normalen Wette niemand richtig, fließt der Pool zusätzlich in den Jackpot.',
+    body: 'Bei den Krügerl-Propheten spielst du nicht gegen feste Quoten wie beim Wettbüro. Alle Einsätze einer Frage fließen in einen gemeinsamen Topf — und die richtigen Tipper teilen ihn unter sich auf. Heißt: Je weniger andere dasselbe tippen wie du, desto mehr bekommst du raus.',
+  },
+  {
+    title: 'Token & Jackpot',
+    body: 'Du startest mit 1.000 Token — damit wettest du. Der Jackpot oben ist vor allem die Preiskasse für die Gratis-Sonderwetten und kommt aus der Hausbank. Liegt bei einer normalen Wette niemand richtig, fließt der Pool zusätzlich in den Jackpot.',
+    target: ['jackpot', 'tokens'],
   },
   {
     title: 'Wo wird getippt?',
@@ -32,22 +36,29 @@ const STEPS: Step[] = [
   },
 ];
 
-// Spotlight-Coachmark-Tour: highlightet das jeweils thematisierte Element per
-// Goldring + dunklem Umfeld (CSS box-shadow-Trick). Schritte ohne target zeigen
-// nur die zentrierte Karte mit dunklem Backdrop.
+const PAD = 8;
+const RADIUS = 16;
+
+// Spotlight-Coachmark-Tour: highlightet ein oder mehrere thematisierte Elemente
+// per Goldring + dunklem Umfeld (SVG-Maske mit Cutouts). Schritte ohne target
+// zeigen nur die zentrierte Karte mit dunklem Backdrop.
 export default function OnboardingTour({ onDone }: { onDone: () => void }) {
   const [i, setI] = useState(0);
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
   const next = () => (last ? onDone() : setI(i + 1));
 
-  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [rects, setRects] = useState<DOMRect[]>([]);
 
   useEffect(() => {
-    if (!step.target) { setRect(null); return; }
+    const targets = !step.target ? [] : Array.isArray(step.target) ? step.target : [step.target];
+    if (!targets.length) { setRects([]); return; }
     const find = () => {
-      const el = document.querySelector(`[data-tour="${step.target}"]`);
-      setRect(el ? (el as HTMLElement).getBoundingClientRect() : null);
+      const found = targets
+        .map(t => document.querySelector(`[data-tour="${t}"]`))
+        .filter((el): el is HTMLElement => !!el)
+        .map(el => el.getBoundingClientRect());
+      setRects(found);
     };
     // Mini-Delay, damit das Target sicher gerendert ist (z. B. nach Tab-Wechsel)
     const t = setTimeout(find, 50);
@@ -55,10 +66,20 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
     return () => { clearTimeout(t); window.removeEventListener('resize', find); };
   }, [i, step.target]);
 
-  // Karten-Position: gegenüber des Targets, damit es nicht verdeckt wird.
+  const hasRects = rects.length > 0;
+
+  // Bounding-Box über alle Targets — bestimmt die Karten-Position.
+  const union = hasRects ? rects.reduce(
+    (acc, r) => ({
+      top: Math.min(acc.top, r.top),
+      bottom: Math.max(acc.bottom, r.bottom),
+    }),
+    { top: Infinity, bottom: -Infinity },
+  ) : null;
+
   const vh = typeof window !== 'undefined' ? window.innerHeight : 700;
-  const cardAtTop = !!rect && rect.top + rect.height / 2 > vh / 2;
-  const cardStyle: React.CSSProperties = rect
+  const cardAtTop = !!union && (union.top + union.bottom) / 2 > vh / 2;
+  const cardStyle: React.CSSProperties = hasRects
     ? cardAtTop
       ? { top: 24, left: '50%', transform: 'translateX(-50%)' }
       : { bottom: 100, left: '50%', transform: 'translateX(-50%)' }
@@ -67,22 +88,47 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className={clsx('fixed inset-0 z-[2147483646]', !rect && 'bg-black/65 backdrop-blur-[1px]')}>
-      {/* Spotlight-Ring + Dim außenrum via box-shadow-Trick */}
-      {rect && (
+    <div className={clsx('fixed inset-0 z-[2147483646]', !hasRects && 'bg-black/65 backdrop-blur-[1px]')}>
+      {/* Dim-Layer mit Cutouts pro Target via SVG-Maske */}
+      {hasRects && (
+        <svg className="fixed inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <mask id="tour-spotlight-mask">
+              <rect width="100%" height="100%" fill="white" />
+              {rects.map((r, idx) => (
+                <rect
+                  key={idx}
+                  x={r.left - PAD}
+                  y={r.top - PAD}
+                  width={r.width + PAD * 2}
+                  height={r.height + PAD * 2}
+                  rx={RADIUS}
+                  ry={RADIUS}
+                  fill="black"
+                />
+              ))}
+            </mask>
+          </defs>
+          <rect width="100%" height="100%" fill="rgba(0,0,0,0.7)" mask="url(#tour-spotlight-mask)" />
+        </svg>
+      )}
+
+      {/* Glühende Goldringe pro Target */}
+      {rects.map((r, idx) => (
         <div
-          className="fixed pointer-events-none z-[2147483646] rounded-2xl"
+          key={idx}
+          className="fixed pointer-events-none rounded-2xl"
           style={{
-            top: rect.top - 8,
-            left: rect.left - 8,
-            width: rect.width + 16,
-            height: rect.height + 16,
+            top: r.top - PAD,
+            left: r.left - PAD,
+            width: r.width + PAD * 2,
+            height: r.height + PAD * 2,
             boxShadow:
-              '0 0 0 3px rgba(230,180,60,0.95), 0 0 30px rgba(230,180,60,0.7), 0 0 0 9999px rgba(0,0,0,0.7)',
+              '0 0 0 3px rgba(230,180,60,0.95), 0 0 30px rgba(230,180,60,0.7)',
             animation: 'auraGlow 2s ease-in-out infinite',
           }}
         />
-      )}
+      ))}
 
       {/* Karte */}
       <div className="fixed z-[2147483647] w-[calc(100%-32px)] max-w-[330px]" style={cardStyle}>
