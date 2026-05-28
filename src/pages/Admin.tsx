@@ -1416,45 +1416,45 @@ export default function Admin() {
               <b className="text-green">🔓 Öffnen:</b> macht Sperre/Pause rückgängig.
             </div>
             {markets.filter(m => m.status !== 'resolved').map(m => (
-              <div key={m.id} className="bg-input rounded-xl p-2.5 px-3 mb-1.5">
+              <div key={m.id} className="bg-input rounded-xl p-3 mb-2">
                 {/* Zeile 1: Frage in voller Breite (mit Ellipsis bei Overflow) */}
-                <div className="text-[12px] font-bold text-white truncate mb-1.5">{m.question}</div>
+                <div className="text-[12px] font-bold text-white truncate mb-2">{m.question}</div>
                 {/* Zeile 2: Status-Badges + Aktions-Buttons */}
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-x-1.5 gap-y-2 flex-wrap">
                   {m.status === 'locked' && (
-                    <span className="text-[9px] font-black tracking-wider text-yellow bg-yellow/10 border border-yellow/30 rounded px-1.5 py-0.5 shrink-0">🔒 GESPERRT</span>
+                    <span className="text-[9px] font-black tracking-wider text-yellow bg-yellow/10 border border-yellow/30 rounded px-1.5 py-1 shrink-0">🔒 GESPERRT</span>
                   )}
                   {m.status === 'paused' && (
-                    <span className="text-[9px] font-black tracking-wider text-blue2 bg-blue/10 border border-blue2/30 rounded px-1.5 py-0.5 shrink-0">⏸ PAUSIERT</span>
+                    <span className="text-[9px] font-black tracking-wider text-blue2 bg-blue/10 border border-blue2/30 rounded px-1.5 py-1 shrink-0">⏸ PAUSIERT</span>
                   )}
                   {m.status === 'cancelled' && (
                     <>
-                      <span className="text-[9px] font-black tracking-wider text-muted bg-white/5 border border-white/15 rounded px-1.5 py-0.5 shrink-0">🚫 ABGESAGT</span>
-                      <button onClick={() => deleteMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10 shrink-0">🗑 ENTFERNEN</button>
+                      <span className="text-[9px] font-black tracking-wider text-muted bg-white/5 border border-white/15 rounded px-1.5 py-1 shrink-0">🚫 ABGESAGT</span>
+                      <button onClick={() => deleteMarket(m.id)} className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10 shrink-0">🗑 ENTFERNEN</button>
                     </>
                   )}
                   {(m.status === 'locked' || m.status === 'paused') && (
-                    <button onClick={() => reopenMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">🔓 ÖFFNEN</button>
+                    <button onClick={() => reopenMarket(m.id)} className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">🔓 ÖFFNEN</button>
                   )}
                   {m.status === 'open' && (
-                    <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">🔒 SPERREN</button>
+                    <button onClick={() => lockMarket(m.id)} className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-yellow border-yellow/35 hover:bg-yellow/10">🔒 SPERREN</button>
                   )}
                   {(m.status === 'open' || m.status === 'locked') && (
-                    <button onClick={() => pauseMarket(m.id)} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-blue2 border-blue2/35 hover:bg-blue/10">⏸ PAUSE</button>
+                    <button onClick={() => pauseMarket(m.id)} className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-blue2 border-blue2/35 hover:bg-blue/10">⏸ PAUSE</button>
                   )}
                   {(m.status === 'open' || m.status === 'locked' || m.status === 'paused') && (
                     m.noStake
-                      ? <button onClick={() => setPendingFreeClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
-                      : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
+                      ? <button onClick={() => setPendingFreeClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
+                      : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
                   )}
                 </div>
                 {(m.status === 'open' || m.status === 'locked') && (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-x-1.5 gap-y-2 mt-2.5 pt-2.5 border-t border-white/5">
                   {m.isOpenQuestion ? (
                     // Open question: single button opens answer picker
                     <button
                       onClick={() => { setOpenQModal(m.id); setSelectedWinners(new Set()); }}
-                      className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">
+                      className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">
                       ✏️ Antworten auswerten
                     </button>
                   ) : m.multiSelect ? (
@@ -1466,14 +1466,14 @@ export default function Admin() {
                         return { ...s, [m.id]: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
                       });
                       return (
-                        <div className="w-full flex flex-col gap-1.5">
+                        <div className="w-full flex flex-col gap-2">
                           <div className="text-[10px] font-black text-blue2">☑️ Richtige Antworten ankreuzen:</div>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-x-1.5 gap-y-2">
                             {m.options.map(opt => {
                               const on = sel.includes(opt.id);
                               return (
                                 <button key={opt.id} onClick={() => toggle(opt.id)}
-                                  className={clsx('text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer font-sans whitespace-nowrap transition-all',
+                                  className={clsx('text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer font-sans whitespace-nowrap transition-all',
                                     on ? 'text-green border-green/50 bg-green/15' : 'text-muted border-muted/35 hover:bg-white/5')}>
                                   {on ? '☑ ' : '☐ '}{opt.label}
                                 </button>
@@ -1486,7 +1486,7 @@ export default function Admin() {
                               const labels = m.options.filter(o => sel.includes(o.id)).map(o => o.label).join(' + ');
                               setPendingResolution({ marketId: m.id, optionId: buildSelectionKey(sel), optionLabel: labels, type: 'win' });
                             }}
-                            className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10 disabled:opacity-40 self-start">
+                            className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10 disabled:opacity-40 self-start">
                             ✓ Exakt auflösen ({sel.length})
                           </button>
                         </div>
@@ -1498,7 +1498,7 @@ export default function Admin() {
                       return (
                         <button key={opt.id}
                           onClick={() => setPendingResolution({ marketId: m.id, optionId: opt.id, optionLabel: opt.label, type: 'win' })}
-                          className={clsx("text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap transition-all", colors[i] ?? colors[0])}>
+                          className={clsx("text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap transition-all", colors[i] ?? colors[0])}>
                           ✓ {opt.label}
                         </button>
                       );
@@ -1506,12 +1506,12 @@ export default function Admin() {
                   )}
                   {m.type !== 'combo' && (
                     <button onClick={() => setPendingResolution({ marketId: m.id, optionId: '', optionLabel: 'ROLLOVER', type: 'rollover' })}
-                      className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-purple2 border-purple2/35 hover:bg-purple2/10">
+                      className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-purple2 border-purple2/35 hover:bg-purple2/10">
                       🎰 ROLLOVER
                     </button>
                   )}
                   <button onClick={() => setPendingResolution({ marketId: m.id, optionId: '', optionLabel: 'STORNO', type: 'storno' })}
-                    className="text-[10px] font-black rounded-lg px-2 py-1.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-muted border-muted/35 hover:bg-muted/10">
+                    className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-muted border-muted/35 hover:bg-muted/10">
                     ↩️ STORNO
                   </button>
                 </div>
