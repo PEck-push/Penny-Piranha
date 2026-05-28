@@ -1,8 +1,91 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Play, Pause } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store';
+
+const AUDIO_SRC = '/introduction.mp3';
+
+function fmtTime(s: number) {
+  if (!isFinite(s) || s < 0) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function AudioIntroPlayer() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [cur, setCur] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const onTime = () => setCur(a.currentTime);
+    const onMeta = () => setDur(a.duration);
+    const onEnd = () => { setPlaying(false); setCur(0); };
+    const onErr = () => setErr(true);
+    a.addEventListener('timeupdate', onTime);
+    a.addEventListener('loadedmetadata', onMeta);
+    a.addEventListener('ended', onEnd);
+    a.addEventListener('error', onErr);
+    return () => {
+      a.removeEventListener('timeupdate', onTime);
+      a.removeEventListener('loadedmetadata', onMeta);
+      a.removeEventListener('ended', onEnd);
+      a.removeEventListener('error', onErr);
+    };
+  }, []);
+
+  const toggle = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) { a.play(); setPlaying(true); }
+    else { a.pause(); setPlaying(false); }
+  };
+
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const a = audioRef.current;
+    if (!a || !dur) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    a.currentTime = pct * dur;
+    setCur(a.currentTime);
+  };
+
+  const pct = dur > 0 ? (cur / dur) * 100 : 0;
+
+  return (
+    <div className="relative z-10 mx-4 mb-3">
+      <div className="bg-gradient-to-r from-blue/15 via-purple/10 to-blue/15 border border-blue2/30 rounded-2xl p-3 flex items-center gap-3">
+        <button onClick={toggle} disabled={err}
+          className="w-11 h-11 rounded-full bg-gradient-to-br from-blue to-purple flex items-center justify-center shrink-0 shadow-[0_4px_18px_rgba(59,110,255,0.35)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-transform active:scale-95">
+          {playing ? <Pause className="w-5 h-5 text-white" /> : <Play className="w-5 h-5 text-white ml-0.5" />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="text-[12px] font-black text-white leading-tight mb-1">🎧 Audio-Anleitung</div>
+          {err ? (
+            <div className="text-[10px] text-red leading-tight">Audio-Datei konnte nicht geladen werden.</div>
+          ) : (
+            <>
+              <div onClick={seek} className="h-1.5 rounded-full bg-white/10 cursor-pointer overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue to-purple rounded-full transition-[width] duration-100"
+                  style={{ width: `${pct}%` }} />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="font-mono text-[9px] text-muted">{fmtTime(cur)}</span>
+                <span className="font-mono text-[9px] text-muted">{fmtTime(dur)}</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      <audio ref={audioRef} src={AUDIO_SRC} preload="metadata" />
+    </div>
+  );
+}
 
 const SECTIONS: { icon: string; title: string; body: string }[] = [
   {
@@ -138,6 +221,9 @@ export default function Rules() {
         </button>
         <span className="text-[17px] font-black text-white">Spielregeln</span>
       </div>
+
+      {/* Audio-Anleitung */}
+      <AudioIntroPlayer />
 
       {/* Intro */}
       <div className="relative z-10 flex flex-col items-center pt-3 pb-4 shrink-0 px-6 text-center">
