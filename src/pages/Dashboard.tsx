@@ -431,8 +431,8 @@ export default function Dashboard() {
       {(() => {
         const jpMarkets = markets.filter(m => m.marketSubtype === 'jackpot' && m.status === 'open');
         if (jpMarkets.length === 0) return null;
-        const blockOrder = ['block1', 'austria', 'block2', 'finale'];
-        const blocks = [...new Set(jpMarkets.map(m => m.jackpotBlock ?? 'finale'))]
+        const blockOrder = ['block1', 'austria', 'block2', 'finale', 'special'];
+        const blocks = [...new Set(jpMarkets.map(m => m.jackpotBlock ?? 'special'))]
           .sort((a, b) => blockOrder.indexOf(a) - blockOrder.indexOf(b));
         return (
           <>
@@ -441,7 +441,7 @@ export default function Dashboard() {
               <span className="text-[12px] font-bold text-yellow">gratis tippen</span>
             </div>
             {blocks.map(block => {
-              const blockMarkets = jpMarkets.filter(m => (m.jackpotBlock ?? 'finale') === block);
+              const blockMarkets = jpMarkets.filter(m => (m.jackpotBlock ?? 'special') === block);
               const label = blockMarkets[0]?.jackpotBlockLabel ?? JACKPOT_BLOCK_LABELS[block] ?? 'Jackpot';
               const aut = block === 'austria';
               return (
