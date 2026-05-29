@@ -74,6 +74,7 @@ export default function Admin() {
   const [shopForm, setShopForm] = useState({
     id: '', label: '', description: '', slot: 'head' as ShopSlot, icon: '👑',
     price: 100, available: true, phase: '', sortOrder: 100,
+    stock: '', unlockLabel: '',
   });
   // Avatar-Reset (Test)
   const [resetCharPlayer, setResetCharPlayer] = useState('');
@@ -162,6 +163,7 @@ export default function Admin() {
   const updateShopItem  = useStore(s => s.updateShopItem);
   const deleteShopItem  = useStore(s => s.deleteShopItem);
   const seedShopExamples = useStore(s => s.seedShopExamples);
+  const seedShopFirstItems = useStore(s => s.seedShopFirstItems);
   const simulateReveal = useStore(s => s.simulateReveal);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
@@ -1801,22 +1803,31 @@ export default function Admin() {
               </div>
             )}
             {/* Schnellaktionen */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2 mb-2">
               <button
                 onClick={async () => {
-                  const { added } = await seedShopExamples();
-                  setShopMsg(added > 0 ? `✓ ${added} Beispiel-Items angelegt.` : 'Beispiel-Items sind bereits vorhanden.');
+                  const { added } = await seedShopFirstItems();
+                  setShopMsg(added > 0 ? `✓ ${added} Items angelegt (Schwechi & Co).` : 'Erste Items sind bereits vorhanden.');
                   setTimeout(() => setShopMsg(''), 4000);
                 }}
-                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] font-black hover:border-yellow/50 transition-colors">
-                🌱 Beispiele anlegen
+                className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
+                🍺 Erste Items anlegen
               </button>
               <button
-                onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'head', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10 }); }}
+                onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'head', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10, stock: '', unlockLabel: '' }); }}
                 className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
                 {shopFormOpen ? '✕ Formular schließen' : '➕ Neues Item'}
               </button>
             </div>
+            <button
+              onClick={async () => {
+                const { added } = await seedShopExamples();
+                setShopMsg(added > 0 ? `✓ ${added} Platzhalter-Beispiele angelegt.` : 'Beispiele sind bereits vorhanden.');
+                setTimeout(() => setShopMsg(''), 4000);
+              }}
+              className="w-full p-2 rounded-xl bg-white/5 border border-white/10 text-muted text-[10px] font-black hover:border-white/30 transition-colors mb-3">
+              🌱 Platzhalter-Beispiele anlegen (zum Testen)
+            </button>
 
             {/* Formular */}
             {shopFormOpen && (
@@ -1841,11 +1852,17 @@ export default function Admin() {
                   <input type="number" value={shopForm.sortOrder} onChange={e => setShopForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))}
                     placeholder="Sort" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
                 </div>
-                <input value={shopForm.phase} onChange={e => setShopForm(f => ({ ...f, phase: e.target.value }))}
-                  placeholder="Phase (optional, z. B. achtelfinale)" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" value={shopForm.stock} onChange={e => setShopForm(f => ({ ...f, stock: e.target.value }))}
+                    placeholder="Stückzahl (leer = ∞)" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                  <input value={shopForm.phase} onChange={e => setShopForm(f => ({ ...f, phase: e.target.value }))}
+                    placeholder="Phase (optional)" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                </div>
+                <input value={shopForm.unlockLabel} onChange={e => setShopForm(f => ({ ...f, unlockLabel: e.target.value }))}
+                  placeholder="Freischalt-Hinweis (z. B. Ab dem 1. Spieltag) — leer = sofort" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
                 <label className="flex items-center gap-2 text-[12px] text-white cursor-pointer">
                   <input type="checkbox" checked={shopForm.available} onChange={e => setShopForm(f => ({ ...f, available: e.target.checked }))} />
-                  Sofort kaufbar
+                  Sofort kaufbar (bei Freischalt-Hinweis ausschalten → sichtbar, aber gesperrt)
                 </label>
                 <button
                   onClick={async () => {
@@ -1859,6 +1876,7 @@ export default function Admin() {
                       setTimeout(() => setShopMsg(''), 3000);
                       return;
                     }
+                    const stockNum = parseInt(shopForm.stock);
                     await createShopItem({
                       id: shopForm.id,
                       label: shopForm.label,
@@ -1869,6 +1887,8 @@ export default function Admin() {
                       available: shopForm.available,
                       phase: shopForm.phase || undefined,
                       sortOrder: shopForm.sortOrder,
+                      ...(Number.isFinite(stockNum) && stockNum > 0 ? { stock: stockNum, sold: 0 } : {}),
+                      ...(shopForm.unlockLabel.trim() ? { unlockLabel: shopForm.unlockLabel.trim() } : {}),
                     });
                     setShopMsg(`✓ „${shopForm.label}" angelegt.`);
                     setShopFormOpen(false);
@@ -1889,7 +1909,9 @@ export default function Admin() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[12px] font-black text-white truncate">{it.label}</div>
                       <div className="text-[10px] text-muted">
-                        {SHOP_SLOT_LABELS[it.slot]} · 🪙 {it.price}{it.phase ? ` · ${it.phase}` : ''}
+                        {SHOP_SLOT_LABELS[it.slot]} · 🪙 {it.price}
+                        {it.stock != null ? ` · ★ ${Math.max(0, it.stock - (it.sold ?? 0))}/${it.stock}` : ''}
+                        {it.unlockLabel ? ` · 🔒 ${it.unlockLabel}` : ''}
                       </div>
                     </div>
                     <button

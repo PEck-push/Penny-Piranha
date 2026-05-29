@@ -19,8 +19,11 @@ export interface ShopItem {
   price: number;           // Token-Preis
   imagePath?: string;      // Optionaler Pfad zur WebP (default: /shop/<id>.webp)
   available: boolean;      // Wird sofort als kaufbar angezeigt
-  availableFrom?: number;  // Optional: Drop-Zeitpunkt (Unix ms)
+  availableFrom?: number;  // Optional: Drop-Zeitpunkt (Unix ms) → Live-Countdown
   availableUntil?: number; // Optional: Ablauf (Unix ms)
+  unlockLabel?: string;    // Hinweis für Event-Freischaltung (z.B. „Ab dem 1. Spieltag")
+  stock?: number;          // Globale Stückzahl (Knappheit). Fehlt = unbegrenzt.
+  sold?: number;           // Bereits verkaufte Stück (atomar in der Kauf-Tx erhöht)
   phase?: string;          // Optionaler Phasen-Tag (z.B. 'gruppenphase', 'achtelfinale')
   sortOrder?: number;      // Sortierung im Shop (kleinere Werte zuerst)
   createdAt: number;
@@ -98,11 +101,93 @@ export const SHOP_EXAMPLE_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
   },
 ];
 
+// ── Erste echte Item-Charge ───────────────────────────────────────────────────
+// Alle vier sind „Hand"-Slot, links platziert (NICHT der Underdog-Bereich rechts).
+// Grafiken als transparente WebP nach public/shop/<id>.webp legen.
+//   schwechi  → günstig, 6 Stück (6er Tragerl), ab Start
+//   pegasus   → rare, 1 Stück, Freischaltung nach dem 1. Spieltag
+//   mrs_voiti → rare, 1 Stück, Freischaltung nach dem 4. Spieltag
+//   dua       → rare, 2 Stück, Freischaltung nach der Gruppenphase
+// Event-Freischaltung: available=false + unlockLabel. Der Admin stellt das Item
+// per „Live"-Toggle frei, sobald der Zeitpunkt da ist. Bis dahin ist es sichtbar
+// und anprobierbar, aber nicht kaufbar.
+export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
+  {
+    id: 'schwechi',
+    label: 'Schwechi',
+    description: 'Eine kühle Dose Schwechater für die Hand. Recht hat er! 🍺',
+    slot: 'hand',
+    icon: '🍺',
+    price: 120,
+    available: true,
+    stock: 6,
+    sold: 0,
+    sortOrder: 10,
+  },
+  {
+    id: 'pegasus',
+    label: 'Pegasus',
+    description: 'Silberner Pferdekopf — edel und extrem selten. Nur einer bekommt ihn.',
+    slot: 'hand',
+    icon: '🐎',
+    price: 900,
+    available: false,
+    unlockLabel: 'Ab dem 1. Spieltag',
+    stock: 1,
+    sold: 0,
+    sortOrder: 20,
+  },
+  {
+    id: 'mrs_voiti',
+    label: 'Mrs. Voiti',
+    description: 'Die legendäre lila Sternchen-Ente. Einzelstück — wer zuerst kommt …',
+    slot: 'hand',
+    icon: '🦆',
+    price: 900,
+    available: false,
+    unlockLabel: 'Ab dem 4. Spieltag',
+    stock: 1,
+    sold: 0,
+    sortOrder: 30,
+  },
+  {
+    id: 'dua',
+    label: 'Dua',
+    description: 'Lebensgroßer Dua-Aufsteller an deiner Seite. Nur zweimal verfügbar.',
+    slot: 'hand',
+    icon: '💃',
+    price: 750,
+    available: false,
+    unlockLabel: 'Nach der Gruppenphase',
+    stock: 2,
+    sold: 0,
+    sortOrder: 40,
+  },
+];
+
 export const isShopItemAvailable = (item: ShopItem, now = Date.now()): boolean => {
   if (!item.available) return false;
   if (item.availableFrom && item.availableFrom > now) return false;
   if (item.availableUntil && item.availableUntil < now) return false;
   return true;
+};
+
+// Verbleibende Stückzahl (null = unbegrenzt).
+export const shopItemStockLeft = (item: Pick<ShopItem, 'stock' | 'sold'>): number | null =>
+  item.stock == null ? null : Math.max(0, item.stock - (item.sold ?? 0));
+
+export const isShopItemSoldOut = (item: Pick<ShopItem, 'stock' | 'sold'>): boolean =>
+  shopItemStockLeft(item) === 0;
+
+// Item wird im Shop angezeigt (sichtbar+anprobierbar), auch wenn noch gesperrt:
+// kaufbar jetzt, oder kommt noch (Datum/Event), oder bereits im Besitz.
+export const isShopItemListed = (item: ShopItem, owned = false, now = Date.now()): boolean => {
+  if (owned) return true;
+  if (isShopItemAvailable(item, now)) return true;
+  // „Kommt noch": Zeit-Freischaltung in der Zukunft ODER Event-Label gesetzt.
+  if (item.availableFrom && item.availableFrom > now) return true;
+  if (!item.available && item.unlockLabel) return true;
+  return false;
 };
 
 export const shopItemImagePath = (item: Pick<ShopItem, 'id' | 'imagePath'>): string =>
