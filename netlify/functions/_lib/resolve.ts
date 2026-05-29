@@ -114,6 +114,64 @@ export async function resolveMarketAdmin(
 
     const options: Array<{ id: string; label: string; pool: number }> = market.options ?? [];
     const totalPool = options.reduce((s, o) => s + (o.pool || 0), 0);
+
+    // ── Combo (Parlay): alle Legs richtig → Einsatz × Multiplikator, sonst Einsatz
+    // verloren (→ Jackpot). Self-contained; kein Streak/Underdog. winningOptionId
+    // 'combo-win' = gewonnen, sonst (z. B. 'combo-miss') = gescheitert.
+    if (market.type === 'combo') {
+      const multiplier = Number(market.multiplier ?? 3);
+      const won = winningOptionId === 'combo-win';
+      const comboBets = allBets.filter(b => b.optionId === 'combo-win');
+
+      const batch = db.batch();
+      const payouts: Record<string, number> = {};
+      let totalPayout = 0;
+      for (const b of comboBets) {
+        const playerRef = db.collection('players').doc(String(b.playerId));
+        if (won) {
+          const payout = (b.amount || 0) * multiplier;
+          payouts[b.playerId] = (payouts[b.playerId] ?? 0) + payout;
+          totalPayout += payout;
+          batch.update(playerRef, {
+            tokens: FieldValue.increment(payout),
+            dailyNetGain: FieldValue.increment(payout - (b.amount || 0)),
+            unseenResolutions: FieldValue.arrayUnion(marketId),
+          });
+        } else {
+          // Einsatz wurde beim Tippen bereits abgezogen → nur Tagesbilanz/Reveal.
+          batch.update(playerRef, {
+            dailyNetGain: FieldValue.increment(-(b.amount || 0)),
+            unseenResolutions: FieldValue.arrayUnion(marketId),
+          });
+        }
+      }
+      // Gewinn: Mehrbetrag über den Einsatztopf hinaus kommt aus dem Jackpot/Haus.
+      // Niederlage: die Einsätze wandern in den Jackpot.
+      const jackpotDelta = won ? -Math.max(0, totalPayout - totalPool) : totalPool;
+      const legs = (market.comboLegs ?? []).map((l: any) => ({
+        ...l, status: won ? 'hit' : (l.status === 'pending' ? 'miss' : l.status),
+      }));
+      batch.update(marketRef, {
+        status: 'resolved',
+        winningOptionId: won ? 'combo-win' : 'combo-miss',
+        resolutionType: won ? 'normal' : 'no-winner',
+        resolvedBy: by,
+        resolvedAt: FieldValue.serverTimestamp(),
+        resolveInProgress: false,
+        comboLegs: legs,
+      });
+      batch.update(appRef, { jackpot: FieldValue.increment(jackpotDelta) });
+      batch.set(db.collection('feed').doc(), {
+        type: 'market_resolved', marketId,
+        text: won
+          ? `🔗 Combo geknackt: ${market.question ?? marketId} (×${multiplier})`
+          : `🔗 Combo gescheitert: ${market.question ?? marketId}`,
+        ts: FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+      return { ok: true, payouts };
+    }
+
     const winPool = winBets.reduce((s, b) => s + (b.amount || 0), 0);
     const seed = market.initialSeedCredits ?? 0;
     const effectivePool = totalPool + seed;
