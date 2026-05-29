@@ -30,6 +30,11 @@ const STEPS: Step[] = [
     target: 'help',
   },
   {
+    title: 'Shop für deinen Charakter 🛒',
+    body: 'Mit dem Warenkorb oben kommst du in den Shop. Dort kaufst du mit Tokens kosmetische Items für deinen Charakter — Hüte, Trikots, Effekte. Sobald neue Items reinkommen, zeigt der Button einen roten Punkt. Pro Slot trägst du 1 Item; gekaufte Sachen bleiben dauerhaft in deinem Inventar.',
+    target: 'shop',
+  },
+  {
     title: 'Dein Profil',
     body: 'Tippe auf deinen Charakter in der Mitte — dort siehst du deine Statistiken, kannst Accessoires anziehen und dein Passwort ändern. In der Rangliste kannst du übrigens auch jeden anderen Spieler antippen. Viel Glück! 🏆',
     target: 'profile',

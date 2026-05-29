@@ -1324,7 +1324,7 @@ function ShopButton() {
   const lastVisit = useStore(s => s.players.find(p => p.id === s.currentUser)?.lastShopVisitTs ?? 0);
   const hasNew = lastDrop > 0 && lastDrop > lastVisit;
   return (
-    <button onClick={() => navigate('/shop')}
+    <button onClick={() => navigate('/shop')} data-tour="shop"
       className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors relative">
       <ShoppingBag className="w-3.5 h-3.5" />
       {hasNew && (
