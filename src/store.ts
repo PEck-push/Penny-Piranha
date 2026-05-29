@@ -254,10 +254,15 @@ interface AppState {
   whatsappGroupLink: string; // Beitrittslink zur WhatsApp-Gruppe (angezeigt nach Registrierung)
   exchangeRate: number; // Cashout-Wechselkurs: 100 TKN = X € (geteilt & persistiert)
   currentUser: string | null;
+  // Firebase-Auth-Email des eingeloggten Users. Wird unabhängig vom Spieler-
+  // Dokument geführt und dient als robuster Fallback für Admin-Checks
+  // (falls das Firestore-Profil mal ohne Email-Feld angelegt wurde).
+  currentEmail: string | null;
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
   logout: () => void;
   setCurrentUser: (uid: string | null) => void;
+  setCurrentEmail: (email: string | null) => void;
   registerPlayer: (uid: string, data: Omit<Player, 'id'>) => Promise<void>;
   logoutAuth: () => Promise<void>;
   placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
@@ -447,6 +452,7 @@ export const useStore = create<AppState>()((set, get) => {
     whatsappGroupLink: '',
     exchangeRate: 1,
     currentUser: null,
+    currentEmail: null,
 
     login: async (playerId, avatar, avatarColor, avatarId) => {
       const player = get().players.find(p => p.id === playerId);
@@ -473,6 +479,7 @@ export const useStore = create<AppState>()((set, get) => {
       const userId = get().currentUser;
       set(s => ({
         currentUser: null,
+        currentEmail: null,
         players: s.players.map(p =>
           p.id === userId ? { ...p, avatar: '', avatarId: '', avatarColor: '', loggedIn: false } : p
         ),
@@ -1083,6 +1090,7 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     setCurrentUser: (uid) => set({ currentUser: uid }),
+    setCurrentEmail: (email) => set({ currentEmail: email }),
 
     registerPlayer: async (uid, data) => {
       const player: Player = { id: uid, ...data };
