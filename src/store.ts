@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
-import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, type ShopItem, type ShopSlot } from './data/shopItems';
+import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -1025,6 +1025,11 @@ export const useStore = create<AppState>()((set, get) => {
       if (!db) return { ok: false, error: 'Keine Verbindung.' };
       const item = get().shopItems.find(i => i.id === itemId);
       if (!item) return { ok: false, error: 'Item nicht gefunden.' };
+      // Spielplan-Freischaltung prüfen (clientseitig, Economy ist Trust-basiert).
+      const unlockAt = shopUnlockAt(item, get().schedule);
+      if (unlockAt != null && unlockAt > Date.now()) {
+        return { ok: false, error: item.unlockLabel ? `Freischaltung: ${item.unlockLabel}.` : 'Noch nicht freigeschaltet.' };
+      }
 
       try {
         let cost = 0;
@@ -1167,21 +1172,28 @@ export const useStore = create<AppState>()((set, get) => {
       return { added };
     },
 
-    // ── Shop: erste echte Item-Charge anlegen (Schwechi, Pegasus, …) ────────
+    // ── Shop: erste echte Item-Charge anlegen/aktualisieren (Schwechi, …) ───
+    // Upsert: neue Items werden angelegt, bereits vorhandene bekommen die
+    // aktuellen Freischalt-/Stock-Felder (unlockRule, unlockLabel, available,
+    // stock, price …) gemerged — die bereits verkaufte Stückzahl bleibt erhalten.
     seedShopFirstItems: async () => {
       if (!db) return { added: 0 };
-      const existing = new Set(get().shopItems.map(i => i.id));
+      const existing = new Map(get().shopItems.map(i => [i.id, i]));
       const now = Date.now();
       let added = 0;
       try {
         for (const it of SHOP_FIRST_ITEMS) {
-          if (existing.has(it.id)) continue;
-          await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
-          added++;
+          const prev = existing.get(it.id);
+          if (!prev) {
+            await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
+            added++;
+          } else {
+            // sold nicht überschreiben — nur Definition aktualisieren.
+            const { sold: _seed, ...defWithoutSold } = it;
+            await updateDoc(doc(db, 'shopItems', it.id), defWithoutSold as any);
+          }
         }
-        if (added > 0) {
-          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
-        }
+        await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
       } catch (err) {
         console.error('[Store] seedShopFirstItems Fehler:', err);
       }

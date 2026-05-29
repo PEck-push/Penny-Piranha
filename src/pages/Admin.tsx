@@ -1807,7 +1807,7 @@ export default function Admin() {
               <button
                 onClick={async () => {
                   const { added } = await seedShopFirstItems();
-                  setShopMsg(added > 0 ? `✓ ${added} Items angelegt (Schwechi & Co).` : 'Erste Items sind bereits vorhanden.');
+                  setShopMsg(added > 0 ? `✓ ${added} Items angelegt (Schwechi & Co).` : '✓ Items aktualisiert (Freischaltung aus Spielplan).');
                   setTimeout(() => setShopMsg(''), 4000);
                 }}
                 className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">

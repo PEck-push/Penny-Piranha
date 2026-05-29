@@ -10,6 +10,13 @@
 
 export type ShopSlot = 'head' | 'hand' | 'torso' | 'effect' | 'background';
 
+// Automatische Freischaltung anhand des importierten Spielplans. „Spieltag" =
+// Kalendertag mit WM-Spielen (Europe/Vienna) — konsistent mit der Tagessieger-
+// Logik. Freischaltung jeweils um 12:00 Ortszeit (Wien) an diesem Tag.
+export type ShopUnlockRule =
+  | { kind: 'matchCalendarDay'; day: number } // N-ter Kalendertag mit Spielen
+  | { kind: 'afterGroupStage' };              // Tag nach dem letzten Gruppenspiel
+
 export interface ShopItem {
   id: string;
   label: string;
@@ -19,9 +26,10 @@ export interface ShopItem {
   price: number;           // Token-Preis
   imagePath?: string;      // Optionaler Pfad zur WebP (default: /shop/<id>.webp)
   available: boolean;      // Wird sofort als kaufbar angezeigt
-  availableFrom?: number;  // Optional: Drop-Zeitpunkt (Unix ms) → Live-Countdown
+  availableFrom?: number;  // Optional: fester Drop-Zeitpunkt (Unix ms). Hat Vorrang.
   availableUntil?: number; // Optional: Ablauf (Unix ms)
-  unlockLabel?: string;    // Hinweis für Event-Freischaltung (z.B. „Ab dem 1. Spieltag")
+  unlockRule?: ShopUnlockRule; // Automatische Freischaltung aus dem Spielplan
+  unlockLabel?: string;    // Anzeigetext, solange gesperrt (z.B. „Ab dem 1. Spieltag")
   stock?: number;          // Globale Stückzahl (Knappheit). Fehlt = unbegrenzt.
   sold?: number;           // Bereits verkaufte Stück (atomar in der Kauf-Tx erhöht)
   phase?: string;          // Optionaler Phasen-Tag (z.B. 'gruppenphase', 'achtelfinale')
@@ -108,9 +116,9 @@ export const SHOP_EXAMPLE_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
 //   pegasus   → rare, 1 Stück, Freischaltung nach dem 1. Spieltag
 //   mrs_voiti → rare, 1 Stück, Freischaltung nach dem 4. Spieltag
 //   dua       → rare, 2 Stück, Freischaltung nach der Gruppenphase
-// Event-Freischaltung: available=false + unlockLabel. Der Admin stellt das Item
-// per „Live"-Toggle frei, sobald der Zeitpunkt da ist. Bis dahin ist es sichtbar
-// und anprobierbar, aber nicht kaufbar.
+// Freischaltung läuft automatisch über unlockRule (aus dem Spielplan, 12:00 Wien).
+// Bis zum Freischalt-Zeitpunkt sind die Items sichtbar + anprobierbar, aber nicht
+// kaufbar. unlockLabel dient als Anzeigetext, solange der Spielplan noch fehlt.
 export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
   {
     id: 'schwechi',
@@ -131,7 +139,8 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     slot: 'hand',
     icon: '🐎',
     price: 900,
-    available: false,
+    available: true,
+    unlockRule: { kind: 'matchCalendarDay', day: 1 },
     unlockLabel: 'Ab dem 1. Spieltag',
     stock: 1,
     sold: 0,
@@ -144,7 +153,8 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     slot: 'hand',
     icon: '🦆',
     price: 900,
-    available: false,
+    available: true,
+    unlockRule: { kind: 'matchCalendarDay', day: 4 },
     unlockLabel: 'Ab dem 4. Spieltag',
     stock: 1,
     sold: 0,
@@ -157,7 +167,8 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     slot: 'hand',
     icon: '💃',
     price: 750,
-    available: false,
+    available: true,
+    unlockRule: { kind: 'afterGroupStage' },
     unlockLabel: 'Nach der Gruppenphase',
     stock: 2,
     sold: 0,
@@ -179,13 +190,62 @@ export const shopItemStockLeft = (item: Pick<ShopItem, 'stock' | 'sold'>): numbe
 export const isShopItemSoldOut = (item: Pick<ShopItem, 'stock' | 'sold'>): boolean =>
   shopItemStockLeft(item) === 0;
 
+// ── Automatische Freischaltung aus dem Spielplan ──────────────────────────────
+// Minimaler Spielplan-Eintrag, den die Berechnung braucht.
+interface ScheduleLike { kickoffAt: number; phase?: string }
+
+const VIENNA_TZ = 'Europe/Vienna';
+// Kalendertag (YYYY-MM-DD) eines Zeitpunkts in Wiener Ortszeit.
+const viennaDayKey = (ms: number): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: VIENNA_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+// 12:00 Ortszeit (Wien) eines Kalendertags als UTC-ms. Das WM-Fenster (Juni/Juli)
+// liegt komplett in der Sommerzeit (CEST = UTC+2), daher 12:00 Wien = 10:00 UTC.
+const viennaNoonUtc = (y: number, m: number, d: number): number => Date.UTC(y, m - 1, d, 10, 0, 0);
+
+// Berechnet den Freischalt-Zeitpunkt (UTC-ms) einer Regel aus dem Spielplan.
+// null = noch nicht berechenbar (Spielplan fehlt / zu wenige Tage).
+export const computeShopUnlockTs = (rule: ShopUnlockRule, schedule: ScheduleLike[]): number | null => {
+  if (!schedule || schedule.length === 0) return null;
+  if (rule.kind === 'matchCalendarDay') {
+    const days = Array.from(new Set(schedule.map(m => viennaDayKey(m.kickoffAt)))).sort();
+    const key = days[rule.day - 1];
+    if (!key) return null;
+    const [y, m, d] = key.split('-').map(Number);
+    return viennaNoonUtc(y, m, d);
+  }
+  // afterGroupStage: Tag NACH dem letzten Gruppenspiel, 12:00 Wien.
+  const groupMs = schedule.filter(m => (m.phase ?? 'gruppenphase') === 'gruppenphase').map(m => m.kickoffAt);
+  if (groupMs.length === 0) return null;
+  const lastKey = viennaDayKey(Math.max(...groupMs));
+  const [y, m, d] = lastKey.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1)); // rollt sauber über Monatsgrenzen
+  return viennaNoonUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
+};
+
+// Effektiver Freischalt-Zeitpunkt eines Items (oder null, wenn keine Zeit-Sperre):
+// fester availableFrom hat Vorrang, sonst die Spielplan-Regel. Hat das Item eine
+// Regel, die (noch) nicht berechenbar ist, gilt es als gesperrt (großer Wert).
+export const shopUnlockAt = (item: ShopItem, schedule: ScheduleLike[]): number | null => {
+  if (item.availableFrom) return item.availableFrom;
+  if (item.unlockRule) return computeShopUnlockTs(item.unlockRule, schedule) ?? Number.MAX_SAFE_INTEGER;
+  return null;
+};
+
+// Ist das Item jetzt kaufbar (inkl. Spielplan-Regel)?
+export const isShopItemUnlocked = (item: ShopItem, schedule: ScheduleLike[], now = Date.now()): boolean => {
+  if (!item.available) return false;
+  if (item.availableUntil && item.availableUntil < now) return false;
+  const at = shopUnlockAt(item, schedule);
+  return at == null || at <= now;
+};
+
 // Item wird im Shop angezeigt (sichtbar+anprobierbar), auch wenn noch gesperrt:
-// kaufbar jetzt, oder kommt noch (Datum/Event), oder bereits im Besitz.
+// kaufbar jetzt, oder kommt noch (Datum/Regel/Event), oder bereits im Besitz.
 export const isShopItemListed = (item: ShopItem, owned = false, now = Date.now()): boolean => {
   if (owned) return true;
   if (isShopItemAvailable(item, now)) return true;
-  // „Kommt noch": Zeit-Freischaltung in der Zukunft ODER Event-Label gesetzt.
   if (item.availableFrom && item.availableFrom > now) return true;
+  if (item.unlockRule) return true;
   if (!item.available && item.unlockLabel) return true;
   return false;
 };

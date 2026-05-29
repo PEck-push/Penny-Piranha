@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store';
-import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemAvailable, isShopItemListed, isShopItemSoldOut, shopItemStockLeft, shopItemImagePath, type ShopSlot } from '../data/shopItems';
+import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemListed, isShopItemSoldOut, shopItemStockLeft, shopItemImagePath, shopUnlockAt, type ShopSlot } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 
 type Filter = 'all' | ShopSlot;
@@ -12,6 +12,7 @@ export default function Shop() {
   const navigate = useNavigate();
   const me = useStore(s => s.players.find(p => p.id === s.currentUser));
   const items = useStore(s => s.shopItems);
+  const schedule = useStore(s => s.schedule);
   const purchase = useStore(s => s.purchaseShopItem);
   const setActiveShop = useStore(s => s.setActiveShopItem);
   const markShopVisited = useStore(s => s.markShopVisited);
@@ -223,8 +224,10 @@ export default function Shop() {
               // Status
               const stockLeft = shopItemStockLeft(item);
               const soldOut = !owned && isShopItemSoldOut(item);
-              const timed = !!item.availableFrom && item.availableFrom > now;
-              const locked = !owned && !soldOut && (timed || (!item.available && !!item.unlockLabel) || !isShopItemAvailable(item, now));
+              const unlockAt = shopUnlockAt(item, schedule);          // null = keine Sperre
+              const knownTs = unlockAt != null && unlockAt < Number.MAX_SAFE_INTEGER; // berechenbar
+              const timedLocked = unlockAt != null && unlockAt > now; // (auch wenn Spielplan fehlt)
+              const locked = !owned && !soldOut && (timedLocked || !item.available);
               return (
                 <div key={item.id}
                   className={clsx('bg-card border rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden transition-colors',
@@ -282,8 +285,11 @@ export default function Shop() {
                       Vergriffen
                     </div>
                   ) : locked ? (
-                    <div className="w-full py-2 rounded-xl text-[10px] font-black border bg-purple2/5 border-purple2/25 text-purple2 text-center leading-tight">
-                      🔒 {timed && item.availableFrom ? `in ${countdown(item.availableFrom)}` : (item.unlockLabel ?? 'Bald verfügbar')}
+                    <div className="w-full py-1.5 rounded-xl border bg-purple2/5 border-purple2/25 text-purple2 text-center leading-tight">
+                      <div className="text-[10px] font-black">🔒 {item.unlockLabel ?? 'Bald verfügbar'}</div>
+                      {knownTs && unlockAt && (
+                        <div className="text-[9px] font-bold text-purple2/80 mt-0.5">noch {countdown(unlockAt)}</div>
+                      )}
                     </div>
                   ) : (
                     <button onClick={() => setConfirmId(item.id)} disabled={!canAfford || busyId === item.id}
