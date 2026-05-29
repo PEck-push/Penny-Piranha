@@ -14,6 +14,7 @@ import Profile from './pages/Profile';
 import Rules from './pages/Rules';
 import Shop from './pages/Shop';
 import CharacterSetup from './components/CharacterSetup';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function MythicSparkles() {
   const stars = [
@@ -120,6 +121,7 @@ export default function App() {
         <div className="w-full h-[100dvh] sm:h-[812px] sm:max-w-[375px] mx-auto bg-bg sm:rounded-[46px] overflow-hidden sm:border sm:border-white/5 sm:shadow-[0_50px_120px_rgba(0,0,0,0.85)] flex flex-col relative shrink-0 transform-gpu">
           <div className="hidden sm:block h-[44px] shrink-0 relative z-50" />
           <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col relative">
+            <ErrorBoundary>
             {needsCharacter ? (
               <CharacterSetup />
             ) : (
@@ -135,6 +137,7 @@ export default function App() {
               <Route path="/rules" element={currentUser ? <Rules /> : <Navigate to="/" />} />
             </Routes>
             )}
+            </ErrorBoundary>
           </div>
         </div>
       </div>

@@ -196,38 +196,51 @@ export const isShopItemSoldOut = (item: Pick<ShopItem, 'stock' | 'sold'>): boole
 interface ScheduleLike { kickoffAt: number; phase?: string; matchday?: number | null }
 
 const VIENNA_TZ = 'Europe/Vienna';
-// Kalendertag (YYYY-MM-DD) eines Zeitpunkts in Wiener Ortszeit.
-const viennaDayKey = (ms: number): string =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: VIENNA_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+// Kalendertag (YYYY-MM-DD) eines Zeitpunkts in Wiener Ortszeit. Bei ungültigem
+// Zeitstempel (NaN/null) → '' statt Exception (Intl wirft sonst bei Invalid Date).
+const viennaDayKey = (ms: number): string => {
+  if (!Number.isFinite(ms)) return '';
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: VIENNA_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+  } catch { return ''; }
+};
 // 12:00 Ortszeit (Wien) eines Kalendertags als UTC-ms. Das WM-Fenster (Juni/Juli)
 // liegt komplett in der Sommerzeit (CEST = UTC+2), daher 12:00 Wien = 10:00 UTC.
 const viennaNoonUtc = (y: number, m: number, d: number): number => Date.UTC(y, m - 1, d, 10, 0, 0);
 
 // Berechnet den Freischalt-Zeitpunkt (UTC-ms) einer Regel aus dem Spielplan.
-// null = noch nicht berechenbar (Spielplan fehlt / zu wenige Tage).
+// null = noch nicht berechenbar (Spielplan fehlt / zu wenige Tage / ungültig).
+// Komplett crash-sicher: niemals eine Exception aus dem Render heraus.
 export const computeShopUnlockTs = (rule: ShopUnlockRule, schedule: ScheduleLike[]): number | null => {
-  if (!schedule || schedule.length === 0) return null;
-  if (rule.kind === 'fifaMatchday') {
-    // Frühester Anpfiff aller Spiele dieses FIFA-Spieltags (Gruppenrunde) → 12:00 Wien.
-    const ks = schedule.filter(m => m.matchday === rule.matchday).map(m => m.kickoffAt);
-    if (ks.length === 0) return null;
-    const [y, m, d] = viennaDayKey(Math.min(...ks)).split('-').map(Number);
-    return viennaNoonUtc(y, m, d);
+  try {
+    const valid = (schedule ?? []).filter(m => m && Number.isFinite(m.kickoffAt));
+    if (valid.length === 0) return null;
+    if (rule.kind === 'fifaMatchday') {
+      const ks = valid.filter(m => m.matchday === rule.matchday).map(m => m.kickoffAt);
+      if (ks.length === 0) return null;
+      const key = viennaDayKey(Math.min(...ks));
+      if (!key) return null;
+      const [y, m, d] = key.split('-').map(Number);
+      return viennaNoonUtc(y, m, d);
+    }
+    if (rule.kind === 'matchCalendarDay') {
+      const days = Array.from(new Set(valid.map(m => viennaDayKey(m.kickoffAt)).filter(Boolean))).sort();
+      const key = days[rule.day - 1];
+      if (!key) return null;
+      const [y, m, d] = key.split('-').map(Number);
+      return viennaNoonUtc(y, m, d);
+    }
+    // afterGroupStage: Tag NACH dem letzten Gruppenspiel, 12:00 Wien.
+    const groupMs = valid.filter(m => (m.phase ?? 'gruppenphase') === 'gruppenphase').map(m => m.kickoffAt);
+    if (groupMs.length === 0) return null;
+    const lastKey = viennaDayKey(Math.max(...groupMs));
+    if (!lastKey) return null;
+    const [y, m, d] = lastKey.split('-').map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1)); // rollt sauber über Monatsgrenzen
+    return viennaNoonUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
+  } catch {
+    return null;
   }
-  if (rule.kind === 'matchCalendarDay') {
-    const days = Array.from(new Set(schedule.map(m => viennaDayKey(m.kickoffAt)))).sort();
-    const key = days[rule.day - 1];
-    if (!key) return null;
-    const [y, m, d] = key.split('-').map(Number);
-    return viennaNoonUtc(y, m, d);
-  }
-  // afterGroupStage: Tag NACH dem letzten Gruppenspiel, 12:00 Wien.
-  const groupMs = schedule.filter(m => (m.phase ?? 'gruppenphase') === 'gruppenphase').map(m => m.kickoffAt);
-  if (groupMs.length === 0) return null;
-  const lastKey = viennaDayKey(Math.max(...groupMs));
-  const [y, m, d] = lastKey.split('-').map(Number);
-  const next = new Date(Date.UTC(y, m - 1, d + 1)); // rollt sauber über Monatsgrenzen
-  return viennaNoonUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate());
 };
 
 // Effektiver Freischalt-Zeitpunkt eines Items (oder null, wenn keine Zeit-Sperre):

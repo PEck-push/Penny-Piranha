@@ -40,7 +40,7 @@ export default function Shop() {
     const list = items
       .filter(i => filter === 'all' || i.slot === filter)
       .filter(i => isShopItemListed(i, inventory.has(i.id)));
-    return list.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || a.label.localeCompare(b.label));
+    return list.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || (a.label ?? '').localeCompare(b.label ?? ''));
   }, [items, filter, inventory]);
 
   // Restzeit bis Freischaltung als „2d 4h 12m" / „45s".
