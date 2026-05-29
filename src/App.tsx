@@ -63,10 +63,15 @@ function SplashScreen() {
 
 export default function App() {
   const currentUser = useStore(state => state.currentUser);
+  const currentEmail = useStore(state => state.currentEmail);
   const setCurrentUser = useStore(state => state.setCurrentUser);
+  const setCurrentEmail = useStore(state => state.setCurrentEmail);
   const players = useStore(state => state.players);
   const me = players.find(p => p.id === currentUser);
-  const isAdmin = !!me?.isAdmin || isAdminEmail(me?.email);
+  // Admin-Check über BEIDE Quellen: Firestore-Profil-Email UND Firebase-Auth-Email.
+  // Letztere ist die echte Login-Identität — fängt Fälle ab, in denen das Spieler-
+  // dokument mal ohne Email-Feld angelegt wurde und Admins sonst ausgesperrt wären.
+  const isAdmin = !!me?.isAdmin || isAdminEmail(me?.email) || isAdminEmail(currentEmail);
   // Erzwungene Charakter-Neuerstellung (z. B. nach Admin-Reset im Testmodus).
   const needsCharacter = !!currentUser && !!me && me.needsCharacter === true;
   const [authLoading, setAuthLoading] = useState(true);
@@ -81,11 +86,27 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (!firebaseUser) teardownFirebaseSync();
       setCurrentUser(firebaseUser?.uid ?? null);
+      setCurrentEmail(firebaseUser?.email ?? null);
       if (firebaseUser) initFirebaseSync();
       setAuthLoading(false);
     });
     return unsubscribe;
   }, []);
+
+  // Self-Heal: wenn der eingeloggte User per Auth-Email Admin ist, das Spieler-
+  // dokument aber kein/anderes Email-Feld hat → still nachziehen, damit auch
+  // Server-seitige Checks (go-live, kick-player) wieder greifen.
+  useEffect(() => {
+    if (!me?.id || !currentEmail) return;
+    if (!isAdminEmail(currentEmail)) return;
+    if ((me.email ?? '').toLowerCase() === currentEmail.toLowerCase()) return;
+    import('firebase/firestore').then(({ doc, updateDoc }) =>
+      import('./firebase').then(({ db }) => {
+        if (!db) return;
+        updateDoc(doc(db, 'players', me.id), { email: currentEmail }).catch(() => {});
+      }),
+    );
+  }, [me?.id, me?.email, currentEmail]);
 
   if (!splashDone || authLoading) return <SplashScreen />;
 
