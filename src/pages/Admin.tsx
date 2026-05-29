@@ -72,6 +72,7 @@ export default function Admin() {
   const [shopMsg, setShopMsg] = useState('');
   const [shopFormOpen, setShopFormOpen] = useState(false);
   const [priceEdit, setPriceEdit] = useState<Record<string, string>>({}); // Item-ID → eingegebener Preis
+  const [descEdit, setDescEdit] = useState<Record<string, string>>({});   // Item-ID → eingegebene Beschreibung
   const [shopForm, setShopForm] = useState({
     id: '', label: '', description: '', slot: 'head' as ShopSlot, icon: '👑',
     price: 100, available: true, phase: '', sortOrder: 100,
@@ -1905,53 +1906,73 @@ export default function Admin() {
             {shopItems.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 {[...shopItems].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)).map(it => (
-                  <div key={it.id} className="bg-input border border-border rounded-xl p-2.5 flex items-center gap-2">
-                    <span className="text-[20px] shrink-0">{it.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] font-black text-white truncate">{it.label}</div>
-                      <div className="text-[10px] text-muted">
-                        {SHOP_SLOT_LABELS[it.slot]}
-                        {it.stock != null ? ` · ★ ${Math.max(0, it.stock - (it.sold ?? 0))}/${it.stock}` : ''}
-                        {it.unlockLabel ? ` · 🔒 ${it.unlockLabel}` : ''}
+                  <div key={it.id} className="bg-input border border-border rounded-xl p-2.5 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[20px] shrink-0">{it.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] font-black text-white truncate">{it.label}</div>
+                        <div className="text-[10px] text-muted">
+                          {SHOP_SLOT_LABELS[it.slot]}
+                          {it.stock != null ? ` · ★ ${Math.max(0, it.stock - (it.sold ?? 0))}/${it.stock}` : ''}
+                          {it.unlockLabel ? ` · 🔒 ${it.unlockLabel}` : ''}
+                        </div>
                       </div>
-                    </div>
-                    {/* Preis bearbeiten */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[11px]">🪙</span>
-                      <input
-                        type="number"
-                        value={priceEdit[it.id] ?? String(it.price)}
-                        onChange={e => setPriceEdit(p => ({ ...p, [it.id]: e.target.value }))}
-                        onBlur={async () => {
-                          const raw = priceEdit[it.id];
-                          if (raw === undefined) return;
-                          const n = parseInt(raw);
-                          if (Number.isFinite(n) && n >= 0 && n !== it.price) {
-                            await updateShopItem(it.id, { price: n });
-                            setShopMsg(`✓ Preis „${it.label}": ${n} TKN.`);
-                            setTimeout(() => setShopMsg(''), 3000);
-                          }
-                          setPriceEdit(p => { const c = { ...p }; delete c[it.id]; return c; });
+                      {/* Preis bearbeiten */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[11px]">🪙</span>
+                        <input
+                          type="number"
+                          value={priceEdit[it.id] ?? String(it.price)}
+                          onChange={e => setPriceEdit(p => ({ ...p, [it.id]: e.target.value }))}
+                          onBlur={async () => {
+                            const raw = priceEdit[it.id];
+                            if (raw === undefined) return;
+                            const n = parseInt(raw);
+                            if (Number.isFinite(n) && n >= 0 && n !== it.price) {
+                              await updateShopItem(it.id, { price: n });
+                              setShopMsg(`✓ Preis „${it.label}": ${n} TKN.`);
+                              setTimeout(() => setShopMsg(''), 3000);
+                            }
+                            setPriceEdit(p => { const c = { ...p }; delete c[it.id]; return c; });
+                          }}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          className="w-16 bg-white/5 border border-border rounded-lg px-2 py-1 text-[12px] text-white text-right outline-none focus:border-yellow/60" />
+                      </div>
+                      <button
+                        onClick={() => updateShopItem(it.id, { available: !it.available })}
+                        className={clsx('text-[10px] font-black rounded-lg px-2 py-1 border',
+                          it.available ? 'border-green/40 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-muted')}>
+                        {it.available ? 'Live' : 'Aus'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Item „${it.label}" wirklich löschen?`)) return;
+                          await deleteShopItem(it.id);
+                          setShopMsg(`✗ „${it.label}" gelöscht.`);
+                          setTimeout(() => setShopMsg(''), 4000);
                         }}
-                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                        className="w-16 bg-white/5 border border-border rounded-lg px-2 py-1 text-[12px] text-white text-right outline-none focus:border-yellow/60" />
+                        className="text-[10px] font-black rounded-lg px-2 py-1 border border-red/40 bg-red/10 text-red hover:bg-red/20">
+                        ✕
+                      </button>
                     </div>
-                    <button
-                      onClick={() => updateShopItem(it.id, { available: !it.available })}
-                      className={clsx('text-[10px] font-black rounded-lg px-2 py-1 border',
-                        it.available ? 'border-green/40 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-muted')}>
-                      {it.available ? 'Live' : 'Aus'}
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm(`Item „${it.label}" wirklich löschen?`)) return;
-                        await deleteShopItem(it.id);
-                        setShopMsg(`✗ „${it.label}" gelöscht.`);
-                        setTimeout(() => setShopMsg(''), 4000);
+                    {/* Beschreibung bearbeiten */}
+                    <input
+                      value={descEdit[it.id] ?? it.description ?? ''}
+                      placeholder="Beschreibung…"
+                      onChange={e => setDescEdit(p => ({ ...p, [it.id]: e.target.value }))}
+                      onBlur={async () => {
+                        const raw = descEdit[it.id];
+                        if (raw === undefined) return;
+                        const v = raw.trim();
+                        if (v !== (it.description ?? '')) {
+                          await updateShopItem(it.id, { description: v });
+                          setShopMsg(`✓ Beschreibung „${it.label}" gespeichert.`);
+                          setTimeout(() => setShopMsg(''), 3000);
+                        }
+                        setDescEdit(p => { const c = { ...p }; delete c[it.id]; return c; });
                       }}
-                      className="text-[10px] font-black rounded-lg px-2 py-1 border border-red/40 bg-red/10 text-red hover:bg-red/20">
-                      ✕
-                    </button>
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      className="w-full bg-white/5 border border-border rounded-lg px-2.5 py-1.5 text-[11px] text-muted outline-none focus:border-yellow/60" />
                   </div>
                 ))}
               </div>
