@@ -1076,7 +1076,7 @@ export const useStore = create<AppState>()((set, get) => {
         await deleteAll('answers');
         await deleteAll('feed');
         await deleteAll('players', (d) => d.isTestPlayer === true);
-        await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true, adminMessage: '' }, { merge: true });
+        await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true, adminMessage: '', currentMatchday: '' }, { merge: true });
       } catch (err) {
         console.error('[Store] fullReset Fehler:', err);
       }

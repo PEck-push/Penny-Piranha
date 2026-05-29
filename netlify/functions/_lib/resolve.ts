@@ -19,6 +19,14 @@ const UNDERDOG_THRESHOLD = 0.15;
 const UNDERDOG_BONUS = 0.1;
 const round = (n: number) => Math.round(n);
 
+// Spieltag-Schlüssel = Anpfiff-Datum in Europe/Vienna (YYYY-MM-DD). Dient nur als
+// stabile Kennung eines Spieltags; spielfreie Tage erzeugen nie einen neuen Key.
+function viennaDateKey(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ms));
+}
+
 interface BetDoc {
   id: string;
   marketId: string;
@@ -62,6 +70,33 @@ export async function resolveMarketAdmin(
   if (!market) return { ok: true, skipped: true };
 
   try {
+    // ── Spieltag-Wechsel: Tagesbilanz (dailyNetGain) nur an Tagen mit echten
+    // Spielen zurücksetzen — NICHT an spielfreien Tagen. Schlüssel = Anpfiff-
+    // Datum (Europe/Vienna) des aufgelösten WM-Spiels. Beim ersten Spiel eines
+    // neuen Spieltags wird per CAS-Transaction die Bilanz aller Spieler genullt,
+    // bevor die Ergebnisse dieses Spieltags verbucht werden. So bleibt zwischen
+    // den Spieltagen der letzte Spieltagssieger gekrönt.
+    if (market.marketSubtype === 'wm-match' && typeof market.kickoffAt === 'number') {
+      const matchdayKey = viennaDateKey(market.kickoffAt);
+      const isNewMatchday = await db.runTransaction(async tx => {
+        const s = await tx.get(appRef);
+        const cur = (s.data() as any)?.currentMatchday ?? '';
+        if (cur === matchdayKey) return false;
+        tx.set(appRef, { currentMatchday: matchdayKey }, { merge: true });
+        return true;
+      });
+      if (isNewMatchday) {
+        const playersSnap = await db.collection('players').get();
+        let rb = db.batch();
+        let rn = 0;
+        for (const d of playersSnap.docs) {
+          rb.update(d.ref, { dailyNetGain: 0 });
+          if (++rn >= 400) { await rb.commit(); rb = db.batch(); rn = 0; }
+        }
+        if (rn > 0) await rb.commit();
+      }
+    }
+
     const appSnap = await appRef.get();
 
     const betsSnap = await db.collection('bets').where('marketId', '==', marketId).get();

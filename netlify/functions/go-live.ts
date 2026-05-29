@@ -101,6 +101,7 @@ export default async (req: Request, _context: Context) => {
         jackpot: 0,
         hausbank: 0,
         tournamentActive: true,
+        currentMatchday: '',
         lastUpdated: FieldValue.serverTimestamp(),
       },
       { merge: true },
