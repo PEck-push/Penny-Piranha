@@ -1663,10 +1663,15 @@ export default function Admin() {
                     {p.email && <div className="text-[10px] text-muted truncate">{p.email}</div>}
                   </div>
                   <button onClick={() => handleKickPlayer(p.id, p.name)} disabled={kickBusyId === p.id}
-                    className="shrink-0 px-3 py-2 rounded-xl bg-red/10 border border-red/35 text-red font-black text-[12px] hover:bg-red/20 transition-colors cursor-pointer font-sans disabled:opacity-40">
-                    {kickBusyId === p.id ? '…' : '✕ Rauswerfen'}
+                    title="Spieler rauswerfen"
+                    className="shrink-0 w-9 h-9 rounded-xl bg-red/10 border border-red/35 text-red font-black text-[14px] hover:bg-red/20 transition-colors cursor-pointer font-sans disabled:opacity-40 flex items-center justify-center">
+                    {kickBusyId === p.id ? '…' : '✕'}
                   </button>
-                  <button onClick={() => setPlayerApproved(p.id, true)}
+                  <button onClick={() => {
+                      if (window.confirm(`„${p.name}" wirklich freigeben?\n\nDanach kann der Spieler sofort wetten und zählt für die Auswertung mit.`)) {
+                        setPlayerApproved(p.id, true);
+                      }
+                    }}
                     className="shrink-0 px-3 py-2 rounded-xl bg-green/15 border border-green/40 text-green font-black text-[12px] hover:bg-green/25 transition-colors cursor-pointer font-sans">
                     ✓ Freigeben
                   </button>
