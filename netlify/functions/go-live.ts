@@ -33,6 +33,8 @@ export default async (req: Request, _context: Context) => {
       const email = (data.email as string | undefined)?.toLowerCase();
       const isAdmin = !!email && admins.includes(email);
 
+      const slug = data.name ? String(data.name).trim().toLowerCase().replace(/[/.#$[\]]/g, '_') : '';
+
       if (isAdmin) {
         // Admin-Spieler auf Startzustand zurücksetzen
         await docSnap.ref.update({
@@ -52,9 +54,16 @@ export default async (req: Request, _context: Context) => {
           badges: [],
           comboMalus: false,
         });
+        // Namens-Reservierung des Admins sicherstellen (Eindeutigkeit lebt jetzt
+        // in der usernames-Collection), damit der Name nicht neu vergeben wird.
+        if (slug) {
+          await db.collection('usernames').doc(slug).set(
+            { uid: docSnap.id, name: data.name, createdAt: Date.now() }, { merge: true });
+        }
       } else {
-        // Nicht-Admin: Firestore-Dokument + Auth-Account löschen
+        // Nicht-Admin: Firestore-Dokument + Namens-Reservierung + Auth-Account löschen
         await docSnap.ref.delete();
+        if (slug) { await db.collection('usernames').doc(slug).delete().catch(() => {}); }
         deletedPlayers++;
         const uid = docSnap.id;
         try {

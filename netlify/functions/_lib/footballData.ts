@@ -12,7 +12,13 @@ export interface FdoMatch {
   matchday: number | null;
   homeTeam: { id: number | null; name: string | null };
   awayTeam: { id: number | null; name: string | null };
-  score: { fullTime: { home: number | null; away: number | null } };
+  score: {
+    // Tatsächlicher Sieger inkl. Verlängerung/Elfmeter (K.-o.-Phase).
+    winner?: 'HOME_TEAM' | 'AWAY_TEAM' | 'DRAW' | null;
+    duration?: string; // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+    fullTime: { home: number | null; away: number | null };
+    penalties?: { home: number | null; away: number | null };
+  };
 }
 
 interface FdoResponse {

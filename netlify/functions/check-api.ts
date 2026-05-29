@@ -1,11 +1,15 @@
 import type { Context } from '@netlify/functions';
 import https from 'node:https';
+import { verifyAdmin } from './_lib/adminAuth';
 
-// Diagnostic endpoint. Open in browser after deploy:
-//   https://<your-site>.netlify.app/.netlify/functions/check-api
-// Confirms the football-data.org token works and lists which competitions
-// (and thus whether the World Cup "WC" + 2026 season) are available to it.
-export default async (_req: Request, _context: Context) => {
+// Diagnostic endpoint (ADMIN-ONLY). Feuert mehrere football-data.org-Calls und
+// war zuvor offen → Quota-DoS-Vektor. Jetzt nur mit Admin-ID-Token aufrufbar:
+//   Authorization: Bearer <Firebase ID Token>
+// Bestätigt, dass der API-Token funktioniert und welche Bewerbe verfügbar sind.
+export default async (req: Request, _context: Context) => {
+  const authResult = await verifyAdmin(req);
+  if (!authResult.ok) return json({ ok: false, error: authResult.error }, authResult.status ?? 401);
+
   const apiKey = process.env.FOOTBALL_DATA_API_KEY;
   if (!apiKey) {
     return json({ ok: false, error: 'FOOTBALL_DATA_API_KEY ist nicht gesetzt (Netlify Environment variables).' }, 500);

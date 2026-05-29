@@ -839,6 +839,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-[14px] font-black text-white truncate">{p.name}</span>
                   {p.id === me.id && <span className="text-[10px] text-green font-black shrink-0">(Du)</span>}
+                  {p.approved === false && <span className="text-[8px] font-black text-yellow bg-yellow/10 border border-yellow/25 rounded px-1 py-0.5 shrink-0">⏳ offen</span>}
                   {accIcons(p)}
                 </div>
                 {(p.streakLevel === 'damn_hot' || p.streakLevel === 'on_fire') && (

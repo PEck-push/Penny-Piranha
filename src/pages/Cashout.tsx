@@ -26,10 +26,21 @@ function useCountUp(target: number, duration: number = 2000, startDelay: number 
 
 export default function Cashout() {
   const players = useStore(state => state.players);
+  const storedRate = useStore(state => state.exchangeRate);
+  const setExchangeRate = useStore(state => state.setExchangeRate);
   const navigate = useNavigate();
-  const [exchangeRate, setExchangeRate] = useState(1); // 100 Token = 1 Euro
+
+  // Lokaler Slider-Wert für flüssiges Ziehen; persistiert (geteilt für alle
+  // Admins) erst beim Loslassen — kein Firestore-Write pro Drag-Schritt.
+  const [rate, setRate] = useState(storedRate);
+  useEffect(() => { setRate(storedRate); }, [storedRate]);
+  const exchangeRate = rate;
 
   const sortedPlayers = [...players].sort((a, b) => b.tokens - a.tokens);
+  // Nur echte Spieler (keine Test-Spieler) für die Auszahlungs-Gesamtsumme.
+  const realPlayers = sortedPlayers.filter(p => !p.isTestPlayer);
+  const totalTokens = realPlayers.reduce((s, p) => s + Math.max(0, p.tokens), 0);
+  const totalEuro = (totalTokens / 100) * exchangeRate;
 
   return (
     <div className="flex-1 flex flex-col bg-[#02040C] relative h-full overflow-hidden">
@@ -45,15 +56,25 @@ export default function Cashout() {
             <span className="text-[12px] font-bold text-muted uppercase tracking-wider">Wechselkurs</span>
             <span className="font-mono text-[14px] font-bold text-yellow">100 TKN = {exchangeRate.toFixed(2)} €</span>
           </div>
-          <input 
-            type="range" 
-            min="0.1" 
-            max="5" 
+          <input
+            type="range"
+            min="0.1"
+            max="5"
             step="0.1"
-            value={exchangeRate} 
-            onChange={(e) => setExchangeRate(parseFloat(e.target.value))}
+            value={rate}
+            onChange={(e) => setRate(parseFloat(e.target.value))}
+            onPointerUp={() => setExchangeRate(rate)}
+            onTouchEnd={() => setExchangeRate(rate)}
+            onMouseUp={() => setExchangeRate(rate)}
             className="w-full h-1.5 bg-input rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-yellow [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
           />
+          <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/10">
+            <span className="text-[12px] font-bold text-muted uppercase tracking-wider">Auszahlung gesamt</span>
+            <span className="font-mono text-[15px] font-black text-green">{totalEuro.toFixed(2)} €</span>
+          </div>
+          <div className="text-[10px] text-muted/70 mt-1 text-right">
+            {totalTokens.toLocaleString('de-AT')} TKN über {realPlayers.length} Spieler — mit dem realen Topf abgleichen
+          </div>
         </div>
 
         <div className="w-full max-w-md flex flex-col gap-3">

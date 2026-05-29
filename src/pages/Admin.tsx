@@ -270,7 +270,10 @@ export default function Admin() {
     setApiCheckStatus('loading');
     setApiCheckResult(null);
     try {
-      const res = await fetch('/.netlify/functions/check-api');
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch('/.netlify/functions/check-api', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await res.json();
       setApiCheckResult(data);
       setApiCheckStatus(data.ok ? 'ok' : 'error');
@@ -671,6 +674,29 @@ export default function Admin() {
         ? await callResolve({ action: 'rollover', marketId })
         : await callResolve({ action: 'storno', marketId });
     if (ok) setPendingResolution(null);
+  };
+
+  // Spieler endgültig entfernen (z. B. wenn nicht gezahlt wurde). Löscht Profil,
+  // Wetten, Namens-Reservierung und Auth-Account über den geschützten Endpunkt.
+  const [kickBusyId, setKickBusyId] = useState<string | null>(null);
+  const handleKickPlayer = async (playerId: string, name: string) => {
+    if (!window.confirm(`„${name}" wirklich endgültig entfernen?\n\nProfil, Wetten und Zugang werden gelöscht. Das kann nicht rückgängig gemacht werden.`)) return;
+    setKickBusyId(playerId);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt.');
+      const res = await fetch('/.netlify/functions/kick-player', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+    } catch (err: any) {
+      alert(`Entfernen fehlgeschlagen: ${err.message || err}`);
+    } finally {
+      setKickBusyId(null);
+    }
   };
 
   // ── PIN Screen ─────────────────────────────────────────────────────────────
@@ -1603,6 +1629,10 @@ export default function Admin() {
                     </div>
                     {p.email && <div className="text-[10px] text-muted truncate">{p.email}</div>}
                   </div>
+                  <button onClick={() => handleKickPlayer(p.id, p.name)} disabled={kickBusyId === p.id}
+                    className="shrink-0 px-3 py-2 rounded-xl bg-red/10 border border-red/35 text-red font-black text-[12px] hover:bg-red/20 transition-colors cursor-pointer font-sans disabled:opacity-40">
+                    {kickBusyId === p.id ? '…' : '✕ Rauswerfen'}
+                  </button>
                   <button onClick={() => setPlayerApproved(p.id, true)}
                     className="shrink-0 px-3 py-2 rounded-xl bg-green/15 border border-green/40 text-green font-black text-[12px] hover:bg-green/25 transition-colors cursor-pointer font-sans">
                     ✓ Freigeben
@@ -1781,15 +1811,22 @@ export default function Admin() {
                     {fixedAdmin ? (
                       <span className="shrink-0 text-[10px] text-muted px-2">fix (E-Mail)</span>
                     ) : (
-                      <button
-                        onClick={() => setPlayerAdmin(p.id, !p.isAdmin)}
-                        className={clsx('shrink-0 px-3 py-2 rounded-xl font-black text-[12px] border transition-colors cursor-pointer font-sans',
-                          p.isAdmin
-                            ? 'bg-red/15 border-red/40 text-red hover:bg-red/25'
-                            : 'bg-green/15 border-green/40 text-green hover:bg-green/25')}
-                      >
-                        {p.isAdmin ? '✕ Entziehen' : '✓ Zum Admin'}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setPlayerAdmin(p.id, !p.isAdmin)}
+                          className={clsx('shrink-0 px-3 py-2 rounded-xl font-black text-[12px] border transition-colors cursor-pointer font-sans',
+                            p.isAdmin
+                              ? 'bg-red/15 border-red/40 text-red hover:bg-red/25'
+                              : 'bg-green/15 border-green/40 text-green hover:bg-green/25')}
+                        >
+                          {p.isAdmin ? '✕ Entziehen' : '✓ Zum Admin'}
+                        </button>
+                        <button onClick={() => handleKickPlayer(p.id, p.name)} disabled={kickBusyId === p.id}
+                          title="Spieler entfernen"
+                          className="shrink-0 px-3 py-2 rounded-xl font-black text-[12px] border border-red/35 bg-red/10 text-red hover:bg-red/20 transition-colors cursor-pointer font-sans disabled:opacity-40">
+                          {kickBusyId === p.id ? '…' : '🗑'}
+                        </button>
+                      </>
                     )}
                   </div>
                 );

@@ -2,13 +2,16 @@ import type { Config } from '@netlify/functions';
 import { getDb } from './_lib/firebaseAdmin';
 import { fetchMatches } from './_lib/footballData';
 import { resolveMarketAdmin } from './_lib/resolve';
+import { verifyCron } from './_lib/cronAuth';
 
 // Läuft alle 15 Min. Löst gesperrte WM-/Test-Märkte auf, sobald die API das
 // Spiel als FINISHED meldet. WICHTIG (Read-/API-Sparen): Wenn KEIN Markt auf ein
 // Ergebnis wartet (kein gesperrter wm-match-Markt), bricht die Funktion sofort ab
 // — kein API-Call, keine weiteren Lesevorgänge. Sie arbeitet also nur im Fenster
 // zwischen Anpfiff (Markt wird gesperrt) und Auflösung.
-export default async () => {
+export default async (req: Request) => {
+  if (!(await verifyCron(req))) return new Response('forbidden', { status: 403 });
+
   const db = getDb();
 
   // 1) Gesperrte Märkte zuerst (eine günstige Query). Nichts gesperrt → Schluss.
@@ -57,14 +60,22 @@ export default async () => {
       { status: 'finished', scoreA: home, scoreB: away }, { merge: true });
 
     const options: Array<{ id: string }> = entry.data.options ?? [];
-    let winningOptionId: string;
-    if (home > away) winningOptionId = 'home';
-    else if (away > home) winningOptionId = 'away';
-    else winningOptionId = 'draw';
 
+    // WICHTIG (K.-o.-Phase): `score.fullTime` ist bei Spielen mit Verlängerung/
+    // Elfmeterschießen der Stand nach regulärer/verlängerter Zeit (oft remis).
+    // Der tatsächliche Sieger steht in `score.winner` — den bevorzugen wir, damit
+    // ein im Elfer entschiedenes Spiel NICHT fälschlich als „draw" aufgelöst wird.
+    let key: 'home' | 'away' | 'draw';
+    const fdWinner = m.score?.winner;
+    if (fdWinner === 'HOME_TEAM') key = 'home';
+    else if (fdWinner === 'AWAY_TEAM') key = 'away';
+    else if (fdWinner === 'DRAW') key = 'draw';
+    else key = home > away ? 'home' : away > home ? 'away' : 'draw';
+
+    let winningOptionId: string = key;
     // Fallback to positional option ids if custom labels were used
     if (!options.find(o => o.id === winningOptionId)) {
-      const idx = home > away ? 0 : away > home ? 2 : 1;
+      const idx = key === 'home' ? 0 : key === 'away' ? 2 : 1;
       winningOptionId = options[idx]?.id ?? winningOptionId;
     }
 

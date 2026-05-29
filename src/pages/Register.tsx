@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { clsx } from 'clsx';
 import { auth, db } from '../firebase';
 import { useStore } from '../store';
@@ -54,6 +54,11 @@ const AVATARS = [
 const TOTAL_STEPS = CHARACTER_MODE === 'builder' ? 5 : 4;
 const CONFIRM_STEP = TOTAL_STEPS;
 
+// Slug für die eindeutige Namens-Reservierung (Firestore-Doc-ID).
+// Muss identisch zur Logik in der Kick-Function (kick-player.ts) sein.
+export const nameSlug = (name: string) =>
+  name.trim().toLowerCase().replace(/[/.#$[\]]/g, '_');
+
 // ─── Step indicator ────────────────────────────────────────────────────────────
 function StepDots({ current, total }: { current: number; total: number }) {
   return (
@@ -82,6 +87,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 export default function Register() {
   const navigate = useNavigate();
   const registerPlayer = useStore(s => s.registerPlayer);
+  const setCurrentUser = useStore(s => s.setCurrentUser);
   const whatsappGroupLink = useStore(s => s.whatsappGroupLink);
 
   const [step, setStep] = useState(1);
@@ -178,19 +184,39 @@ export default function Register() {
         }
       }
 
-      // Name muss eindeutig sein (case-insensitive). Erst jetzt prüfbar, da wir
-      // nach der Account-Erstellung eingeloggt sind und players lesen dürfen.
-      const wanted = displayName.trim().toLowerCase();
-      const playersSnap = await getDocs(collection(db, 'players'));
-      const nameTaken = playersSnap.docs.some(
-        d => d.id !== uid && ((d.data() as any).name ?? '').trim().toLowerCase() === wanted,
-      );
-      if (nameTaken) {
-        await signOut(auth).catch(() => {});
-        setError('Dieser Name ist bereits vergeben. Bitte wähle einen anderen.');
-        setStep(2);
-        setLoading(false);
+      // Rückkehrer-Schutz: existiert bereits ein Spieler-Dokument für diese uid
+      // (z. B. erneute Registrierung mit bestehender E-Mail), NICHT überschreiben
+      // — sonst gingen Guthaben/Streak/Freigabe verloren. Einfach einloggen.
+      const existing = await getDoc(doc(db, 'players', uid));
+      if (existing.exists()) {
+        setCurrentUser(uid);
+        navigate('/dashboard');
         return;
+      }
+
+      // Name muss eindeutig sein (case-insensitive) — transaktional über eine
+      // Reservierung in `usernames/{slug}`. Das verhindert die Race-Condition
+      // bei gleichzeitigen Anmeldungen (zwei Clients können denselben Namen
+      // nicht beide gewinnen, da die Transaction auf demselben Doc serialisiert).
+      const slug = nameSlug(displayName);
+      try {
+        await runTransaction(db, async tx => {
+          const uref = doc(db, 'usernames', slug);
+          const usnap = await tx.get(uref);
+          if (usnap.exists() && (usnap.data() as any).uid !== uid) {
+            throw new Error('NAME_TAKEN');
+          }
+          tx.set(uref, { uid, name: displayName.trim(), createdAt: Date.now() });
+        });
+      } catch (txErr: any) {
+        if (txErr?.message === 'NAME_TAKEN') {
+          await signOut(auth).catch(() => {});
+          setError('Dieser Name ist bereits vergeben. Bitte wähle einen anderen.');
+          setStep(2);
+          setLoading(false);
+          return;
+        }
+        throw txErr;
       }
 
       // Charakter-Felder je nach Modus: Fallback speichert das vorhandene

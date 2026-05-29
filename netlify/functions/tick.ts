@@ -1,7 +1,8 @@
 import type { Config } from '@netlify/functions';
 import { getDb, FieldValue } from './_lib/firebaseAdmin';
+import { verifyCron } from './_lib/cronAuth';
 
-// Runs every minute. Two jobs:
+// Runs every 15 minutes (see config.schedule below). Two jobs:
 //   1. OPEN: create a betting market for any scheduled match whose kickoff is
 //      within the next 48h and that has no market yet.
 //   2. LOCK: lock any open market whose kickoff has passed, snapshot the pool,
@@ -19,7 +20,9 @@ const PHASE_LIMITS: Record<string, { minBet: number; maxBet: number; autoDeduct:
   finale:            { minBet: 150, maxBet: 0,   autoDeduct: 150 },
 };
 
-export default async () => {
+export default async (req: Request) => {
+  if (!(await verifyCron(req))) return new Response('forbidden', { status: 403 });
+
   const db = getDb();
   const now = Date.now();
 
@@ -116,6 +119,24 @@ export default async () => {
     const lockedPoolSnapshot: Record<string, number> = {};
     (market.options ?? []).forEach((o: any) => { lockedPoolSnapshot[o.id] = o.pool ?? 0; });
 
+    // Atomar als gesperrt beanspruchen: verhindert, dass zwei überlappende
+    // Tick-Läufe denselben Markt doppelt sperren / doppelt Tokens abziehen.
+    // Status + Snapshot werden in der Transaction gesetzt; die eigentlichen
+    // Abzüge laufen danach idempotent (nur einmal beansprucht).
+    const claimed = await db.runTransaction(async tx => {
+      const s = await tx.get(marketDoc.ref);
+      const m = s.data() as any;
+      if (!m || m.autoDeductProcessed || m.status !== 'open') return false;
+      tx.update(marketDoc.ref, {
+        status: 'locked',
+        lockedPoolSnapshot,
+        autoDeductProcessed: true,
+        lockedAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (!claimed) continue;
+
     const betsSnap = await db.collection('bets').where('marketId', '==', marketDoc.id).get();
     const bettorIds = new Set(betsSnap.docs.map(d => (d.data() as any).playerId as string));
 
@@ -142,12 +163,6 @@ export default async () => {
       });
     }
 
-    batch.update(marketDoc.ref, {
-      status: 'locked',
-      lockedPoolSnapshot,
-      autoDeductProcessed: true,
-      lockedAt: FieldValue.serverTimestamp(),
-    });
     if (jackpotGain > 0) {
       batch.update(db.collection('appState').doc('global'), { jackpot: FieldValue.increment(jackpotGain) });
     }
