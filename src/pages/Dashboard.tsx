@@ -786,7 +786,6 @@ export default function Dashboard() {
         <div className="relative z-20 h-[250px] shrink-0 flex flex-col items-center justify-end overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_70%,rgba(255,212,71,.22)_0%,transparent_65%)]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[260px] h-[70px] rounded-full bg-yellow/35 blur-[32px]" />
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[28px] z-40 animate-[crownBob_2s_ease-in-out_infinite]">👑</div>
           <div onClick={() => top && setProfilePlayer(top)} className={clsx("absolute top-10 left-1/2 -translate-x-1/2 z-10 animate-[charFloat_6s_ease-in-out_infinite] cursor-pointer", dim(top))}>
             {top ? <CharacterAvatar player={top} size="lg" className="w-[180px] h-[180px]" /> : <div className="w-[180px] h-[180px] rounded-full bg-white/5" />}
           </div>
