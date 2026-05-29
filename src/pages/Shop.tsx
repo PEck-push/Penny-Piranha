@@ -20,6 +20,10 @@ export default function Shop() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  // Lokale Anprobier-Vorschau (NICHT gespeichert): Klick aufs Item-Bild zeigt es
+  // sofort am Avatar, egal ob gekauft. Überschreibt je Slot die getragenen Items
+  // nur visuell in der Live-Vorschau.
+  const [preview, setPreview] = useState<Partial<Record<ShopSlot, string | null>>>({});
 
   useEffect(() => { markShopVisited(); }, [markShopVisited]);
 
@@ -34,23 +38,55 @@ export default function Shop() {
 
   if (!me) return null;
 
+  // Effektiv angezeigtes Item je Slot: Anprobier-Override hat Vorrang, sonst das
+  // tatsächlich getragene.
+  const effectiveSlot = (slot: ShopSlot): string | null =>
+    preview[slot] !== undefined ? preview[slot]! : ((me.activeShopItems ?? {})[slot] ?? null);
+
+  // Spieler-Objekt für die Live-Vorschau mit anprobierten Items überlagert.
+  const previewPlayer = {
+    ...me,
+    activeShopItems: SHOP_SLOTS.reduce((acc, { slot }) => {
+      acc[slot] = effectiveSlot(slot);
+      return acc;
+    }, {} as Record<ShopSlot, string | null>),
+  };
+
+  // Klick aufs Item-Bild → anprobieren (oder, wenn schon gezeigt, wieder ablegen).
+  const tryOn = (item: typeof items[number]) => {
+    setPreview(p => {
+      const cur = p[item.slot] !== undefined ? p[item.slot]! : ((me.activeShopItems ?? {})[item.slot] ?? null);
+      return { ...p, [item.slot]: cur === item.id ? null : item.id };
+    });
+  };
+
   const handleBuy = async (id: string) => {
     setBusyId(id);
     setMsg(null);
     const res = await purchase(id);
     setBusyId(null);
     setConfirmId(null);
-    setMsg(res.ok
-      ? { text: 'Gekauft! Du kannst es jetzt im Profil oder direkt unten tragen.', ok: true }
-      : { text: res.error ?? 'Kauf fehlgeschlagen.', ok: false });
+    if (res.ok) {
+      // Frisch gekauftes Item direkt tragen (war ja angesehen) + Preview lösen.
+      const bought = items.find(i => i.id === id);
+      if (bought) {
+        await setActiveShop(bought.slot, id);
+        setPreview(p => { const n = { ...p }; delete n[bought.slot]; return n; });
+      }
+      setMsg({ text: 'Gekauft & angezogen! 🎉', ok: true });
+    } else {
+      setMsg({ text: res.error ?? 'Kauf fehlgeschlagen.', ok: false });
+    }
     setTimeout(() => setMsg(null), 5000);
   };
 
-  // Item an-/ausziehen — zeigt einen Hinweis, wenn dabei ein anderes Item aus
-  // demselben Slot abgelegt wird (es bleibt im Inventar, ist nur nicht mehr aktiv).
+  // Item an-/ausziehen (gespeichert) — zeigt einen Hinweis, wenn dabei ein anderes
+  // Item aus demselben Slot abgelegt wird (es bleibt im Inventar, nur nicht aktiv).
   const handleEquip = async (slot: ShopSlot, itemId: string | null) => {
     const prevId = (me.activeShopItems ?? {})[slot] ?? null;
     await setActiveShop(slot, itemId);
+    // Anprobier-Override für diesen Slot auflösen, damit der echte Stand zählt.
+    setPreview(p => { const n = { ...p }; delete n[slot]; return n; });
     if (itemId && prevId && prevId !== itemId) {
       const prev = items.find(i => i.id === prevId);
       const next = items.find(i => i.id === itemId);
@@ -63,11 +99,17 @@ export default function Shop() {
 
   const confirmItem = confirmId ? items.find(i => i.id === confirmId) : null;
 
-  // Aktuell aktive Shop-Items je Slot (für die „Getragen"-Liste in der Vorschau).
-  const activeShop = me.activeShopItems ?? {};
+  // Aktuell in der Vorschau gezeigte Items je Slot (inkl. Anprobiertes), mit Info,
+  // ob es nur anprobiert (nicht getragen) ist.
   const wornItems = SHOP_SLOTS
-    .map(({ slot }) => items.find(i => i.id === activeShop[slot]))
-    .filter((i): i is NonNullable<typeof i> => !!i);
+    .map(({ slot }) => {
+      const id = effectiveSlot(slot);
+      const item = id ? items.find(i => i.id === id) : undefined;
+      if (!item) return null;
+      const isWorn = ((me.activeShopItems ?? {})[slot] ?? null) === id;
+      return { item, isWorn };
+    })
+    .filter((x): x is { item: NonNullable<typeof items[number]>; isWorn: boolean } => !!x);
 
   return (
     <div className="flex-1 flex flex-col bg-bg relative overflow-hidden">
@@ -96,16 +138,20 @@ export default function Shop() {
           Live-Vorschau
         </div>
         <div className="relative h-[32vh] min-h-[210px] aspect-square" style={{ animation: 'auraGlow 4s ease-in-out infinite' }}>
-          <CharacterAvatar player={me} size="lg" className="w-full h-full" />
+          <CharacterAvatar player={previewPlayer} size="lg" className="w-full h-full" />
         </div>
-        {/* Getragene Shop-Items als Chips */}
+        {/* Gezeigte Shop-Items als Chips (grün = getragen, gelb = nur anprobiert) */}
         <div className="relative flex flex-wrap justify-center gap-1.5 mt-2 px-2 min-h-[22px]">
           {wornItems.length === 0 ? (
-            <span className="text-[10px] text-muted/60 italic">Noch nichts aus dem Shop angelegt</span>
-          ) : wornItems.map(it => (
-            <button key={it.id} onClick={() => handleEquip(it.slot, null)}
-              className="text-[10px] font-bold text-green bg-green/10 border border-green/30 rounded-full px-2 py-0.5 hover:bg-green/20 transition-colors">
-              {it.icon} {it.label} ✕
+            <span className="text-[10px] text-muted/60 italic">Tipp auf ein Item-Bild zum Anprobieren</span>
+          ) : wornItems.map(({ item, isWorn }) => (
+            <button key={item.id}
+              onClick={() => isWorn ? handleEquip(item.slot, null) : tryOn(item)}
+              className={clsx('text-[10px] font-bold border rounded-full px-2 py-0.5 transition-colors',
+                isWorn
+                  ? 'text-green bg-green/10 border-green/30 hover:bg-green/20'
+                  : 'text-yellow bg-yellow/10 border-yellow/30 hover:bg-yellow/20')}>
+              {item.icon} {item.label} {isWorn ? '✕' : '· Probe ✕'}
             </button>
           ))}
         </div>
@@ -129,7 +175,7 @@ export default function Shop() {
       {/* Slot-Hinweis */}
       <div className="relative z-10 px-4 pb-2 shrink-0">
         <div className="text-[10px] text-muted/80 leading-snug">
-          💡 Pro Slot trägst du <b className="text-white">1 Item</b> — das vorherige bleibt im Inventar.
+          💡 <b className="text-white">Tipp aufs Bild = anprobieren.</b> Pro Slot trägst du 1 Item — das vorherige bleibt im Inventar.
         </div>
       </div>
 
@@ -154,13 +200,16 @@ export default function Shop() {
             {visible.map(item => {
               const owned = inventory.has(item.id);
               const equipped = (me.activeShopItems ?? {})[item.slot] === item.id;
+              const tryingOn = effectiveSlot(item.slot) === item.id;
               const canAfford = me.tokens >= item.price;
               return (
                 <div key={item.id}
-                  className={clsx('bg-card border rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden',
-                    owned ? 'border-green/30' : 'border-border')}>
-                  {/* Vorschau */}
-                  <div className="relative aspect-square w-full bg-white/3 rounded-xl border border-white/5 flex items-center justify-center overflow-hidden">
+                  className={clsx('bg-card border rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden transition-colors',
+                    tryingOn ? 'border-yellow/50' : owned ? 'border-green/30' : 'border-border')}>
+                  {/* Vorschau — Klick = anprobieren */}
+                  <button onClick={() => tryOn(item)}
+                    className={clsx('relative aspect-square w-full rounded-xl border flex items-center justify-center overflow-hidden cursor-pointer transition-colors',
+                      tryingOn ? 'bg-yellow/10 border-yellow/40' : 'bg-white/3 border-white/5 hover:border-white/20')}>
                     <img src={shopItemImagePath(item)} alt=""
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       className="absolute inset-0 w-full h-full object-contain" />
@@ -173,7 +222,12 @@ export default function Shop() {
                         ✓ Owned
                       </span>
                     )}
-                  </div>
+                    {tryingOn && (
+                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] font-black tracking-wider uppercase text-yellow bg-yellow/20 border border-yellow/40 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                        👀 Anprobiert
+                      </span>
+                    )}
+                  </button>
                   {/* Titel + Preis */}
                   <div className="flex flex-col gap-0.5">
                     <div className="text-[12px] font-black text-white leading-tight">{item.label}</div>
