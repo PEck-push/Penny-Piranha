@@ -199,23 +199,29 @@ export default function Admin() {
 
     if (newMarketType === 'combo') {
       const filledLegs = comboLegs.filter(l => l.question.trim() !== '');
-      const groupId = crypto.randomUUID();
-      filledLegs.forEach(leg => {
-        createMarket({
-          question: leg.question.trim(),
-          type: 'standard',
-          status: 'open',
-          createdBy: 'admin',
-          options: [
-            { id: 'a', label: leg.optionA.trim() || 'JA', pool: 0 },
-            { id: 'b', label: leg.optionB.trim() || 'NEIN', pool: 0 },
-          ],
-          winningOptionId: null,
-          resolutionType: null,
-          isOpenQuestion: false,
-          comboGroupId: groupId,
-          comboGroupLabel: newMarketQuestion.trim(),
-        });
+      const multiplier = filledLegs.length >= 3 ? 6 : 3;
+      // EIN echter Combo-Markt (Parlay): Spieler setzen einmal auf „alle richtig"
+      // und gewinnen Einsatz × Multiplikator, wenn jede Vorhersage (Option A der
+      // jeweiligen Frage) eintritt. Aufgelöst wird zentral über den Server.
+      createMarket({
+        question: newMarketQuestion.trim(),
+        type: 'combo',
+        status: 'open',
+        createdBy: 'admin',
+        options: [{ id: 'combo-win', label: '✓ Alle richtig', pool: 0 }],
+        winningOptionId: null,
+        resolutionType: null,
+        isOpenQuestion: false,
+        multiplier,
+        minBet: 10,
+        maxBet: 100,
+        comboLegs: filledLegs.map((leg, i) => ({
+          marketId: `leg-${i}`,
+          marketQuestion: leg.question.trim(),
+          predictedOptionId: 'a',
+          predictedOptionLabel: leg.optionA.trim() || 'JA',
+          status: 'pending' as const,
+        })),
       });
     } else {
       createMarket({
@@ -1518,6 +1524,20 @@ export default function Admin() {
                         </div>
                       );
                     })()
+                  ) : m.type === 'combo' ? (
+                    // Combo: entweder alle Vorhersagen richtig (×Multiplikator) oder gescheitert.
+                    <>
+                      <button
+                        onClick={() => setPendingResolution({ marketId: m.id, optionId: 'combo-win', optionLabel: `✓ Alle richtig (×${m.multiplier ?? 3})`, type: 'win' })}
+                        className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-green border-green/35 hover:bg-green/10">
+                        ✓ Alle richtig (×{m.multiplier ?? 3})
+                      </button>
+                      <button
+                        onClick={() => setPendingResolution({ marketId: m.id, optionId: 'combo-miss', optionLabel: '✗ Gescheitert — Einsätze in den Jackpot', type: 'win' })}
+                        className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">
+                        ✗ Gescheitert
+                      </button>
+                    </>
                   ) : (
                     m.options.map((opt, i) => {
                       const colors = ['text-green border-green/35 hover:bg-green/10','text-red border-red/35 hover:bg-red/10','text-blue2 border-blue2/35 hover:bg-blue/10','text-yellow border-yellow/35 hover:bg-yellow/10','text-purple2 border-purple2/35 hover:bg-purple/10'];
