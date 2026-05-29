@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
+import { SHOP_EXAMPLE_ITEMS, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export type FeedEventType =
   | 'bet_placed' | 'market_resolved' | 'streak_on_fire' | 'streak_damn_hot'
   | 'badge_unlocked' | 'underdog_win' | 'phase_winner' | 'jackpot_distribution'
-  | 'buyback' | 'market_locked';
+  | 'buyback' | 'market_locked' | 'shop_drop' | 'shop_purchase';
 
 export interface FeedEvent {
   id: string;
@@ -90,6 +91,13 @@ export interface Player {
   // Getragene Accessoires je Slot (rein kosmetisch). IDs aus data/accessories.ts.
   activeAccessories?: { head?: string | null; hand?: string | null; torso?: string | null };
   activeBadgeId?: BadgeId | null;
+  // Shop: gekaufte Items (überleben Charakter-Reset) und aktuell getragene
+  // Shop-Items je Slot. Werden auf EIGENEN z-Ebenen gerendert, parallel zu den
+  // event-vergebenen Accessoires.
+  shopInventory?: string[];
+  activeShopItems?: { head?: string | null; hand?: string | null; torso?: string | null; effect?: string | null; background?: string | null };
+  // Zeitpunkt des letzten Shop-Besuchs (für „Neu im Shop"-Punkt am Nav-Button).
+  lastShopVisitTs?: number;
   // Credits / Buyback
   buybackUsed?: boolean;
   // Streak
@@ -247,6 +255,8 @@ interface AppState {
   answers: Answer[];
   feed: FeedEvent[];
   schedule: ScheduleMatch[];
+  shopItems: ShopItem[]; // Katalog (Firestore: shopItems)
+  shopLastDropTs: number; // Zeitstempel des letzten neuen Items (für Neu-Punkt)
   jackpot: number;
   currentPhase: string; // Phase string from appState/global
   testMode: boolean; // per Default true; via "Live gehen" deaktiviert
@@ -300,6 +310,14 @@ interface AppState {
   grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
   awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
   simulateReveal: (net: number) => Promise<void>;
+  // ─── Shop ───────────────────────────────────────────────────────────────────
+  purchaseShopItem: (itemId: string) => Promise<{ ok: boolean; error?: string }>;
+  setActiveShopItem: (slot: ShopSlot, itemId: string | null) => Promise<void>;
+  markShopVisited: () => Promise<void>;
+  createShopItem: (data: Omit<ShopItem, 'createdAt'>) => Promise<void>;
+  updateShopItem: (id: string, patch: Partial<ShopItem>) => Promise<void>;
+  deleteShopItem: (id: string) => Promise<void>;
+  seedShopExamples: () => Promise<{ added: number }>;
   resetState: () => void;
 }
 
@@ -445,6 +463,8 @@ export const useStore = create<AppState>()((set, get) => {
     answers: [],
     feed: [],
     schedule: [],
+    shopItems: [],
+    shopLastDropTs: 0,
     jackpot: 0,
     currentPhase: 'gruppenphase',
     testMode: true,
@@ -994,9 +1014,156 @@ export const useStore = create<AppState>()((set, get) => {
       return { winners: winnerIds.map(pid => players.find(p => p.id === pid)?.name ?? pid) };
     },
 
+    // ── Shop: kaufen ─────────────────────────────────────────────────────────
+    // Atomare Firestore-Transaktion: prüft Verfügbarkeit + Token-Stand, zieht
+    // Preis ab und legt das Item ins Inventar. Doppelkäufe & negative Salden
+    // sind dadurch ausgeschlossen.
+    purchaseShopItem: async (itemId) => {
+      const uid = get().currentUser;
+      if (!uid) return { ok: false, error: 'Nicht eingeloggt.' };
+      if (!db) return { ok: false, error: 'Keine Verbindung.' };
+      const item = get().shopItems.find(i => i.id === itemId);
+      if (!item) return { ok: false, error: 'Item nicht gefunden.' };
+
+      try {
+        let cost = 0;
+        let itemLabel = item.label;
+        await runTransaction(db, async (tx) => {
+          const playerRef = doc(db, 'players', uid);
+          const itemRef   = doc(db, 'shopItems', itemId);
+          const [pSnap, iSnap] = await Promise.all([tx.get(playerRef), tx.get(itemRef)]);
+          if (!pSnap.exists()) throw new Error('Spieler-Profil fehlt.');
+          if (!iSnap.exists()) throw new Error('Item nicht mehr verfügbar.');
+          const pdata = pSnap.data() as Player;
+          const idata = iSnap.data() as ShopItem;
+          itemLabel = idata.label ?? itemLabel;
+          const now = Date.now();
+          if (!idata.available) throw new Error('Aktuell nicht im Verkauf.');
+          if (idata.availableFrom && idata.availableFrom > now) throw new Error('Noch nicht freigeschaltet.');
+          if (idata.availableUntil && idata.availableUntil < now) throw new Error('Nicht mehr verfügbar.');
+          const inv = pdata.shopInventory ?? [];
+          if (inv.includes(itemId)) throw new Error('Bereits im Inventar.');
+          const tokens = pdata.tokens ?? 0;
+          if (tokens < idata.price) throw new Error(`Nicht genug Tokens (brauche ${idata.price}).`);
+          cost = idata.price;
+          tx.update(playerRef, {
+            tokens: tokens - cost,
+            shopInventory: [...inv, itemId],
+          });
+        });
+
+        // Optimistic local update
+        set(s => ({
+          players: s.players.map(p => p.id === uid
+            ? { ...p, tokens: (p.tokens ?? 0) - cost, shopInventory: [...(p.shopInventory ?? []), itemId] }
+            : p),
+        }));
+
+        // Feed-Eintrag (best-effort)
+        const player = get().players.find(p => p.id === uid);
+        try {
+          await addDoc(collection(db, 'feed'), {
+            type: 'shop_purchase',
+            playerId: uid,
+            playerName: player?.name ?? '',
+            text: `${player?.name ?? 'Jemand'} hat „${itemLabel}" im Shop gekauft 🛍️`,
+            creditsChange: -cost,
+            ts: serverTimestamp(),
+          });
+        } catch (err) {
+          console.warn('[Store] Shop-Kauf Feed-Event Fehler:', err);
+        }
+        return { ok: true };
+      } catch (err: any) {
+        console.error('[Store] purchaseShopItem Fehler:', err);
+        return { ok: false, error: err?.message ?? 'Kauf fehlgeschlagen.' };
+      }
+    },
+
+    // ── Shop: Item in einem Slot tragen/ablegen ─────────────────────────────
+    setActiveShopItem: async (slot, itemId) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      set(s => ({
+        players: s.players.map(p => p.id === uid
+          ? { ...p, activeShopItems: { ...(p.activeShopItems ?? {}), [slot]: itemId } }
+          : p),
+      }));
+      const p = get().players.find(pl => pl.id === uid);
+      if (db && p) {
+        try { await updateDoc(doc(db, 'players', uid), { activeShopItems: p.activeShopItems ?? {} }); }
+        catch (err) { console.error('[Store] setActiveShopItem Fehler:', err); }
+      }
+    },
+
+    // ── Shop: „besucht"-Zeitstempel setzen (löscht den Neu-Punkt) ───────────
+    markShopVisited: async () => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      const ts = Date.now();
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, lastShopVisitTs: ts } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', uid), { lastShopVisitTs: ts }); }
+        catch (err) { console.error('[Store] markShopVisited Fehler:', err); }
+      }
+    },
+
+    // ── Shop: Item anlegen (Admin) ──────────────────────────────────────────
+    // Schreibt das Item, aktualisiert appState.shopLastDropTs und legt einen
+    // Feed-Eintrag an, damit alle Spieler informiert werden.
+    createShopItem: async (data) => {
+      if (!db) return;
+      const now = Date.now();
+      const payload: ShopItem = { ...data, createdAt: now };
+      try {
+        await setDoc(doc(db, 'shopItems', data.id), payload);
+        await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        await addDoc(collection(db, 'feed'), {
+          type: 'shop_drop',
+          text: `Neu im Shop: „${data.label}" 🛒`,
+          ts: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error('[Store] createShopItem Fehler:', err);
+      }
+    },
+
+    updateShopItem: async (id, patch) => {
+      if (!db) return;
+      try { await updateDoc(doc(db, 'shopItems', id), patch as any); }
+      catch (err) { console.error('[Store] updateShopItem Fehler:', err); }
+    },
+
+    deleteShopItem: async (id) => {
+      if (!db) return;
+      try { await deleteDoc(doc(db, 'shopItems', id)); }
+      catch (err) { console.error('[Store] deleteShopItem Fehler:', err); }
+    },
+
+    // ── Shop: Beispiel-Items anlegen (einmaliger Seed) ──────────────────────
+    seedShopExamples: async () => {
+      if (!db) return { added: 0 };
+      const existing = new Set(get().shopItems.map(i => i.id));
+      const now = Date.now();
+      let added = 0;
+      try {
+        for (const ex of SHOP_EXAMPLE_ITEMS) {
+          if (existing.has(ex.id)) continue;
+          await setDoc(doc(db, 'shopItems', ex.id), { ...ex, createdAt: now });
+          added++;
+        }
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
+      } catch (err) {
+        console.error('[Store] seedShopExamples Fehler:', err);
+      }
+      return { added };
+    },
+
     resetState: () => {
       clearSessionCookie();
-      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], jackpot: 0, currentPhase: 'gruppenphase', testMode: true, adminMessage: '', currentUser: null });
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], shopItems: [], shopLastDropTs: 0, jackpot: 0, currentPhase: 'gruppenphase', testMode: true, adminMessage: '', currentUser: null });
     },
 
     // Erfundener Mitspieler (nur Testmodus). Wird in Firestore gespeichert, damit
@@ -1053,6 +1220,9 @@ export const useStore = create<AppState>()((set, get) => {
         streakHistory: [], austriaSpecialCorrect: 0, underdogCorrect: 0,
         dailyNetGain: 0, unlockedOverlays: [], activeAccessoryId: null,
         activeBadgeId: null, unseenResolutions: [],
+        // Shop: alles auf null im fullReset (Testmodus-Wipe). Der per-Spieler
+        // Charakter-Reset (resetPlayerCharacter) lässt Inventar dagegen in Ruhe.
+        shopInventory: [], activeShopItems: {}, lastShopVisitTs: 0,
       };
       // Optimistic local update.
       set({

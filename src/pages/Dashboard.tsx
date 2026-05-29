@@ -5,7 +5,7 @@ import CharacterAvatar from '../components/CharacterAvatar';
 import OnboardingTour from '../components/OnboardingTour';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle, User } from 'lucide-react';
+import { LayoutDashboard, Target, Trophy, Lock, Calendar, HelpCircle, User, ShoppingBag } from 'lucide-react';
 import { isAdminEmail } from '../config/admins';
 import SpielplanTab from '../components/SpielplanTab';
 import RevealScreen from '../components/RevealScreen';
@@ -940,6 +940,7 @@ export default function Dashboard() {
                 <Lock className="w-3.5 h-3.5" />
               </button>
             )}
+            <ShopButton />
             <button onClick={() => navigate('/profile')} className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">
               <User className="w-3.5 h-3.5" />
             </button>
@@ -1311,5 +1312,24 @@ export default function Dashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+// Shop-Button mit „Neu"-Punkt, wenn der Drop-Timestamp jünger ist als der
+// letzte Shop-Besuch des Spielers. Eigene Komponente, damit der Punkt nur
+// rerendert, wenn sich seine zwei Eingaben ändern.
+function ShopButton() {
+  const navigate = useNavigate();
+  const lastDrop  = useStore(s => s.shopLastDropTs);
+  const lastVisit = useStore(s => s.players.find(p => p.id === s.currentUser)?.lastShopVisitTs ?? 0);
+  const hasNew = lastDrop > 0 && lastDrop > lastVisit;
+  return (
+    <button onClick={() => navigate('/shop')}
+      className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors relative">
+      <ShoppingBag className="w-3.5 h-3.5" />
+      {hasNew && (
+        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red border border-bg shadow-[0_0_6px_rgba(239,51,64,0.7)]" />
+      )}
+    </button>
   );
 }

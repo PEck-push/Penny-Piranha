@@ -12,6 +12,8 @@ const TYPE_ICON: Record<FeedEventType, string> = {
   jackpot_distribution: '💰',
   buyback:              '🔄',
   market_locked:        '🔒',
+  shop_drop:            '🛒',
+  shop_purchase:        '🛍️',
 };
 
 const TYPE_COLOR: Record<FeedEventType, string> = {
@@ -25,6 +27,8 @@ const TYPE_COLOR: Record<FeedEventType, string> = {
   jackpot_distribution: 'text-yellow',
   buyback:              'text-blue2',
   market_locked:        'text-muted',
+  shop_drop:            'text-yellow',
+  shop_purchase:        'text-purple2',
 };
 
 function timeAgo(ts: number): string {

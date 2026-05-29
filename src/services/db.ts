@@ -1,6 +1,7 @@
 import { collection, doc, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet, Answer, FeedEvent, ScheduleMatch } from '../store';
+import type { ShopItem } from '../data/shopItems';
 
 let syncInitialized = false;
 let unsubscribers: (() => void)[] = [];
@@ -50,9 +51,15 @@ export const initFirebaseSync = () => {
         adminMessage: data.adminMessage ?? '',
         whatsappGroupLink: data.whatsappGroupLink ?? '',
         exchangeRate: data.exchangeRate ?? 1,
+        shopLastDropTs: data.shopLastDropTs ?? 0,
       });
     }
   }, err => console.error('[Firebase] appState Fehler:', err)));
+
+  sub(onSnapshot(collection(db, 'shopItems'), snap => {
+    const shopItems = snap.docs.map(d => ({ id: d.id, ...d.data() } as ShopItem));
+    useStore.setState({ shopItems });
+  }, err => console.error('[Firebase] shopItems Fehler:', err)));
 
   const feedQ = query(collection(db, 'feed'), orderBy('ts', 'desc'), limit(30));
   sub(onSnapshot(feedQ, snap => {
