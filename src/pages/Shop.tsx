@@ -46,6 +46,21 @@ export default function Shop() {
     setTimeout(() => setMsg(null), 5000);
   };
 
+  // Item an-/ausziehen — zeigt einen Hinweis, wenn dabei ein anderes Item aus
+  // demselben Slot abgelegt wird (es bleibt im Inventar, ist nur nicht mehr aktiv).
+  const handleEquip = async (slot: ShopSlot, itemId: string | null) => {
+    const prevId = (me.activeShopItems ?? {})[slot] ?? null;
+    await setActiveShop(slot, itemId);
+    if (itemId && prevId && prevId !== itemId) {
+      const prev = items.find(i => i.id === prevId);
+      const next = items.find(i => i.id === itemId);
+      if (prev && next) {
+        setMsg({ ok: true, text: `${prev.icon} ${prev.label} abgelegt → ${next.icon} ${next.label} angezogen. (Bleibt im Inventar.)` });
+        setTimeout(() => setMsg(null), 4500);
+      }
+    }
+  };
+
   const confirmItem = confirmId ? items.find(i => i.id === confirmId) : null;
 
   // Aktuell aktive Shop-Items je Slot (für die „Getragen"-Liste in der Vorschau).
@@ -75,21 +90,20 @@ export default function Shop() {
       </div>
 
       {/* ── GROSSE LIVE-VORSCHAU (oberer halber Bildschirm) ──────────────────── */}
-      <div className="relative z-10 shrink-0 h-[42vh] min-h-[260px] flex flex-col items-center justify-center px-4 border-b border-border/60">
+      <div className="relative z-10 shrink-0 h-[44vh] min-h-[280px] flex flex-col items-center justify-center px-4 border-b border-border/60">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_45%,rgba(59,110,255,.22)_0%,transparent_65%)]" />
         <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[9px] font-black text-muted uppercase tracking-[0.2em]">
           Live-Vorschau
         </div>
-        <div className="relative h-[26vh] min-h-[170px] aspect-square" style={{ animation: 'auraGlow 4s ease-in-out infinite' }}>
+        <div className="relative h-[32vh] min-h-[210px] aspect-square" style={{ animation: 'auraGlow 4s ease-in-out infinite' }}>
           <CharacterAvatar player={me} size="lg" className="w-full h-full" />
         </div>
-        <div className="relative text-[16px] font-black text-white mt-1">{me.name}</div>
         {/* Getragene Shop-Items als Chips */}
         <div className="relative flex flex-wrap justify-center gap-1.5 mt-2 px-2 min-h-[22px]">
           {wornItems.length === 0 ? (
             <span className="text-[10px] text-muted/60 italic">Noch nichts aus dem Shop angelegt</span>
           ) : wornItems.map(it => (
-            <button key={it.id} onClick={() => setActiveShop(it.slot, null)}
+            <button key={it.id} onClick={() => handleEquip(it.slot, null)}
               className="text-[10px] font-bold text-green bg-green/10 border border-green/30 rounded-full px-2 py-0.5 hover:bg-green/20 transition-colors">
               {it.icon} {it.label} ✕
             </button>
@@ -98,7 +112,7 @@ export default function Shop() {
       </div>
 
       {/* Tab-Leiste */}
-      <div className="relative z-10 px-4 pt-3 pb-2 shrink-0 overflow-x-auto no-scrollbar">
+      <div className="relative z-10 px-4 pt-3 pb-1.5 shrink-0 overflow-x-auto no-scrollbar">
         <div className="flex gap-1.5 min-w-max">
           {(['all', ...SHOP_SLOTS.map(s => s.slot)] as const).map(f => (
             <button key={f} onClick={() => setFilter(f as Filter)}
@@ -109,6 +123,13 @@ export default function Shop() {
               {f === 'all' ? 'Alle' : SHOP_SLOT_LABELS[f as ShopSlot]}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Slot-Hinweis */}
+      <div className="relative z-10 px-4 pb-2 shrink-0">
+        <div className="text-[10px] text-muted/80 leading-snug">
+          💡 Pro Slot trägst du <b className="text-white">1 Item</b> — das vorherige bleibt im Inventar.
         </div>
       </div>
 
@@ -160,7 +181,7 @@ export default function Shop() {
                   </div>
                   {/* Aktion */}
                   {owned ? (
-                    <button onClick={() => setActiveShop(item.slot, equipped ? null : item.id)}
+                    <button onClick={() => handleEquip(item.slot, equipped ? null : item.id)}
                       className={clsx('w-full py-2 rounded-xl text-[11px] font-black border transition-colors',
                         equipped
                           ? 'bg-green/15 border-green/40 text-green'
