@@ -48,8 +48,14 @@ export default function Shop() {
 
   const confirmItem = confirmId ? items.find(i => i.id === confirmId) : null;
 
+  // Aktuell aktive Shop-Items je Slot (für die „Getragen"-Liste in der Vorschau).
+  const activeShop = me.activeShopItems ?? {};
+  const wornItems = SHOP_SLOTS
+    .map(({ slot }) => items.find(i => i.id === activeShop[slot]))
+    .filter((i): i is NonNullable<typeof i> => !!i);
+
   return (
-    <div className="flex-1 flex flex-col bg-bg relative overflow-y-auto no-scrollbar">
+    <div className="flex-1 flex flex-col bg-bg relative overflow-hidden">
       <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(230,180,60,.18)_0%,transparent_50%),radial-gradient(ellipse_at_80%_10%,rgba(139,61,255,.12)_0%,transparent_45%),radial-gradient(ellipse_at_50%_100%,rgba(0,229,255,.12)_0%,transparent_50%)]" />
 
       {/* Header */}
@@ -68,8 +74,31 @@ export default function Shop() {
         </div>
       </div>
 
+      {/* ── GROSSE LIVE-VORSCHAU (oberer halber Bildschirm) ──────────────────── */}
+      <div className="relative z-10 shrink-0 h-[42vh] min-h-[260px] flex flex-col items-center justify-center px-4 border-b border-border/60">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_45%,rgba(59,110,255,.22)_0%,transparent_65%)]" />
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[9px] font-black text-muted uppercase tracking-[0.2em]">
+          Live-Vorschau
+        </div>
+        <div className="relative h-[26vh] min-h-[170px] aspect-square" style={{ animation: 'auraGlow 4s ease-in-out infinite' }}>
+          <CharacterAvatar player={me} size="lg" className="w-full h-full" />
+        </div>
+        <div className="relative text-[16px] font-black text-white mt-1">{me.name}</div>
+        {/* Getragene Shop-Items als Chips */}
+        <div className="relative flex flex-wrap justify-center gap-1.5 mt-2 px-2 min-h-[22px]">
+          {wornItems.length === 0 ? (
+            <span className="text-[10px] text-muted/60 italic">Noch nichts aus dem Shop angelegt</span>
+          ) : wornItems.map(it => (
+            <button key={it.id} onClick={() => setActiveShop(it.slot, null)}
+              className="text-[10px] font-bold text-green bg-green/10 border border-green/30 rounded-full px-2 py-0.5 hover:bg-green/20 transition-colors">
+              {it.icon} {it.label} ✕
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Tab-Leiste */}
-      <div className="relative z-10 px-4 pt-1 pb-3 shrink-0 overflow-x-auto no-scrollbar">
+      <div className="relative z-10 px-4 pt-3 pb-2 shrink-0 overflow-x-auto no-scrollbar">
         <div className="flex gap-1.5 min-w-max">
           {(['all', ...SHOP_SLOTS.map(s => s.slot)] as const).map(f => (
             <button key={f} onClick={() => setFilter(f as Filter)}
@@ -85,14 +114,14 @@ export default function Shop() {
 
       {/* Status-Banner */}
       {msg && (
-        <div className={clsx('relative z-10 mx-4 mb-3 rounded-xl px-3 py-2 text-[12px] font-bold text-center',
+        <div className={clsx('relative z-10 mx-4 mb-2 rounded-xl px-3 py-2 text-[12px] font-bold text-center shrink-0',
           msg.ok ? 'bg-green/10 border border-green/30 text-green' : 'bg-red/10 border border-red/30 text-red')}>
           {msg.text}
         </div>
       )}
 
-      {/* Item-Grid */}
-      <div className="relative z-10 px-4 pb-6 flex-1">
+      {/* Item-Grid (scrollt unter der fixen Vorschau) */}
+      <div className="relative z-10 px-4 pb-6 flex-1 overflow-y-auto no-scrollbar">
         {visible.length === 0 ? (
           <div className="bg-card border border-border rounded-2xl p-6 text-center">
             <div className="text-[32px] mb-2">🛍️</div>
@@ -153,23 +182,6 @@ export default function Shop() {
             })}
           </div>
         )}
-      </div>
-
-      {/* Live-Vorschau am unteren Rand */}
-      <div className="relative z-10 sticky bottom-0 bg-[#050912]/95 backdrop-blur-xl border-t border-border px-4 py-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-14 h-14 shrink-0">
-            <CharacterAvatar player={me} size="md" className="w-full h-full" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em]">Live-Vorschau</div>
-            <div className="text-[12px] text-white font-bold truncate">{me.name}</div>
-          </div>
-          <button onClick={() => navigate('/profile')}
-            className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/30 rounded-xl px-3 py-2 hover:bg-yellow/20 transition-colors">
-            Inventar
-          </button>
-        </div>
       </div>
 
       {/* Kauf-Bestätigung */}
