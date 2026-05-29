@@ -27,6 +27,9 @@ export default function Shop() {
   const [preview, setPreview] = useState<Partial<Record<ShopSlot, string | null>>>({});
   // Sekundentakt für Live-Countdowns gesperrter Items mit Datum.
   const [now, setNow] = useState(Date.now());
+  // Items, deren Grafik nicht geladen werden konnte → Emoji-Fallback.
+  const [imgFailed, setImgFailed] = useState<Set<string>>(new Set());
+  const markImgFailed = (id: string) => setImgFailed(s => (s.has(id) ? s : new Set(s).add(id)));
 
   useEffect(() => { markShopVisited(); }, [markShopVisited]);
   useEffect(() => {
@@ -110,7 +113,7 @@ export default function Shop() {
       const prev = items.find(i => i.id === prevId);
       const next = items.find(i => i.id === itemId);
       if (prev && next) {
-        setMsg({ ok: true, text: `${prev.icon} ${prev.label} abgelegt → ${next.icon} ${next.label} angezogen. (Bleibt im Inventar.)` });
+        setMsg({ ok: true, text: `${prev.label} abgelegt → ${next.label} angezogen. (Bleibt im Inventar.)` });
         setTimeout(() => setMsg(null), 4500);
       }
     }
@@ -170,7 +173,7 @@ export default function Shop() {
                 isWorn
                   ? 'text-green bg-green/10 border-green/30 hover:bg-green/20'
                   : 'text-yellow bg-yellow/10 border-yellow/30 hover:bg-yellow/20')}>
-              {item.icon} {item.label} {isWorn ? '✕' : '· Probe ✕'}
+              {item.label} {isWorn ? '✕' : '· Probe ✕'}
             </button>
           ))}
         </div>
@@ -236,10 +239,13 @@ export default function Shop() {
                   <button onClick={() => tryOn(item)}
                     className={clsx('relative aspect-square w-full rounded-xl border flex items-center justify-center overflow-hidden cursor-pointer transition-colors',
                       tryingOn ? 'bg-yellow/10 border-yellow/40' : 'bg-white/3 border-white/5 hover:border-white/20')}>
-                    <img src={shopItemImagePath(item)} alt=""
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    <img src={shopItemImagePath(item)} alt={item.label}
+                      onError={() => markImgFailed(item.id)}
                       className={clsx('absolute inset-0 w-full h-full object-contain', (soldOut || locked) && 'opacity-50 grayscale')} />
-                    <span className={clsx('text-[48px] select-none', (soldOut || locked) && 'opacity-50 grayscale')}>{item.icon}</span>
+                    {/* Emoji nur als Fallback, falls die Grafik (noch) fehlt */}
+                    {imgFailed.has(item.id) && (
+                      <span className={clsx('text-[48px] select-none', (soldOut || locked) && 'opacity-50 grayscale')}>{item.icon}</span>
+                    )}
                     <span className="absolute top-1 right-1 text-[8px] font-black tracking-wider uppercase text-muted bg-black/30 rounded-full px-1.5 py-0.5 backdrop-blur-sm">
                       {SHOP_SLOT_LABELS[item.slot]}
                     </span>
@@ -314,7 +320,12 @@ export default function Shop() {
           onClick={() => setConfirmId(null)}>
           <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]"
             onClick={e => e.stopPropagation()}>
-            <div className="text-[64px] mb-2">{confirmItem.icon}</div>
+            <div className="relative w-24 h-24 mb-2 flex items-center justify-center">
+              <img src={shopItemImagePath(confirmItem)} alt={confirmItem.label}
+                onError={() => markImgFailed(confirmItem.id)}
+                className="absolute inset-0 w-full h-full object-contain" />
+              {imgFailed.has(confirmItem.id) && <span className="text-[56px]">{confirmItem.icon}</span>}
+            </div>
             <div className="text-[16px] font-black text-white mb-1">{confirmItem.label}</div>
             <div className="text-[11px] text-muted mb-4">{confirmItem.description}</div>
             <div className="bg-yellow/10 border border-yellow/25 rounded-xl px-4 py-2 mb-4">
