@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
-import { SHOP_EXAMPLE_ITEMS, type ShopItem, type ShopSlot } from './data/shopItems';
+import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -318,6 +318,7 @@ interface AppState {
   updateShopItem: (id: string, patch: Partial<ShopItem>) => Promise<void>;
   deleteShopItem: (id: string) => Promise<void>;
   seedShopExamples: () => Promise<{ added: number }>;
+  seedShopFirstItems: () => Promise<{ added: number }>;
   resetState: () => void;
 }
 
@@ -1043,6 +1044,10 @@ export const useStore = create<AppState>()((set, get) => {
           if (idata.availableUntil && idata.availableUntil < now) throw new Error('Nicht mehr verfügbar.');
           const inv = pdata.shopInventory ?? [];
           if (inv.includes(itemId)) throw new Error('Bereits im Inventar.');
+          // Knappheit: globalen Stock prüfen + atomar erhöhen (verhindert, dass
+          // zwei gleichzeitige Käufe dasselbe Einzelstück abgreifen).
+          const sold = idata.sold ?? 0;
+          if (idata.stock != null && sold >= idata.stock) throw new Error('Ausverkauft.');
           const tokens = pdata.tokens ?? 0;
           if (tokens < idata.price) throw new Error(`Nicht genug Tokens (brauche ${idata.price}).`);
           cost = idata.price;
@@ -1050,6 +1055,7 @@ export const useStore = create<AppState>()((set, get) => {
             tokens: tokens - cost,
             shopInventory: [...inv, itemId],
           });
+          if (idata.stock != null) tx.update(itemRef, { sold: sold + 1 });
         });
 
         // Optimistic local update
@@ -1161,6 +1167,27 @@ export const useStore = create<AppState>()((set, get) => {
       return { added };
     },
 
+    // ── Shop: erste echte Item-Charge anlegen (Schwechi, Pegasus, …) ────────
+    seedShopFirstItems: async () => {
+      if (!db) return { added: 0 };
+      const existing = new Set(get().shopItems.map(i => i.id));
+      const now = Date.now();
+      let added = 0;
+      try {
+        for (const it of SHOP_FIRST_ITEMS) {
+          if (existing.has(it.id)) continue;
+          await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
+          added++;
+        }
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
+      } catch (err) {
+        console.error('[Store] seedShopFirstItems Fehler:', err);
+      }
+      return { added };
+    },
+
     resetState: () => {
       clearSessionCookie();
       set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], shopItems: [], shopLastDropTs: 0, jackpot: 0, currentPhase: 'gruppenphase', testMode: true, adminMessage: '', currentUser: null });
@@ -1253,6 +1280,12 @@ export const useStore = create<AppState>()((set, get) => {
         await deleteAll('answers');
         await deleteAll('feed');
         await deleteAll('players', (d) => d.isTestPlayer === true);
+        // Shop-Katalog bleibt erhalten, aber verkaufte Stückzahlen zurücksetzen,
+        // damit knappe Items nicht fälschlich „ausverkauft" bleiben.
+        const shopSnap = await getDocs(collection(db, 'shopItems'));
+        for (const d of shopSnap.docs) {
+          if ((d.data() as ShopItem).sold) await updateDoc(d.ref, { sold: 0 });
+        }
         await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true, adminMessage: '', currentMatchday: '' }, { merge: true });
       } catch (err) {
         console.error('[Store] fullReset Fehler:', err);

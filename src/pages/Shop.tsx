@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store';
-import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemAvailable, shopItemImagePath, type ShopSlot } from '../data/shopItems';
+import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemAvailable, isShopItemListed, isShopItemSoldOut, shopItemStockLeft, shopItemImagePath, type ShopSlot } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 
 type Filter = 'all' | ShopSlot;
@@ -24,17 +24,35 @@ export default function Shop() {
   // sofort am Avatar, egal ob gekauft. Überschreibt je Slot die getragenen Items
   // nur visuell in der Live-Vorschau.
   const [preview, setPreview] = useState<Partial<Record<ShopSlot, string | null>>>({});
+  // Sekundentakt für Live-Countdowns gesperrter Items mit Datum.
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => { markShopVisited(); }, [markShopVisited]);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const inventory = useMemo(() => new Set(me?.shopInventory ?? []), [me?.shopInventory]);
 
   const visible = useMemo(() => {
     const list = items
       .filter(i => filter === 'all' || i.slot === filter)
-      .filter(i => isShopItemAvailable(i) || inventory.has(i.id));
+      .filter(i => isShopItemListed(i, inventory.has(i.id)));
     return list.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || a.label.localeCompare(b.label));
   }, [items, filter, inventory]);
+
+  // Restzeit bis Freischaltung als „2d 4h 12m" / „45s".
+  const countdown = (target: number): string => {
+    let s = Math.max(0, Math.floor((target - now) / 1000));
+    const d = Math.floor(s / 86400); s -= d * 86400;
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60); s -= m * 60;
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
 
   if (!me) return null;
 
@@ -202,24 +220,41 @@ export default function Shop() {
               const equipped = (me.activeShopItems ?? {})[item.slot] === item.id;
               const tryingOn = effectiveSlot(item.slot) === item.id;
               const canAfford = me.tokens >= item.price;
+              // Status
+              const stockLeft = shopItemStockLeft(item);
+              const soldOut = !owned && isShopItemSoldOut(item);
+              const timed = !!item.availableFrom && item.availableFrom > now;
+              const locked = !owned && !soldOut && (timed || (!item.available && !!item.unlockLabel) || !isShopItemAvailable(item, now));
               return (
                 <div key={item.id}
                   className={clsx('bg-card border rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden transition-colors',
-                    tryingOn ? 'border-yellow/50' : owned ? 'border-green/30' : 'border-border')}>
-                  {/* Vorschau — Klick = anprobieren */}
+                    tryingOn ? 'border-yellow/50' : owned ? 'border-green/30' : soldOut ? 'border-red/25' : locked ? 'border-purple2/25' : 'border-border')}>
+                  {/* Vorschau — Klick = anprobieren (auch bei gesperrt/ausverkauft) */}
                   <button onClick={() => tryOn(item)}
                     className={clsx('relative aspect-square w-full rounded-xl border flex items-center justify-center overflow-hidden cursor-pointer transition-colors',
                       tryingOn ? 'bg-yellow/10 border-yellow/40' : 'bg-white/3 border-white/5 hover:border-white/20')}>
                     <img src={shopItemImagePath(item)} alt=""
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      className="absolute inset-0 w-full h-full object-contain" />
-                    <span className="text-[48px] select-none">{item.icon}</span>
+                      className={clsx('absolute inset-0 w-full h-full object-contain', (soldOut || locked) && 'opacity-50 grayscale')} />
+                    <span className={clsx('text-[48px] select-none', (soldOut || locked) && 'opacity-50 grayscale')}>{item.icon}</span>
                     <span className="absolute top-1 right-1 text-[8px] font-black tracking-wider uppercase text-muted bg-black/30 rounded-full px-1.5 py-0.5 backdrop-blur-sm">
                       {SHOP_SLOT_LABELS[item.slot]}
                     </span>
                     {owned && (
                       <span className="absolute top-1 left-1 text-[8px] font-black tracking-wider uppercase text-green bg-green/20 border border-green/30 rounded-full px-1.5 py-0.5">
                         ✓ Owned
+                      </span>
+                    )}
+                    {/* Knappheit / Status oben links */}
+                    {!owned && stockLeft != null && !soldOut && (
+                      <span className={clsx('absolute top-1 left-1 text-[8px] font-black tracking-wider uppercase rounded-full px-1.5 py-0.5 border',
+                        stockLeft === 1 ? 'text-yellow bg-yellow/20 border-yellow/40' : 'text-white/90 bg-black/40 border-white/15')}>
+                        {stockLeft === 1 ? '★ Letztes' : `★ ${stockLeft}/${item.stock}`}
+                      </span>
+                    )}
+                    {soldOut && (
+                      <span className="absolute top-1 left-1 text-[8px] font-black tracking-wider uppercase text-red bg-red/20 border border-red/40 rounded-full px-1.5 py-0.5">
+                        Ausverkauft
                       </span>
                     )}
                     {tryingOn && (
@@ -242,6 +277,14 @@ export default function Shop() {
                           : 'bg-white/5 border-white/10 text-white hover:border-white/30')}>
                       {equipped ? '✓ Getragen — Abnehmen' : 'Anziehen'}
                     </button>
+                  ) : soldOut ? (
+                    <div className="w-full py-2 rounded-xl text-[11px] font-black border bg-red/5 border-red/20 text-red/70 text-center">
+                      Vergriffen
+                    </div>
+                  ) : locked ? (
+                    <div className="w-full py-2 rounded-xl text-[10px] font-black border bg-purple2/5 border-purple2/25 text-purple2 text-center leading-tight">
+                      🔒 {timed && item.availableFrom ? `in ${countdown(item.availableFrom)}` : (item.unlockLabel ?? 'Bald verfügbar')}
+                    </div>
                   ) : (
                     <button onClick={() => setConfirmId(item.id)} disabled={!canAfford || busyId === item.id}
                       className={clsx('w-full py-2 rounded-xl text-[11px] font-black border transition-all',
