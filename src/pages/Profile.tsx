@@ -31,6 +31,20 @@ export default function Profile() {
   const setActiveAccessory = useStore(s => s.setActiveAccessory);
   const shopItems = useStore(s => s.shopItems);
   const setActiveShopItem = useStore(s => s.setActiveShopItem);
+  // Hinweis, wenn beim Anziehen ein anderes Item desselben Slots abgelegt wird.
+  const [equipHint, setEquipHint] = useState<string | null>(null);
+  const handleEquip = async (slot: ShopSlot, itemId: string | null) => {
+    const prevId = me?.activeShopItems?.[slot] ?? null;
+    await setActiveShopItem(slot, itemId);
+    if (itemId && prevId && prevId !== itemId) {
+      const prev = shopItems.find(i => i.id === prevId);
+      const next = shopItems.find(i => i.id === itemId);
+      if (prev && next) {
+        setEquipHint(`${prev.icon} ${prev.label} abgelegt → ${next.icon} ${next.label} angezogen. (Bleibt im Inventar.)`);
+        setTimeout(() => setEquipHint(null), 4500);
+      }
+    }
+  };
 
   // ── Passwort-Änderung ────────────────────────────────────────────────
   const [currentPw, setCurrentPw] = useState('');
@@ -238,6 +252,11 @@ export default function Profile() {
             <div className="text-[11px] text-muted/60 italic">Noch nichts gekauft — schau im Shop vorbei.</div>
           ) : (
             <>
+              {equipHint && (
+                <div className="mb-3 rounded-xl px-3 py-2 text-[11px] font-bold text-center bg-green/10 border border-green/30 text-green">
+                  {equipHint}
+                </div>
+              )}
               {SHOP_SLOTS.map(({ slot }) => {
                 const owned = shopItems.filter(i => i.slot === slot && (me.shopInventory ?? []).includes(i.id));
                 if (owned.length === 0) return null;
@@ -246,14 +265,14 @@ export default function Profile() {
                   <div key={slot} className="mb-3 last:mb-0">
                     <div className="text-[10px] font-black text-muted/80 uppercase tracking-wide mb-1.5">{SHOP_SLOT_LABELS[slot as ShopSlot]}</div>
                     <div className="flex flex-wrap gap-1.5">
-                      <button onClick={() => setActiveShopItem(slot as ShopSlot, null)}
+                      <button onClick={() => handleEquip(slot as ShopSlot, null)}
                         className={clsx('text-[11px] font-bold rounded-full px-2.5 py-1 border transition-colors',
                           active === null ? 'border-green/50 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-muted hover:text-white')}>
                         — Keins
                       </button>
                       {owned.map(item => (
                         <button key={item.id}
-                          onClick={() => setActiveShopItem(slot as ShopSlot, active === item.id ? null : item.id)}
+                          onClick={() => handleEquip(slot as ShopSlot, active === item.id ? null : item.id)}
                           className={clsx('text-[11px] font-bold rounded-full px-2.5 py-1 border transition-colors',
                             active === item.id ? 'border-green/50 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-white hover:border-white/30')}>
                           {item.icon} {item.label}
@@ -264,7 +283,8 @@ export default function Profile() {
                 );
               })}
               <div className="mt-3 text-[10px] text-muted/70 leading-snug">
-                💡 Shop-Items kannst du <b className="text-white">zusätzlich</b> zu deinen verdienten Accessoires tragen.
+                💡 Pro Slot trägst du <b className="text-white">1 Item</b> — das vorherige bleibt im Inventar.
+                Shop-Items kannst du zusätzlich zu deinen verdienten Accessoires tragen.
               </div>
             </>
           )}
