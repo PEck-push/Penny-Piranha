@@ -71,6 +71,7 @@ export default function Admin() {
   // Shop-Verwaltung
   const [shopMsg, setShopMsg] = useState('');
   const [shopFormOpen, setShopFormOpen] = useState(false);
+  const [priceEdit, setPriceEdit] = useState<Record<string, string>>({}); // Item-ID → eingegebener Preis
   const [shopForm, setShopForm] = useState({
     id: '', label: '', description: '', slot: 'head' as ShopSlot, icon: '👑',
     price: 100, available: true, phase: '', sortOrder: 100,
@@ -1909,10 +1910,31 @@ export default function Admin() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[12px] font-black text-white truncate">{it.label}</div>
                       <div className="text-[10px] text-muted">
-                        {SHOP_SLOT_LABELS[it.slot]} · 🪙 {it.price}
+                        {SHOP_SLOT_LABELS[it.slot]}
                         {it.stock != null ? ` · ★ ${Math.max(0, it.stock - (it.sold ?? 0))}/${it.stock}` : ''}
                         {it.unlockLabel ? ` · 🔒 ${it.unlockLabel}` : ''}
                       </div>
+                    </div>
+                    {/* Preis bearbeiten */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[11px]">🪙</span>
+                      <input
+                        type="number"
+                        value={priceEdit[it.id] ?? String(it.price)}
+                        onChange={e => setPriceEdit(p => ({ ...p, [it.id]: e.target.value }))}
+                        onBlur={async () => {
+                          const raw = priceEdit[it.id];
+                          if (raw === undefined) return;
+                          const n = parseInt(raw);
+                          if (Number.isFinite(n) && n >= 0 && n !== it.price) {
+                            await updateShopItem(it.id, { price: n });
+                            setShopMsg(`✓ Preis „${it.label}": ${n} TKN.`);
+                            setTimeout(() => setShopMsg(''), 3000);
+                          }
+                          setPriceEdit(p => { const c = { ...p }; delete c[it.id]; return c; });
+                        }}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        className="w-16 bg-white/5 border border-border rounded-lg px-2 py-1 text-[12px] text-white text-right outline-none focus:border-yellow/60" />
                     </div>
                     <button
                       onClick={() => updateShopItem(it.id, { available: !it.available })}
