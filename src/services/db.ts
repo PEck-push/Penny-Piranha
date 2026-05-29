@@ -49,6 +49,7 @@ export const initFirebaseSync = () => {
         testMode: data.testMode ?? true,
         adminMessage: data.adminMessage ?? '',
         whatsappGroupLink: data.whatsappGroupLink ?? '',
+        exchangeRate: data.exchangeRate ?? 1,
       });
     }
   }, err => console.error('[Firebase] appState Fehler:', err)));

@@ -252,6 +252,7 @@ interface AppState {
   testMode: boolean; // per Default true; via "Live gehen" deaktiviert
   adminMessage: string; // optionale Ticker-Nachricht des Admins
   whatsappGroupLink: string; // Beitrittslink zur WhatsApp-Gruppe (angezeigt nach Registrierung)
+  exchangeRate: number; // Cashout-Wechselkurs: 100 TKN = X € (geteilt & persistiert)
   currentUser: string | null;
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
@@ -288,6 +289,7 @@ interface AppState {
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
   setWhatsappGroupLink: (url: string) => Promise<void>;
+  setExchangeRate: (rate: number) => Promise<void>;
   setJackpot: (value: number) => Promise<void>;
   setActiveAccessory: (slot: 'head' | 'hand' | 'torso', accessoryId: string | null) => Promise<void>;
   grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
@@ -443,6 +445,7 @@ export const useStore = create<AppState>()((set, get) => {
     testMode: true,
     adminMessage: '',
     whatsappGroupLink: '',
+    exchangeRate: 1,
     currentUser: null,
 
     login: async (playerId, avatar, avatarColor, avatarId) => {
@@ -889,6 +892,15 @@ export const useStore = create<AppState>()((set, get) => {
     setAdminMessage: async (msg) => {
       set({ adminMessage: msg });
       if (db) await setDoc(doc(db, 'appState', 'global'), { adminMessage: msg }, { merge: true });
+    },
+
+    setExchangeRate: async (rate) => {
+      const v = Math.max(0, Math.round(rate * 100) / 100); // auf 2 Nachkommastellen
+      set({ exchangeRate: v });
+      if (db) {
+        try { await setDoc(doc(db, 'appState', 'global'), { exchangeRate: v }, { merge: true }); }
+        catch (err) { console.error('[Store] setExchangeRate Fehler:', err); }
+      }
     },
 
     setWhatsappGroupLink: async (url) => {
