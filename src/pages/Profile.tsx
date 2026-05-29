@@ -40,7 +40,7 @@ export default function Profile() {
       const prev = shopItems.find(i => i.id === prevId);
       const next = shopItems.find(i => i.id === itemId);
       if (prev && next) {
-        setEquipHint(`${prev.icon} ${prev.label} abgelegt → ${next.icon} ${next.label} angezogen. (Bleibt im Inventar.)`);
+        setEquipHint(`${prev.label} abgelegt → ${next.label} angezogen. (Bleibt im Inventar.)`);
         setTimeout(() => setEquipHint(null), 4500);
       }
     }
@@ -275,7 +275,7 @@ export default function Profile() {
                           onClick={() => handleEquip(slot as ShopSlot, active === item.id ? null : item.id)}
                           className={clsx('text-[11px] font-bold rounded-full px-2.5 py-1 border transition-colors',
                             active === item.id ? 'border-green/50 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-white hover:border-white/30')}>
-                          {item.icon} {item.label}
+                          {item.label}
                         </button>
                       ))}
                     </div>

@@ -72,18 +72,6 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
   const isLeader = !!leaderId && player.id === leaderId;
   const isDailyWinner = !!dailyWinnerId && player.id === dailyWinnerId;
 
-  // Testmodus-Emoji-Fallback: solange noch keine WebP-Grafiken hochgeladen sind,
-  // zeigt im Testmodus ein zentriertes Emoji-Sticker pro Slot, dass das Item
-  // tatsächlich getragen wird. Wird im Live-Modus automatisch ausgeblendet.
-  const testMode = useStore(s => s.testMode);
-  const shopItems = useStore(s => s.shopItems);
-  const equippedEmojis = testMode
-    ? (['background', 'torso', 'hand', 'head', 'effect'] as const)
-        .map(slot => shopItems.find(i => i.id === shop[slot])?.icon)
-        .filter((e): e is string => !!e)
-    : [];
-  const emojiSize = size === 'lg' ? 24 : size === 'md' ? 13 : 10;
-
   const overlay = 'absolute inset-0 w-full h-full object-contain pointer-events-none';
   const shopSrc = (id: string) => `/shop/${id}.webp`;
 
@@ -154,16 +142,6 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {/* z-55: Shop-Effekt — ganz vorne */}
       {shop.effect && (
         <img src={shopSrc(shop.effect)} alt="" onError={hideOnError} className={`${overlay} z-[55]`} />
-      )}
-
-      {/* z-60: Testmodus-Emoji-Sticker (Check-Anzeige, solange Grafiken fehlen) */}
-      {equippedEmojis.length > 0 && (
-        <div className="absolute inset-x-1 top-1 z-[60] flex justify-center pointer-events-none">
-          <div className="bg-black/55 backdrop-blur-sm border border-white/15 rounded-full px-2 py-0.5 flex items-center gap-1 leading-none"
-            style={{ fontSize: emojiSize }}>
-            {equippedEmojis.map((e, i) => <span key={i}>{e}</span>)}
-          </div>
-        </div>
       )}
     </div>
   );
