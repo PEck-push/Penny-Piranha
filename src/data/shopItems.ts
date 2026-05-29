@@ -14,8 +14,9 @@ export type ShopSlot = 'head' | 'hand' | 'torso' | 'effect' | 'background';
 // Kalendertag mit WM-Spielen (Europe/Vienna) — konsistent mit der Tagessieger-
 // Logik. Freischaltung jeweils um 12:00 Ortszeit (Wien) an diesem Tag.
 export type ShopUnlockRule =
-  | { kind: 'matchCalendarDay'; day: number } // N-ter Kalendertag mit Spielen
-  | { kind: 'afterGroupStage' };              // Tag nach dem letzten Gruppenspiel
+  | { kind: 'fifaMatchday'; matchday: number } // FIFA-Spieltag (Gruppenrunde 1/2/3)
+  | { kind: 'matchCalendarDay'; day: number }  // N-ter Kalendertag mit Spielen
+  | { kind: 'afterGroupStage' };               // Tag nach dem letzten Gruppenspiel
 
 export interface ShopItem {
   id: string;
@@ -140,7 +141,7 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     icon: '🐎',
     price: 900,
     available: true,
-    unlockRule: { kind: 'matchCalendarDay', day: 1 },
+    unlockRule: { kind: 'fifaMatchday', matchday: 1 },
     unlockLabel: 'Ab dem 1. Spieltag',
     stock: 1,
     sold: 0,
@@ -154,8 +155,8 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     icon: '🦆',
     price: 900,
     available: true,
-    unlockRule: { kind: 'matchCalendarDay', day: 4 },
-    unlockLabel: 'Ab dem 4. Spieltag',
+    unlockRule: { kind: 'fifaMatchday', matchday: 2 },
+    unlockLabel: 'Ab dem 2. Spieltag',
     stock: 1,
     sold: 0,
     sortOrder: 30,
@@ -192,7 +193,7 @@ export const isShopItemSoldOut = (item: Pick<ShopItem, 'stock' | 'sold'>): boole
 
 // ── Automatische Freischaltung aus dem Spielplan ──────────────────────────────
 // Minimaler Spielplan-Eintrag, den die Berechnung braucht.
-interface ScheduleLike { kickoffAt: number; phase?: string }
+interface ScheduleLike { kickoffAt: number; phase?: string; matchday?: number | null }
 
 const VIENNA_TZ = 'Europe/Vienna';
 // Kalendertag (YYYY-MM-DD) eines Zeitpunkts in Wiener Ortszeit.
@@ -206,6 +207,13 @@ const viennaNoonUtc = (y: number, m: number, d: number): number => Date.UTC(y, m
 // null = noch nicht berechenbar (Spielplan fehlt / zu wenige Tage).
 export const computeShopUnlockTs = (rule: ShopUnlockRule, schedule: ScheduleLike[]): number | null => {
   if (!schedule || schedule.length === 0) return null;
+  if (rule.kind === 'fifaMatchday') {
+    // Frühester Anpfiff aller Spiele dieses FIFA-Spieltags (Gruppenrunde) → 12:00 Wien.
+    const ks = schedule.filter(m => m.matchday === rule.matchday).map(m => m.kickoffAt);
+    if (ks.length === 0) return null;
+    const [y, m, d] = viennaDayKey(Math.min(...ks)).split('-').map(Number);
+    return viennaNoonUtc(y, m, d);
+  }
   if (rule.kind === 'matchCalendarDay') {
     const days = Array.from(new Set(schedule.map(m => viennaDayKey(m.kickoffAt)))).sort();
     const key = days[rule.day - 1];
