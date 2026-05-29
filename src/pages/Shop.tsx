@@ -258,7 +258,7 @@ export default function Shop() {
                     {!owned && stockLeft != null && !soldOut && (
                       <span className={clsx('absolute top-1 left-1 text-[8px] font-black tracking-wider uppercase rounded-full px-1.5 py-0.5 border',
                         stockLeft === 1 ? 'text-yellow bg-yellow/20 border-yellow/40' : 'text-white/90 bg-black/40 border-white/15')}>
-                        {stockLeft === 1 ? '★ Letztes' : `★ ${stockLeft}/${item.stock}`}
+                        {item.stock === 1 ? '★ Unikat!' : stockLeft === 1 ? '★ Letztes' : `★ ${stockLeft}/${item.stock}`}
                       </span>
                     )}
                     {soldOut && (
