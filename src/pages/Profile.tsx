@@ -12,6 +12,7 @@ import { clsx } from 'clsx';
 import { ChevronLeft } from 'lucide-react';
 import CharacterAvatar from '../components/CharacterAvatar';
 import { ACCESSORIES, ACCESSORY_SLOTS } from '../data/accessories';
+import { SHOP_SLOTS, SHOP_SLOT_LABELS, type ShopSlot } from '../data/shopItems';
 
 const STREAK_LABELS: Record<string, string> = {
   none:   '—',
@@ -28,6 +29,8 @@ export default function Profile() {
   const markets   = useStore(s => s.markets);
   const logoutAuth = useStore(s => s.logoutAuth);
   const setActiveAccessory = useStore(s => s.setActiveAccessory);
+  const shopItems = useStore(s => s.shopItems);
+  const setActiveShopItem = useStore(s => s.setActiveShopItem);
 
   // ── Passwort-Änderung ────────────────────────────────────────────────
   const [currentPw, setCurrentPw] = useState('');
@@ -217,6 +220,54 @@ export default function Profile() {
               </div>
             );
           })}
+        </div>
+
+        {/* Shop-Inventar */}
+        <div className="bg-card border border-yellow/25 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[14px]">🛒</span>
+              <div className="text-[10px] font-black text-yellow tracking-[0.15em] uppercase">Mein Shop-Inventar</div>
+            </div>
+            <button onClick={() => navigate('/shop')}
+              className="text-[10px] font-black text-yellow bg-yellow/10 border border-yellow/30 rounded-full px-2.5 py-1 hover:bg-yellow/20 transition-colors">
+              Zum Shop →
+            </button>
+          </div>
+          {(me.shopInventory ?? []).length === 0 ? (
+            <div className="text-[11px] text-muted/60 italic">Noch nichts gekauft — schau im Shop vorbei.</div>
+          ) : (
+            <>
+              {SHOP_SLOTS.map(({ slot }) => {
+                const owned = shopItems.filter(i => i.slot === slot && (me.shopInventory ?? []).includes(i.id));
+                if (owned.length === 0) return null;
+                const active = me.activeShopItems?.[slot as ShopSlot] ?? null;
+                return (
+                  <div key={slot} className="mb-3 last:mb-0">
+                    <div className="text-[10px] font-black text-muted/80 uppercase tracking-wide mb-1.5">{SHOP_SLOT_LABELS[slot as ShopSlot]}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button onClick={() => setActiveShopItem(slot as ShopSlot, null)}
+                        className={clsx('text-[11px] font-bold rounded-full px-2.5 py-1 border transition-colors',
+                          active === null ? 'border-green/50 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-muted hover:text-white')}>
+                        — Keins
+                      </button>
+                      {owned.map(item => (
+                        <button key={item.id}
+                          onClick={() => setActiveShopItem(slot as ShopSlot, active === item.id ? null : item.id)}
+                          className={clsx('text-[11px] font-bold rounded-full px-2.5 py-1 border transition-colors',
+                            active === item.id ? 'border-green/50 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-white hover:border-white/30')}>
+                          {item.icon} {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="mt-3 text-[10px] text-muted/70 leading-snug">
+                💡 Shop-Items kannst du <b className="text-white">zusätzlich</b> zu deinen verdienten Accessoires tragen.
+              </div>
+            </>
+          )}
         </div>
 
         {/* Passwort ändern */}

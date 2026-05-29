@@ -10,6 +10,7 @@ import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
 import { ACCESSORIES } from '../data/accessories';
+import { SHOP_SLOTS, SHOP_SLOT_LABELS, type ShopSlot } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 import { isAdminEmail } from '../config/admins';
 
@@ -67,6 +68,13 @@ export default function Admin() {
   const [accPlayer, setAccPlayer] = useState('');
   const [accId, setAccId] = useState('');
   const [accMsg, setAccMsg] = useState('');
+  // Shop-Verwaltung
+  const [shopMsg, setShopMsg] = useState('');
+  const [shopFormOpen, setShopFormOpen] = useState(false);
+  const [shopForm, setShopForm] = useState({
+    id: '', label: '', description: '', slot: 'head' as ShopSlot, icon: '👑',
+    price: 100, available: true, phase: '', sortOrder: 100,
+  });
   // Avatar-Reset (Test)
   const [resetCharPlayer, setResetCharPlayer] = useState('');
   const [resetCharMsg, setResetCharMsg] = useState('');
@@ -149,6 +157,11 @@ export default function Admin() {
   const autoBetTestPlayers = useStore(s => s.autoBetTestPlayers);
   const grantAccessory = useStore(s => s.grantAccessory);
   const awardBlockWinner = useStore(s => s.awardBlockWinner);
+  const shopItems       = useStore(s => s.shopItems);
+  const createShopItem  = useStore(s => s.createShopItem);
+  const updateShopItem  = useStore(s => s.updateShopItem);
+  const deleteShopItem  = useStore(s => s.deleteShopItem);
+  const seedShopExamples = useStore(s => s.seedShopExamples);
   const simulateReveal = useStore(s => s.simulateReveal);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
@@ -1650,10 +1663,15 @@ export default function Admin() {
                     {p.email && <div className="text-[10px] text-muted truncate">{p.email}</div>}
                   </div>
                   <button onClick={() => handleKickPlayer(p.id, p.name)} disabled={kickBusyId === p.id}
-                    className="shrink-0 px-3 py-2 rounded-xl bg-red/10 border border-red/35 text-red font-black text-[12px] hover:bg-red/20 transition-colors cursor-pointer font-sans disabled:opacity-40">
-                    {kickBusyId === p.id ? '…' : '✕ Rauswerfen'}
+                    title="Spieler rauswerfen"
+                    className="shrink-0 w-9 h-9 rounded-xl bg-red/10 border border-red/35 text-red font-black text-[14px] hover:bg-red/20 transition-colors cursor-pointer font-sans disabled:opacity-40 flex items-center justify-center">
+                    {kickBusyId === p.id ? '…' : '✕'}
                   </button>
-                  <button onClick={() => setPlayerApproved(p.id, true)}
+                  <button onClick={() => {
+                      if (window.confirm(`„${p.name}" wirklich freigeben?\n\nDanach kann der Spieler sofort wetten und zählt für die Auswertung mit.`)) {
+                        setPlayerApproved(p.id, true);
+                      }
+                    }}
                     className="shrink-0 px-3 py-2 rounded-xl bg-green/15 border border-green/40 text-green font-black text-[12px] hover:bg-green/25 transition-colors cursor-pointer font-sans">
                     ✓ Freigeben
                   </button>
@@ -1761,6 +1779,139 @@ export default function Admin() {
                 🎁 Freischalten
               </button>
             </div>
+          </div>
+
+          {/* ── SHOP-VERWALTUNG ─────────────────────────────────── */}
+          <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[18px]">🛒</span>
+                <div className="text-[11px] font-black text-yellow tracking-[0.15em] uppercase">Shop verwalten</div>
+              </div>
+              <div className="text-[10px] font-black text-muted">{shopItems.length} Items</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Hier definierst du, was Spieler im Shop für Tokens kaufen können.
+              Grafiken kommen in <code className="text-yellow">public/shop/&lt;id&gt;.webp</code>.
+              Neue Items lösen automatisch einen Feed-Eintrag und „Neu"-Punkt aus.
+            </div>
+            {shopMsg && (
+              <div className="bg-yellow/10 border border-yellow/30 rounded-xl px-3 py-2 text-[12px] font-bold text-center text-yellow mb-3">
+                {shopMsg}
+              </div>
+            )}
+            {/* Schnellaktionen */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                onClick={async () => {
+                  const { added } = await seedShopExamples();
+                  setShopMsg(added > 0 ? `✓ ${added} Beispiel-Items angelegt.` : 'Beispiel-Items sind bereits vorhanden.');
+                  setTimeout(() => setShopMsg(''), 4000);
+                }}
+                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-[11px] font-black hover:border-yellow/50 transition-colors">
+                🌱 Beispiele anlegen
+              </button>
+              <button
+                onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'head', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10 }); }}
+                className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
+                {shopFormOpen ? '✕ Formular schließen' : '➕ Neues Item'}
+              </button>
+            </div>
+
+            {/* Formular */}
+            {shopFormOpen && (
+              <div className="bg-white/3 border border-white/10 rounded-xl p-3 mb-3 flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={shopForm.id} onChange={e => setShopForm(f => ({ ...f, id: e.target.value.replace(/[^a-z0-9_]/gi, '').toLowerCase() }))}
+                    placeholder="id (a-z0-9_)" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                  <select value={shopForm.slot} onChange={e => setShopForm(f => ({ ...f, slot: e.target.value as ShopSlot }))}
+                    className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60">
+                    {SHOP_SLOTS.map(s => <option key={s.slot} value={s.slot}>{s.label}</option>)}
+                  </select>
+                </div>
+                <input value={shopForm.label} onChange={e => setShopForm(f => ({ ...f, label: e.target.value }))}
+                  placeholder="Name (z. B. Achtelfinale-Trikot)" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                <input value={shopForm.description} onChange={e => setShopForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Kurzbeschreibung" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                <div className="grid grid-cols-3 gap-2">
+                  <input value={shopForm.icon} onChange={e => setShopForm(f => ({ ...f, icon: e.target.value }))}
+                    placeholder="Emoji" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                  <input type="number" value={shopForm.price} onChange={e => setShopForm(f => ({ ...f, price: parseInt(e.target.value) || 0 }))}
+                    placeholder="Preis" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                  <input type="number" value={shopForm.sortOrder} onChange={e => setShopForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))}
+                    placeholder="Sort" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                </div>
+                <input value={shopForm.phase} onChange={e => setShopForm(f => ({ ...f, phase: e.target.value }))}
+                  placeholder="Phase (optional, z. B. achtelfinale)" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                <label className="flex items-center gap-2 text-[12px] text-white cursor-pointer">
+                  <input type="checkbox" checked={shopForm.available} onChange={e => setShopForm(f => ({ ...f, available: e.target.checked }))} />
+                  Sofort kaufbar
+                </label>
+                <button
+                  onClick={async () => {
+                    if (!shopForm.id || !shopForm.label || shopForm.price < 0) {
+                      setShopMsg('ID, Name und Preis sind Pflicht.');
+                      setTimeout(() => setShopMsg(''), 3000);
+                      return;
+                    }
+                    if (shopItems.some(i => i.id === shopForm.id)) {
+                      setShopMsg(`ID „${shopForm.id}" existiert bereits.`);
+                      setTimeout(() => setShopMsg(''), 3000);
+                      return;
+                    }
+                    await createShopItem({
+                      id: shopForm.id,
+                      label: shopForm.label,
+                      description: shopForm.description,
+                      slot: shopForm.slot,
+                      icon: shopForm.icon || '🎁',
+                      price: shopForm.price,
+                      available: shopForm.available,
+                      phase: shopForm.phase || undefined,
+                      sortOrder: shopForm.sortOrder,
+                    });
+                    setShopMsg(`✓ „${shopForm.label}" angelegt.`);
+                    setShopFormOpen(false);
+                    setTimeout(() => setShopMsg(''), 4000);
+                  }}
+                  className="w-full p-2.5 rounded-xl bg-gradient-to-br from-yellow to-[#B8860B] text-bg text-[12px] font-black shadow-[0_4px_14px_rgba(230,180,60,0.3)]">
+                  ➕ Item anlegen
+                </button>
+              </div>
+            )}
+
+            {/* Liste vorhandener Items */}
+            {shopItems.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {[...shopItems].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)).map(it => (
+                  <div key={it.id} className="bg-input border border-border rounded-xl p-2.5 flex items-center gap-2">
+                    <span className="text-[20px] shrink-0">{it.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-black text-white truncate">{it.label}</div>
+                      <div className="text-[10px] text-muted">
+                        {SHOP_SLOT_LABELS[it.slot]} · 🪙 {it.price}{it.phase ? ` · ${it.phase}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => updateShopItem(it.id, { available: !it.available })}
+                      className={clsx('text-[10px] font-black rounded-lg px-2 py-1 border',
+                        it.available ? 'border-green/40 bg-green/10 text-green' : 'border-white/10 bg-white/5 text-muted')}>
+                      {it.available ? 'Live' : 'Aus'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Item „${it.label}" wirklich löschen?`)) return;
+                        await deleteShopItem(it.id);
+                        setShopMsg(`✗ „${it.label}" gelöscht.`);
+                        setTimeout(() => setShopMsg(''), 4000);
+                      }}
+                      className="text-[10px] font-black rounded-lg px-2 py-1 border border-red/40 bg-red/10 text-red hover:bg-red/20">
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ── BUYBACK ─────────────────────────────────────────── */}

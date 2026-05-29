@@ -45,18 +45,26 @@ function computeDailyWinnerId(players: Player[]): string {
 // Vollflächige, deckungsgleiche Overlays (Designvorlage: 1080×1080, transparent).
 // z-Reihenfolge (unten → oben):
 //   0  Hintergrund-Badge (on_fire, damn_hot, Phasen-Badges)
+//   5  Shop-Hintergrund (kaufbar)
 //   10 Unterkörper / Outfit  (bzw. Fallback-Avatar = ganzer Charakter)
-//   15 Trikot-Accessoire (optional)
+//   13 Shop-Trikot (kaufbar)
+//   15 Trikot-Accessoire (event-vergeben)
 //   20 Kopf (nur Builder-Modus)
-//   30 Hand-Accessoire
-//   40 Kopf-Accessoire
+//   28 Shop-Hand (kaufbar)
+//   30 Hand-Accessoire (event-vergeben)
+//   38 Shop-Kopf (kaufbar)
+//   40 Kopf-Accessoire (event-vergeben)
 //   45 Leader-Krone (automatisch: Ranglisten-Erster)
-//   50 Tagessieger-Medaille (automatisch: höchster Tagesgewinn) — ganz vorne
-// Fehlt ein PNG noch, wird die jeweilige Ebene per onError ausgeblendet.
+//   50 Tagessieger-Medaille (automatisch: höchster Tagesgewinn)
+//   55 Shop-Effekt (kaufbar) — ganz vorne
+// Shop-Items haben EIGENE Ebenen → sie werden parallel zu den event-vergebenen
+// Accessoires sichtbar getragen. Fehlt ein PNG, wird die Ebene per onError
+// ausgeblendet.
 export default function CharacterAvatar({ player, size = 'md', className = '' }: Props) {
   const hideOnError = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = 'none'; };
   const enc = encodeURIComponent; // Dateinamen mit Leerzeichen URL-sicher machen
   const acc = player.activeAccessories ?? {};
+  const shop = player.activeShopItems ?? {};
 
   // Abgeleitete Auto-Status (primitive IDs → minimale Re-Renders).
   const leaderId = useStore(s => computeLeaderId(s.players, s.bets, s.markets));
@@ -65,6 +73,7 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
   const isDailyWinner = !!dailyWinnerId && player.id === dailyWinnerId;
 
   const overlay = 'absolute inset-0 w-full h-full object-contain pointer-events-none';
+  const shopSrc = (id: string) => `/shop/${id}.webp`;
 
   return (
     <div className={`relative ${DIM[size]} ${className}`}>
@@ -72,6 +81,11 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {player.activeBadgeId && (
         <img src={`/overlays/badges/${player.activeBadgeId}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-0`} />
+      )}
+
+      {/* z-5: Shop-Hintergrund */}
+      {shop.background && (
+        <img src={shopSrc(shop.background)} alt="" onError={hideOnError} className={`${overlay} z-[5]`} />
       )}
 
       {/* z-10/20: Charakter-Basis — Körper und Kopf unabhängig (Kopf optional). */}
@@ -87,15 +101,27 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
           : <div className="absolute inset-0 w-full h-full rounded-full bg-white/5" />
       )}
 
+      {/* z-13: Shop-Trikot */}
+      {shop.torso && (
+        <img src={shopSrc(shop.torso)} alt="" onError={hideOnError} className={`${overlay} z-[13]`} />
+      )}
       {/* z-15: Trikot-Accessoire */}
       {acc.torso && (
         <img src={`/overlays/accessories/${acc.torso}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-[15]`} />
       )}
+      {/* z-28: Shop-Hand */}
+      {shop.hand && (
+        <img src={shopSrc(shop.hand)} alt="" onError={hideOnError} className={`${overlay} z-[28]`} />
+      )}
       {/* z-30: Hand-Accessoire */}
       {acc.hand && (
         <img src={`/overlays/accessories/${acc.hand}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-30`} />
+      )}
+      {/* z-38: Shop-Kopf */}
+      {shop.head && (
+        <img src={shopSrc(shop.head)} alt="" onError={hideOnError} className={`${overlay} z-[38]`} />
       )}
       {/* z-40: Kopf-Accessoire */}
       {acc.head && (
@@ -108,10 +134,14 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
         <img src="/overlays/effects/leader_crown.webp" alt="" onError={hideOnError}
           className={`${overlay} z-[45]`} />
       )}
-      {/* z-50: Tagessieger-Medaille (höchster Tagesgewinn) — ganz vorne */}
+      {/* z-50: Tagessieger-Medaille (höchster Tagesgewinn) */}
       {isDailyWinner && (
         <img src="/overlays/effects/tagessieger.webp" alt="" onError={hideOnError}
           className={`${overlay} z-[50]`} />
+      )}
+      {/* z-55: Shop-Effekt — ganz vorne */}
+      {shop.effect && (
+        <img src={shopSrc(shop.effect)} alt="" onError={hideOnError} className={`${overlay} z-[55]`} />
       )}
     </div>
   );

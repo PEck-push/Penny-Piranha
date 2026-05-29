@@ -12,6 +12,7 @@ import Admin from './pages/Admin';
 import Cashout from './pages/Cashout';
 import Profile from './pages/Profile';
 import Rules from './pages/Rules';
+import Shop from './pages/Shop';
 import CharacterSetup from './components/CharacterSetup';
 
 function MythicSparkles() {
@@ -130,6 +131,7 @@ export default function App() {
               <Route path="/admin" element={currentUser && isAdmin ? <Admin /> : <Navigate to="/dashboard" />} />
               <Route path="/cashout" element={currentUser && isAdmin ? <Cashout /> : <Navigate to="/dashboard" />} />
               <Route path="/profile" element={currentUser ? <Profile /> : <Navigate to="/" />} />
+              <Route path="/shop" element={currentUser ? <Shop /> : <Navigate to="/" />} />
               <Route path="/rules" element={currentUser ? <Rules /> : <Navigate to="/" />} />
             </Routes>
             )}
