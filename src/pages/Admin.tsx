@@ -95,7 +95,7 @@ export default function Admin() {
   const [shopForm, setShopForm] = useState({
     id: '', label: '', description: '', slot: 'head' as ShopSlot, icon: '👑',
     price: 100, available: true, phase: '', sortOrder: 100,
-    stock: '', unlockLabel: '',
+    stock: '', unlockPreset: 'none' as UnlockPresetKey,
   });
   // Avatar-Reset (Test)
   const [resetCharPlayer, setResetCharPlayer] = useState('');
@@ -185,6 +185,7 @@ export default function Admin() {
   const deleteShopItem  = useStore(s => s.deleteShopItem);
   const seedShopExamples = useStore(s => s.seedShopExamples);
   const seedShopFirstItems = useStore(s => s.seedShopFirstItems);
+  const seedShopTorsoItems = useStore(s => s.seedShopTorsoItems);
   const simulateReveal = useStore(s => s.simulateReveal);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
@@ -1889,11 +1890,20 @@ export default function Admin() {
                 🍺 Erste Items anlegen
               </button>
               <button
-                onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'head', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10, stock: '', unlockLabel: '' }); }}
+                onClick={async () => {
+                  const { added } = await seedShopTorsoItems();
+                  setShopMsg(added > 0 ? `✓ ${added} Trikot-Items angelegt (ASV, Kapitän Zrće, Ferko).` : '✓ Trikot-Items aktualisiert (Freischaltung Spieltag 1/2).');
+                  setTimeout(() => setShopMsg(''), 4000);
+                }}
                 className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
-                {shopFormOpen ? '✕ Formular schließen' : '➕ Neues Item'}
+                🎽 Trikot-Items anlegen
               </button>
             </div>
+            <button
+              onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'head', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10, stock: '', unlockPreset: 'none' }); }}
+              className="w-full p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors mb-2">
+              {shopFormOpen ? '✕ Formular schließen' : '➕ Neues Item'}
+            </button>
             <button
               onClick={async () => {
                 const { added } = await seedShopExamples();
@@ -1933,11 +1943,17 @@ export default function Admin() {
                   <input value={shopForm.phase} onChange={e => setShopForm(f => ({ ...f, phase: e.target.value }))}
                     placeholder="Phase (optional)" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
                 </div>
-                <input value={shopForm.unlockLabel} onChange={e => setShopForm(f => ({ ...f, unlockLabel: e.target.value }))}
-                  placeholder="Freischalt-Hinweis (z. B. Ab dem 1. Spieltag) — leer = sofort" className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60" />
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black text-muted uppercase tracking-wider">Freischaltung (Drop-Termin)</span>
+                  <select value={shopForm.unlockPreset}
+                    onChange={e => setShopForm(f => ({ ...f, unlockPreset: e.target.value as UnlockPresetKey }))}
+                    className="bg-input border border-border rounded-lg px-2.5 py-2 text-[12px] text-white outline-none focus:border-yellow/60">
+                    {UNLOCK_PRESETS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                  </select>
+                </div>
                 <label className="flex items-center gap-2 text-[12px] text-white cursor-pointer">
                   <input type="checkbox" checked={shopForm.available} onChange={e => setShopForm(f => ({ ...f, available: e.target.checked }))} />
-                  Sofort kaufbar (bei Freischalt-Hinweis ausschalten → sichtbar, aber gesperrt)
+                  Aktiv (deaktivieren → unsichtbar im Shop)
                 </label>
                 <button
                   onClick={async () => {
@@ -1952,6 +1968,7 @@ export default function Admin() {
                       return;
                     }
                     const stockNum = parseInt(shopForm.stock);
+                    const preset = UNLOCK_PRESETS.find(p => p.key === shopForm.unlockPreset) ?? UNLOCK_PRESETS[0];
                     await createShopItem({
                       id: shopForm.id,
                       label: shopForm.label,
@@ -1963,7 +1980,8 @@ export default function Admin() {
                       phase: shopForm.phase || undefined,
                       sortOrder: shopForm.sortOrder,
                       ...(Number.isFinite(stockNum) && stockNum > 0 ? { stock: stockNum, sold: 0 } : {}),
-                      ...(shopForm.unlockLabel.trim() ? { unlockLabel: shopForm.unlockLabel.trim() } : {}),
+                      ...(preset.rule ? { unlockRule: preset.rule } : {}),
+                      ...(preset.unlockLabel ? { unlockLabel: preset.unlockLabel } : {}),
                     });
                     setShopMsg(`✓ „${shopForm.label}" angelegt.`);
                     setShopFormOpen(false);
