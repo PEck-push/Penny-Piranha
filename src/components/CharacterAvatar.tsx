@@ -18,7 +18,9 @@ const DIM: Record<NonNullable<Props['size']>, string> = {
 // Beide liefern eine ID (oder ''), damit Zustand-Selektoren nur bei echtem
 // Wechsel ein Re-Render auslösen (primitiver Rückgabewert).
 function computeLeaderId(players: Player[], bets: Bet[], markets: Market[]): string {
-  const openMarkets = new Set(markets.filter(m => m.status === 'open').map(m => m.id));
+  // „Offen" für die Gesamtvermögens-Berechnung: noch nicht aufgelöst, d.h.
+  // status='open' (Wett-Phase) oder status='locked' (Spiel läuft).
+  const openMarkets = new Set(markets.filter(m => m.status === 'open' || m.status === 'locked').map(m => m.id));
   const openStake: Record<string, number> = {};
   for (const b of bets) {
     if (openMarkets.has(b.marketId)) openStake[b.playerId] = (openStake[b.playerId] ?? 0) + b.amount;

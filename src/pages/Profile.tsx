@@ -60,7 +60,7 @@ export default function Profile() {
   // Rang über Gesamtvermögen (Tokens + offene Einsätze) — identisch zur Rangliste
   // im Dashboard, damit Profil und Liga denselben Platz zeigen.
   const playerTotal = (p: typeof players[0]) =>
-    p.tokens + bets.filter(b => b.playerId === p.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s, b) => s + b.amount, 0);
+    p.tokens + bets.filter(b => b.playerId === p.id && (() => { const ms = markets.find(m => m.id === b.marketId)?.status; return ms === 'open' || ms === 'locked'; })()).reduce((s, b) => s + b.amount, 0);
   const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
   const rank   = sorted.findIndex(p => p.id === me.id) + 1;
 
@@ -77,8 +77,14 @@ export default function Profile() {
   });
   const winRate  = resolvedBets.length > 0 ? Math.round((wins.length / resolvedBets.length) * 100) : null;
 
+  // Einsätze in noch nicht aufgelösten Märkten (offen ODER gelockt) — diese
+  // Tokens stecken im Pool und gehören weiterhin zum Gesamtvermögen.
   const openBetsValue = bets
-    .filter(b => b.playerId === me.id && markets.find(m => m.id === b.marketId)?.status === 'open')
+    .filter(b => {
+      if (b.playerId !== me.id) return false;
+      const ms = markets.find(m => m.id === b.marketId)?.status;
+      return ms === 'open' || ms === 'locked';
+    })
     .reduce((s, b) => s + b.amount, 0);
 
   // ── Passwort ändern ──────────────────────────────────────────────────
