@@ -797,7 +797,6 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 backdrop-blur-md">
               <span className="font-mono text-[18px] font-bold text-yellow">🪙 {top ? playerTotal(top) : 0}</span>
               <span className="text-[12px] text-yellow/60 font-bold">TOKEN</span>
-              {top && playerTotal(top) !== top.tokens && <span className="text-[10px] text-yellow/40 font-mono">{top.tokens} frei</span>}
             </div>
           </div>
         </div>
@@ -809,7 +808,6 @@ export default function Dashboard() {
               <div className="w-9 h-9"><CharacterAvatar player={sorted[1]} size="sm" className="w-full h-full" /></div>
               <div className="text-[14px] font-black text-white text-center">{sorted[1].name}</div>
               <div className="font-mono text-[15px] font-bold text-green">{playerTotal(sorted[1])} TKN</div>
-              {playerTotal(sorted[1]) !== sorted[1].tokens && <div className="text-[10px] text-muted font-mono">{sorted[1].tokens} frei</div>}
             </div>
           )}
           {sorted[2] && (
@@ -819,7 +817,6 @@ export default function Dashboard() {
               <div className="w-9 h-9"><CharacterAvatar player={sorted[2]} size="sm" className="w-full h-full" /></div>
               <div className="text-[14px] font-black text-white text-center">{sorted[2].name}</div>
               <div className="font-mono text-[15px] font-bold text-green">{playerTotal(sorted[2])} TKN</div>
-              {playerTotal(sorted[2]) !== sorted[2].tokens && <div className="text-[10px] text-muted font-mono">{sorted[2].tokens} frei</div>}
             </div>
           )}
         </div>
@@ -852,7 +849,6 @@ export default function Dashboard() {
               </div>
               <div className="flex flex-col items-end">
                 <span className={clsx("font-mono text-[15px] font-bold", total === 0 ? "text-red" : "text-white")}>{total}</span>
-                {total !== p.tokens && <span className="text-[10px] text-muted font-mono">{p.tokens} frei</span>}
               </div>
             </div>
             );
