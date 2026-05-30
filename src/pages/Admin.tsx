@@ -10,11 +10,30 @@ import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
 import { ACCESSORIES } from '../data/accessories';
-import { SHOP_SLOTS, SHOP_SLOT_LABELS, type ShopSlot } from '../data/shopItems';
+import { SHOP_SLOTS, SHOP_SLOT_LABELS, type ShopSlot, type ShopUnlockRule } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 import { isAdminEmail } from '../config/admins';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+
+// Drop-Preset-Auswahl für Shop-Items (Admin-Dropdown). Wert „none" entfernt jede
+// Freischalt-Sperre; die anderen Werte setzen unlockRule + Anzeige-Label.
+type UnlockPresetKey = 'none' | 'matchday_1' | 'matchday_2' | 'matchday_3' | 'group_end';
+const UNLOCK_PRESETS: Array<{ key: UnlockPresetKey; label: string; rule: ShopUnlockRule | null; unlockLabel: string | null }> = [
+  { key: 'none',       label: 'Sofort verfügbar',     rule: null, unlockLabel: null },
+  { key: 'matchday_1', label: '⚽ Ab Spieltag 1',     rule: { kind: 'fifaMatchday', matchday: 1 }, unlockLabel: 'Ab dem 1. Spieltag' },
+  { key: 'matchday_2', label: '⚽ Ab Spieltag 2',     rule: { kind: 'fifaMatchday', matchday: 2 }, unlockLabel: 'Ab dem 2. Spieltag' },
+  { key: 'matchday_3', label: '⚽ Ab Spieltag 3',     rule: { kind: 'fifaMatchday', matchday: 3 }, unlockLabel: 'Ab dem 3. Spieltag' },
+  { key: 'group_end',  label: '🏆 Nach Gruppenphase', rule: { kind: 'afterGroupStage' },           unlockLabel: 'Nach der Gruppenphase' },
+];
+const presetKeyForItem = (rule?: ShopUnlockRule): UnlockPresetKey => {
+  if (!rule) return 'none';
+  if (rule.kind === 'fifaMatchday' && rule.matchday === 1) return 'matchday_1';
+  if (rule.kind === 'fifaMatchday' && rule.matchday === 2) return 'matchday_2';
+  if (rule.kind === 'fifaMatchday' && rule.matchday === 3) return 'matchday_3';
+  if (rule.kind === 'afterGroupStage') return 'group_end';
+  return 'none';
+};
 
 const toCEST = (ts: number) => {
   const d = new Date(ts + 2 * 60 * 60 * 1000);
@@ -1824,6 +1843,41 @@ export default function Admin() {
               </div>
             )}
             {/* Schnellaktionen */}
+            <button
+              onClick={async () => {
+                // Alle Torso-Items (ohne Platzhalter-Beispiele) nach sortOrder/createdAt ordnen.
+                const torsos = shopItems
+                  .filter(i => i.slot === 'torso' && !i.id.startsWith('ex_'))
+                  .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || (a.createdAt ?? 0) - (b.createdAt ?? 0));
+                if (torsos.length === 0) {
+                  setShopMsg('Keine Torso-Items im Shop gefunden.');
+                  setTimeout(() => setShopMsg(''), 4000);
+                  return;
+                }
+                // ASV-Torso (id beginnt mit "asv") sofort verfügbar. Andere zwei auf Spieltag 1 + 2.
+                const asv = torsos.find(i => /^asv/i.test(i.id));
+                const rest = torsos.filter(i => i.id !== asv?.id).slice(0, 2);
+                const updates: string[] = [];
+                if (asv) {
+                  await updateShopItem(asv.id, { unlockRule: null as any, unlockLabel: null as any, available: true });
+                  updates.push(`${asv.label} → sofort`);
+                }
+                const matchdayPresets = [UNLOCK_PRESETS[1], UNLOCK_PRESETS[2]]; // Spieltag 1, 2
+                for (let i = 0; i < rest.length; i++) {
+                  const preset = matchdayPresets[i];
+                  await updateShopItem(rest[i].id, {
+                    unlockRule: preset.rule as any,
+                    unlockLabel: preset.unlockLabel as any,
+                    available: true,
+                  });
+                  updates.push(`${rest[i].label} → Spieltag ${i + 1}`);
+                }
+                setShopMsg(`✓ ${updates.join(' · ')}`);
+                setTimeout(() => setShopMsg(''), 6000);
+              }}
+              className="w-full p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors mb-2">
+              🎽 Torso-Drops verteilen (ASV sofort · andere auf Spieltag 1 + 2)
+            </button>
             <div className="grid grid-cols-2 gap-2 mb-2">
               <button
                 onClick={async () => {
@@ -1974,6 +2028,23 @@ export default function Admin() {
                         ✕
                       </button>
                     </div>
+                    {/* Drop-Preset: Freischalt-Regel ändern */}
+                    <select
+                      value={presetKeyForItem(it.unlockRule)}
+                      onChange={async e => {
+                        const preset = UNLOCK_PRESETS.find(p => p.key === e.target.value as UnlockPresetKey);
+                        if (!preset) return;
+                        await updateShopItem(it.id, {
+                          unlockRule: preset.rule as any,
+                          unlockLabel: preset.unlockLabel as any,
+                          available: true,
+                        });
+                        setShopMsg(`✓ „${it.label}" → ${preset.label}.`);
+                        setTimeout(() => setShopMsg(''), 3000);
+                      }}
+                      className="bg-white/5 border border-border rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none focus:border-yellow/60">
+                      {UNLOCK_PRESETS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+                    </select>
                     {/* Beschreibung bearbeiten */}
                     <input
                       value={descEdit[it.id] ?? it.description ?? ''}
