@@ -473,9 +473,19 @@ export default function Admin() {
     setTimeout(() => setBulkMsg(''), 4000);
   };
 
+  // Echte WM-2026-Gruppenspiele: Phase = Gruppenphase UND FIFA-Matchday 1/2/3
+  // UND ein Gruppenlabel mit Buchstabe A–L. Damit fallen Fremd-Wettbewerbs-
+  // Imports (CL, EL, Friendlies …) und unsaubere Einträge raus.
   const groupPhaseMatches = scheduleSource.filter(
-    m => (m.phase ?? 'gruppenphase') === 'gruppenphase',
+    m => (m.phase ?? 'gruppenphase') === 'gruppenphase'
+      && (m.matchday === 1 || m.matchday === 2 || m.matchday === 3)
+      && /Gruppe\s+[A-L]/i.test(m.groupLabel ?? ''),
   );
+  // Diagnose: alles, was sich „Gruppenphase" nennt — inkl. unsauberer Reste.
+  const rawGroupPhaseCount = scheduleSource.filter(
+    m => (m.phase ?? 'gruppenphase') === 'gruppenphase',
+  ).length;
+  const scheduleNoise = rawGroupPhaseCount - groupPhaseMatches.length;
   const openMatchday = (md: number) =>
     bulkCreateMarkets(groupPhaseMatches.filter(m => m.matchday === md));
   const openWholeGroupPhase = () => bulkCreateMarkets(groupPhaseMatches);
@@ -1111,6 +1121,15 @@ export default function Admin() {
             >
               📢 Komplette Gruppenphase öffnen ({groupPhaseMatches.length} Spiele)
             </button>
+            {scheduleNoise > 0 && (
+              <div className="mt-2 text-[10px] text-yellow/90 leading-snug">
+                ⚠ Im Spielplan stehen <b>{rawGroupPhaseCount}</b> als „Gruppenphase" markierte Einträge,
+                aber nur <b>{groupPhaseMatches.length}</b> sind echte WM-Spiele (Matchday 1–3, Gruppe A–L).
+                Die {scheduleNoise} unsauberen Einträge stammen wahrscheinlich aus einem Fremd-Import
+                (z. B. CL) — bereinige sie über „Spielplan jetzt laden" mit <code>?competition=WC</code>
+                oder lösche die Reste in Firestore.
+              </div>
+            )}
           </div>
 
           </>}

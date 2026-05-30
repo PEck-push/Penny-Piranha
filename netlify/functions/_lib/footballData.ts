@@ -74,7 +74,10 @@ export function stageToPhase(stage: string): string {
     case 'SEMI_FINALS':    return 'halbfinale';
     case 'THIRD_PLACE':    return 'platz3';
     case 'FINAL':          return 'finale';
-    default:               return 'gruppenphase';
+    // Unbekannte Stages (z. B. PRELIMINARY_ROUND, PLAYOFF_ROUND_X aus anderen
+    // Wettbewerben) NICHT mehr stillschweigend zur Gruppenphase machen, sonst
+    // verfälscht ein versehentlicher Fremd-Import die WM-Filter.
+    default:               return 'unknown';
   }
 }
 
