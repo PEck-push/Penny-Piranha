@@ -57,7 +57,11 @@ export default function Profile() {
   if (!me) return null;
 
   // ── Stats berechnen ──────────────────────────────────────────────────
-  const sorted = [...players].sort((a, b) => b.tokens - a.tokens);
+  // Rang über Gesamtvermögen (Tokens + offene Einsätze) — identisch zur Rangliste
+  // im Dashboard, damit Profil und Liga denselben Platz zeigen.
+  const playerTotal = (p: typeof players[0]) =>
+    p.tokens + bets.filter(b => b.playerId === p.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s, b) => s + b.amount, 0);
+  const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
   const rank   = sorted.findIndex(p => p.id === me.id) + 1;
 
   const myBets     = bets.filter(b => b.playerId === me.id && b.amount > 0);
