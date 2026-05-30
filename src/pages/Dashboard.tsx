@@ -19,14 +19,40 @@ const OPT_BORDER = ['border-green/35','border-red/35','border-blue2/35','border-
 const OPT_HOVER  = ['hover:bg-green/15','hover:bg-red/15','hover:bg-blue/15','hover:bg-yellow/15','hover:bg-purple/15'];
 const OPT_SHADOW = ['shadow-[0_8px_32px_rgba(230,180,60,0.35)]','shadow-[0_8px_32px_rgba(255,61,90,0.35)]','shadow-[0_8px_32px_rgba(59,110,255,0.35)]','shadow-[0_8px_32px_rgba(255,212,71,0.35)]','shadow-[0_8px_32px_rgba(139,61,255,0.35)]'];
 
-function calcPayout(market: Market, optionId: string, betAmt: number): number {
+// Ehrliche Parimutuel-Auszahlungs-Vorschau.
+//
+// Drei Aufrufszenarien:
+//   1. Neue Wette anlegen:           existingBet=undefined
+//      → Pool und Total werden um betAmt erhöht.
+//   2. Bestehende Wette anzeigen:    existingBet={ optionId: b.optionId, amount: b.amount }
+//                                    betAmt = b.amount, optionId = b.optionId
+//      → Sim ergibt den realen aktuellen Stand (Wette ist schon im Pool).
+//   3. Wette ändern (Vorschau):      existingBet=alte Wette, betAmt=neuer Einsatz,
+//                                    optionId=jeweils gehoverte Option
+//      → Alte Wette wird virtuell rausgenommen, neue rein.
+//
+// Mindestgarantie: jeder Gewinner kriegt mindestens Einsatz + 2 Token. Die
+// Differenz wird beim Resolve aus dem Jackpot aufgefüllt, sofern dieser reicht.
+function calcPayout(
+  market: Market,
+  optionId: string,
+  betAmt: number,
+  existingBet?: { optionId: string; amount: number },
+): number {
   const opt = market.options.find(o => o.id === optionId);
   if (!opt) return 0;
   if (market.type === 'combo') return betAmt * (market.multiplier ?? 3);
-  const simOpt = opt.pool + betAmt;
-  const simTotal = getMarketTotal(market) + betAmt; // reiner Parimutuel-Pool, kein Jackpot
-  if (simOpt === 0) return 0;
-  return Math.max(Math.floor((betAmt / simOpt) * simTotal), betAmt + 2); // Mindestgewinn: Einsatz + 2
+  let simOpt = opt.pool;
+  let simTotal = getMarketTotal(market);
+  if (existingBet) {
+    simTotal -= existingBet.amount;
+    if (existingBet.optionId === optionId) simOpt -= existingBet.amount;
+  }
+  simOpt += betAmt;
+  simTotal += betAmt;
+  if (simOpt <= 0) return 0;
+  const naive = Math.floor((betAmt / simOpt) * simTotal);
+  return Math.max(naive, betAmt + 2); // Mindestgarantie
 }
 
 function PoolBar({ market }: { market: Market }) {
@@ -694,7 +720,7 @@ export default function Dashboard() {
           const opt = m.options.find(o => o.id === b.optionId);
           const optIdx = m.options.findIndex(o => o.id === b.optionId);
           const isJackpot = m.marketSubtype === 'jackpot';
-          const potWin = calcPayout(m, b.optionId, b.amount);
+          const potWin = calcPayout(m, b.optionId, b.amount, { optionId: b.optionId, amount: b.amount });
           return (
             <div key={b.id} onClick={() => goToMarket(m)} className="bg-card border border-border rounded-2xl p-4 mb-2.5 cursor-pointer transition-all hover:border-blue/40 hover:-translate-y-0.5">
               <div className="flex items-center gap-2 mb-2">
@@ -1244,7 +1270,8 @@ export default function Dashboard() {
                       )}
                       <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
                         {selectedMarket.options.map((opt, i) => {
-                          const payout = calcPayout(selectedMarket, opt.id, betAmount);
+                          const payout = calcPayout(selectedMarket, opt.id, betAmount,
+                            isChanging && myBet ? { optionId: myBet.optionId, amount: myBet.amount } : undefined);
                           const handleClick = isChanging
                             ? () => { changeBet(selectedMarket.id, opt.id, opt.label, betAmount); setChangingBetMarket(null); setSelectedMarket(null); }
                             : () => handleBet(opt.id, opt.label);

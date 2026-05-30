@@ -383,10 +383,16 @@ export const useStore = create<AppState>()((set, get) => {
         allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
         newJackpot = state.jackpot + (totalStake - refunded);
       } else {
+        // Multi-Select-Parimutuel + Mindestgarantie (analog Standard-Case).
         resType = 'normal';
         let paid = 0;
-        winBets.forEach(b => { const p = Math.floor((b.amount / winStake) * totalStake); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
-        newJackpot = state.jackpot + Math.max(0, totalStake - paid);
+        winBets.forEach(b => {
+          const naive = Math.floor((b.amount / winStake) * totalStake);
+          const final = Math.max(naive, b.amount + 2);
+          pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + final;
+          paid += final;
+        });
+        newJackpot = Math.max(0, state.jackpot + (totalStake - paid));
       }
     } else if (!winOpt || winPool === 0) {
       resType = 'no-winner';
@@ -394,19 +400,25 @@ export const useStore = create<AppState>()((set, get) => {
       allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
       newJackpot = state.jackpot + (totalPool - refunded);
     } else if (winPool === totalPool) {
-      // Alle auf derselben Seite: reine Rückzahlung des Einsatzes.
-      // Der jackpot bleibt unangetastet (wird für den Finale-Block angespart).
+      // Alle auf derselben Seite: reine Rückzahlung des Einsatzes (kein Gewinn,
+      // also auch keine Mindestgarantie aus dem Jackpot).
       resType = 'all-same-side';
       winBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
     } else {
-      // Reine Parimutuel-Auszahlung aus den Spieler-Einsätzen. Der jackpot
-      // wird NICHT mehr eingerechnet, sondern angespart; nur der Rundungsrest
-      // fließt hinzu.
+      // Parimutuel-Auszahlung + Mindestgarantie: jeder Gewinner erhält
+      // mindestens Einsatz + 2 (analog zum Server, siehe MIN_WIN_BONUS in
+      // netlify/functions/_lib/resolve.ts). Die Differenz finanziert der
+      // Jackpot. Negativer Jackpot wird auf 0 begrenzt.
       resType = 'normal';
       const eff = totalPool;
       let paid = 0;
-      winBets.forEach(b => { const p = Math.floor((b.amount / winPool) * eff); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
-      newJackpot = state.jackpot + Math.max(0, eff - paid);
+      winBets.forEach(b => {
+        const naive = Math.floor((b.amount / winPool) * eff);
+        const final = Math.max(naive, b.amount + 2);
+        pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + final;
+        paid += final;
+      });
+      newJackpot = Math.max(0, state.jackpot + (eff - paid));
     }
 
     set(s => ({
