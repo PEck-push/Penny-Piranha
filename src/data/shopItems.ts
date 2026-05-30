@@ -177,6 +177,53 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
   },
 ];
 
+// ── Trikot-Charge (Torsos) ────────────────────────────────────────────────────
+// Drei Trikot-Items, alle Slot „torso". ASV-Retro ist von Beginn an verfügbar,
+// die anderen beiden droppen sukzessive (Spieltag 1, Spieltag 2).
+// WebP-Dateien liegen unter public/shop/<id>.webp.
+export const SHOP_TORSO_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
+  {
+    id: 'asv_retro',
+    label: 'ASV-Retro-Trikot',
+    description: 'Klassisches ASV-Vereinstrikot im Retro-Look. Für alle Stammgäste.',
+    slot: 'torso',
+    icon: '👕',
+    price: 400,
+    available: true,
+    stock: 10,
+    sold: 0,
+    sortOrder: 100,
+  },
+  {
+    id: 'kapitn_zrce',
+    label: 'Kapitän Zrće',
+    description: 'Das Kapitäns-Trikot für die wahre Strandlegende. Selten — nur 3 Stück.',
+    slot: 'torso',
+    icon: '⚓',
+    price: 800,
+    available: true,
+    unlockRule: { kind: 'fifaMatchday', matchday: 1 },
+    unlockLabel: 'Ab dem 1. Spieltag',
+    stock: 3,
+    sold: 0,
+    sortOrder: 110,
+  },
+  {
+    id: 'ferko',
+    label: 'Ferko',
+    description: 'Das Ferko-Trikot — ein Statement. Limitiert auf 3 Stück.',
+    slot: 'torso',
+    icon: '🎽',
+    price: 800,
+    available: true,
+    unlockRule: { kind: 'fifaMatchday', matchday: 2 },
+    unlockLabel: 'Ab dem 2. Spieltag',
+    stock: 3,
+    sold: 0,
+    sortOrder: 120,
+  },
+];
+
 export const isShopItemAvailable = (item: ShopItem, now = Date.now()): boolean => {
   if (!item.available) return false;
   if (item.availableFrom && item.availableFrom > now) return false;
