@@ -88,8 +88,10 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
         <img src={shopSrc(shop.background)} alt="" onError={hideOnError} className={`${overlay} z-[5]`} />
       )}
 
-      {/* z-10/20: Charakter-Basis — Körper und Kopf unabhängig (Kopf optional). */}
-      {player.bodyId && (
+      {/* z-10/20: Charakter-Basis — Körper und Kopf unabhängig (Kopf optional).
+          Shop-Trikot ersetzt den Default-Körper komplett (bodyId wird dann nicht
+          gerendert), damit das Trikot-Asset den ganzen Rumpf abdecken kann. */}
+      {player.bodyId && !shop.torso && (
         <img src={`/characters/outfits/${enc(player.bodyId)}.webp`} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
       )}
       {player.headId && (
@@ -101,9 +103,9 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
           : <div className="absolute inset-0 w-full h-full rounded-full bg-white/5" />
       )}
 
-      {/* z-13: Shop-Trikot */}
+      {/* z-10: Shop-Trikot ersetzt den Default-Körper (gleiche Ebene wie Outfit). */}
       {shop.torso && (
-        <img src={shopSrc(shop.torso)} alt="" onError={hideOnError} className={`${overlay} z-[13]`} />
+        <img src={shopSrc(shop.torso)} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
       )}
       {/* z-15: Trikot-Accessoire */}
       {acc.torso && (

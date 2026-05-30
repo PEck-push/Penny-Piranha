@@ -36,6 +36,16 @@ interface BetDoc {
   amount: number;
 }
 
+// Persistiert den tatsächlich ausgezahlten Betrag pro Bet, damit der Client im
+// Verlauf nicht nachträglich neu rechnen muss (ehrliche Anzeige inkl. Mindest-
+// garantie und Underdog-Bonus, exklusive Streak-Boni).
+function persistBetPayouts(batch: FirebaseFirestore.WriteBatch, payoutsByBet: Map<string, number>) {
+  const db = getDb();
+  for (const [betId, payout] of payoutsByBet) {
+    batch.update(db.collection('bets').doc(betId), { payout });
+  }
+}
+
 // Beansprucht einen Markt atomar zur Bearbeitung. Liefert die Marktdaten, wenn
 // erfolgreich beansprucht, sonst null (bereits aufgelöst/storniert/in Arbeit).
 async function claimMarket(marketRef: FirebaseFirestore.DocumentReference): Promise<any | null> {
@@ -124,14 +134,19 @@ export async function resolveMarketAdmin(
         resolveInProgress: false,
       });
       const payouts: Record<string, number> = {};
+      const betPayouts = new Map<string, number>();
       for (const b of winBets) {
         payouts[b.playerId] = (payouts[b.playerId] ?? 0) + each;
+        betPayouts.set(b.id, each);
         batch.update(db.collection('players').doc(String(b.playerId)), {
           tokens: FieldValue.increment(each),
           dailyNetGain: FieldValue.increment(each),
           unseenResolutions: FieldValue.arrayUnion(marketId),
         });
       }
+      // Auch die Verlierer-Bets als „verloren" markieren (payout 0), für die Anzeige.
+      for (const b of allBets) if (!betPayouts.has(b.id)) betPayouts.set(b.id, 0);
+      persistBetPayouts(batch, betPayouts);
       // Delta = fixedPrize − paid (gilt für beide Fälle): nicht ausgezahlter Rest
       // des Festpreises rollt in den jackpot. Beim Absorbieren wird der angesparte
       // Pot Teil von `prize` und damit ausgeschüttet — der Saldo bleibt fixedPrize−paid.
@@ -160,12 +175,14 @@ export async function resolveMarketAdmin(
 
       const batch = db.batch();
       const payouts: Record<string, number> = {};
+      const betPayouts = new Map<string, number>();
       let totalPayout = 0;
       for (const b of comboBets) {
         const playerRef = db.collection('players').doc(String(b.playerId));
         if (won) {
           const payout = (b.amount || 0) * multiplier;
           payouts[b.playerId] = (payouts[b.playerId] ?? 0) + payout;
+          betPayouts.set(b.id, payout);
           totalPayout += payout;
           batch.update(playerRef, {
             tokens: FieldValue.increment(payout),
@@ -174,12 +191,14 @@ export async function resolveMarketAdmin(
           });
         } else {
           // Einsatz wurde beim Tippen bereits abgezogen → nur Tagesbilanz/Reveal.
+          betPayouts.set(b.id, 0);
           batch.update(playerRef, {
             dailyNetGain: FieldValue.increment(-(b.amount || 0)),
             unseenResolutions: FieldValue.arrayUnion(marketId),
           });
         }
       }
+      persistBetPayouts(batch, betPayouts);
       // Gewinn: Mehrbetrag über den Einsatztopf hinaus kommt aus dem Jackpot/Haus.
       // Niederlage: die Einsätze wandern in den Jackpot.
       const jackpotDelta = won ? -Math.max(0, totalPayout - totalPool) : totalPool;
@@ -217,6 +236,7 @@ export async function resolveMarketAdmin(
     const isUnderdog = lockedTotal > 0 && lockedWin / lockedTotal < UNDERDOG_THRESHOLD;
 
     const payouts: Record<string, number> = {};
+    const betPayouts = new Map<string, number>();
     let jackpotDelta = 0;
     let resType: 'normal' | 'no-winner' | 'all-same-side' = 'normal';
 
@@ -233,6 +253,7 @@ export async function resolveMarketAdmin(
         for (const b of winBets) {
           const payout = Math.max(round((b.amount / winStake) * totalStake), b.amount + MIN_WIN_BONUS);
           payouts[b.playerId] = (payouts[b.playerId] ?? 0) + payout;
+          betPayouts.set(b.id, payout);
           paid += payout;
         }
         jackpotDelta += totalStake - paid;
@@ -244,24 +265,31 @@ export async function resolveMarketAdmin(
     } else if (winPool === totalPool) {
       // Alle auf derselben Seite: reine Einsatz-Rückzahlung, Jackpot unangetastet.
       resType = 'all-same-side';
-      for (const b of winBets) payouts[b.playerId] = (payouts[b.playerId] ?? 0) + b.amount;
+      for (const b of winBets) {
+        payouts[b.playerId] = (payouts[b.playerId] ?? 0) + b.amount;
+        betPayouts.set(b.id, b.amount);
+      }
     } else {
       let paid = 0;
       for (const b of winBets) {
         const raw = (b.amount / winPool) * effectivePool;
         const payout = Math.max(round(raw), b.amount + MIN_WIN_BONUS);
         payouts[b.playerId] = (payouts[b.playerId] ?? 0) + payout;
+        betPayouts.set(b.id, payout);
         paid += payout;
       }
       if (isUnderdog) {
         for (const b of winBets) {
           const bonus = round(b.amount * UNDERDOG_BONUS);
           payouts[b.playerId] = (payouts[b.playerId] ?? 0) + bonus;
+          betPayouts.set(b.id, (betPayouts.get(b.id) ?? 0) + bonus);
           jackpotDelta -= bonus;
         }
       }
       jackpotDelta += effectivePool - paid; // rounding remainder → jackpot
     }
+    // Verlierer-Bets als 0 markieren (für Anzeige im Verlauf).
+    for (const b of allBets) if (!betPayouts.has(b.id)) betPayouts.set(b.id, 0);
 
     const batch = db.batch();
     batch.update(marketRef, {
@@ -334,6 +362,7 @@ export async function resolveMarketAdmin(
     }
 
     batch.update(appRef, { jackpot: FieldValue.increment(jackpotDelta) });
+    persistBetPayouts(batch, betPayouts);
 
     const winLabel = options.find(o => o.id === winningOptionId)?.label ?? winningOptionId;
     const feedRef = db.collection('feed').doc();
@@ -377,6 +406,7 @@ export async function rolloverMarketAdmin(marketId: string, by: 'auto' | 'admin'
         batch.update(db.collection('players').doc(String(b.playerId)), { tokens: FieldValue.increment(r) });
         refunded += r;
       }
+      batch.update(d.ref, { payout: r });
     });
     batch.update(marketRef, {
       status: 'resolved', winningOptionId: null, resolutionType: 'rollover',
@@ -412,6 +442,7 @@ export async function stornoMarketAdmin(marketId: string, by: 'auto' | 'admin' =
       if ((b.amount || 0) > 0) {
         batch.update(db.collection('players').doc(String(b.playerId)), { tokens: FieldValue.increment(b.amount) });
       }
+      batch.update(d.ref, { payout: b.amount || 0 });
     });
     batch.update(marketRef, {
       status: 'cancelled', resolutionType: 'storno',

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
 import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
+import { calcWinnerPayout } from './utils/credits';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -177,6 +178,11 @@ export interface Bet {
   optionLabel: string;
   amount: number;
   timestamp: number;
+  // Vom Resolve gesetzt: tatsächlich ausgezahlter Betrag (Parimutuel + Mindest-
+  // garantie + Underdog-Bonus für Standard; Combo: amount×mult; Jackpot: gleich-
+  // verteilt; Rollover: 50%; Storno: 100%). Streak-Boni hängen am Spieler und
+  // zählen NICHT in payout. 0 = verloren. Fehlt = noch nicht aufgelöst.
+  payout?: number;
 }
 
 export interface Answer {
@@ -383,12 +389,11 @@ export const useStore = create<AppState>()((set, get) => {
         allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
         newJackpot = state.jackpot + (totalStake - refunded);
       } else {
-        // Multi-Select-Parimutuel + Mindestgarantie (analog Standard-Case).
+        // Multi-Select-Parimutuel + Mindestgarantie (calcWinnerPayout = Server-konform).
         resType = 'normal';
         let paid = 0;
         winBets.forEach(b => {
-          const naive = Math.floor((b.amount / winStake) * totalStake);
-          const final = Math.max(naive, b.amount + 2);
+          const final = calcWinnerPayout(b.amount, winStake, totalStake);
           pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + final;
           paid += final;
         });
@@ -405,16 +410,13 @@ export const useStore = create<AppState>()((set, get) => {
       resType = 'all-same-side';
       winBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
     } else {
-      // Parimutuel-Auszahlung + Mindestgarantie: jeder Gewinner erhält
-      // mindestens Einsatz + 2 (analog zum Server, siehe MIN_WIN_BONUS in
-      // netlify/functions/_lib/resolve.ts). Die Differenz finanziert der
-      // Jackpot. Negativer Jackpot wird auf 0 begrenzt.
+      // Parimutuel + Mindestgarantie über calcWinnerPayout — identische Math wie
+      // Server (MIN_WIN_BONUS=2, Math.round). Negativer Jackpot wird auf 0 begrenzt.
       resType = 'normal';
       const eff = totalPool;
       let paid = 0;
       winBets.forEach(b => {
-        const naive = Math.floor((b.amount / winPool) * eff);
-        const final = Math.max(naive, b.amount + 2);
+        const final = calcWinnerPayout(b.amount, winPool, eff);
         pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + final;
         paid += final;
       });
