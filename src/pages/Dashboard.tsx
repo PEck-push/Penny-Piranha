@@ -791,7 +791,7 @@ export default function Dashboard() {
       );
     };
     const playerTotal = (p: typeof players[0]) =>
-      p.tokens + bets.filter(b => b.playerId === p.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s, b) => s + b.amount, 0);
+      p.tokens + bets.filter(b => b.playerId === p.id && (() => { const ms = markets.find(m => m.id === b.marketId)?.status; return ms === 'open' || ms === 'locked'; })()).reduce((s, b) => s + b.amount, 0);
     // Pending-Spieler bleiben in der Liste, werden aber gedimmt dargestellt.
     const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
     const dim = (p?: typeof players[0]) => (p?.approved === false ? 'opacity-[0.6]' : '');
@@ -982,7 +982,7 @@ export default function Dashboard() {
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Konto</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[14px]">🪙</span>
-                  <span className="font-mono text-[16px] font-bold text-green">{me.tokens + bets.filter(b => b.playerId === me.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s,b)=>s+b.amount,0)}</span>
+                  <span className="font-mono text-[16px] font-bold text-green">{me.tokens + bets.filter(b => b.playerId === me.id && (() => { const ms = markets.find(m => m.id === b.marketId)?.status; return ms === 'open' || ms === 'locked'; })()).reduce((s,b)=>s+b.amount,0)}</span>
                 </div>
               </div>
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
