@@ -6,8 +6,6 @@ import { useStore } from '../store';
 import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemListed, isShopItemSoldOut, shopItemStockLeft, shopItemImagePath, shopUnlockAt, type ShopSlot } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 
-type Filter = 'all' | ShopSlot;
-
 export default function Shop() {
   const navigate = useNavigate();
   const me = useStore(s => s.players.find(p => p.id === s.currentUser));
@@ -17,7 +15,6 @@ export default function Shop() {
   const setActiveShop = useStore(s => s.setActiveShopItem);
   const markShopVisited = useStore(s => s.markShopVisited);
 
-  const [filter, setFilter] = useState<Filter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -40,11 +37,9 @@ export default function Shop() {
   const inventory = useMemo(() => new Set(me?.shopInventory ?? []), [me?.shopInventory]);
 
   const visible = useMemo(() => {
-    const list = items
-      .filter(i => filter === 'all' || i.slot === filter)
-      .filter(i => isShopItemListed(i, inventory.has(i.id)));
+    const list = items.filter(i => isShopItemListed(i, inventory.has(i.id)));
     return list.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999) || (a.label ?? '').localeCompare(b.label ?? ''));
-  }, [items, filter, inventory]);
+  }, [items, inventory]);
 
   // Restzeit bis Freischaltung als „2d 4h 12m" / „45s".
   const countdown = (target: number): string => {
@@ -179,25 +174,10 @@ export default function Shop() {
         </div>
       </div>
 
-      {/* Tab-Leiste */}
-      <div className="relative z-10 px-4 pt-3 pb-1.5 shrink-0 overflow-x-auto no-scrollbar">
-        <div className="flex gap-1.5 min-w-max">
-          {(['all', ...SHOP_SLOTS.map(s => s.slot)] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f as Filter)}
-              className={clsx('px-3 py-1.5 rounded-full text-[11px] font-black border transition-colors whitespace-nowrap',
-                filter === f
-                  ? 'border-yellow/50 bg-yellow/15 text-yellow'
-                  : 'border-white/10 bg-white/5 text-muted hover:text-white')}>
-              {f === 'all' ? 'Alle' : SHOP_SLOT_LABELS[f as ShopSlot]}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Slot-Hinweis */}
-      <div className="relative z-10 px-4 pb-2 shrink-0">
+      <div className="relative z-10 px-4 pt-3 pb-2 shrink-0">
         <div className="text-[10px] text-muted/80 leading-snug">
-          💡 <b className="text-white">Tipp aufs Bild = anprobieren.</b> Pro Slot trägst du 1 Item — das vorherige bleibt im Inventar.
+          💡 <b className="text-white">Tipp aufs Bild = anprobieren.</b> Pro Kategorie trägst du 1 Item — das vorherige bleibt im Inventar.
         </div>
       </div>
 
