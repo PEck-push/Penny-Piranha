@@ -187,6 +187,7 @@ export default function Admin() {
   const seedShopExamples = useStore(s => s.seedShopExamples);
   const seedShopFirstItems = useStore(s => s.seedShopFirstItems);
   const seedShopTorsoItems = useStore(s => s.seedShopTorsoItems);
+  const seedShopBgItems = useStore(s => s.seedShopBgItems);
   const simulateReveal = useStore(s => s.simulateReveal);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
@@ -1910,9 +1911,18 @@ export default function Admin() {
                 className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
                 🎽 Trikot-Items anlegen
               </button>
+              <button
+                onClick={async () => {
+                  const { added } = await seedShopBgItems();
+                  setShopMsg(added > 0 ? `✓ ${added} Hintergrund-Items angelegt (Glitzer-Aura).` : '✓ Hintergrund-Items aktualisiert.');
+                  setTimeout(() => setShopMsg(''), 4000);
+                }}
+                className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
+                ✨ Hintergrund-Items anlegen
+              </button>
             </div>
             <button
-              onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'head', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10, stock: '', unlockPreset: 'none' }); }}
+              onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'hand', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10, stock: '', unlockPreset: 'none' }); }}
               className="w-full p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors mb-2">
               {shopFormOpen ? '✕ Formular schließen' : '➕ Neues Item'}
             </button>
