@@ -12,6 +12,7 @@ import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type S
 import { ACCESSORIES } from '../data/accessories';
 import { SHOP_SLOTS, SHOP_SLOT_LABELS, type ShopSlot, type ShopUnlockRule } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
+import ResolvedMarketsInspector from '../components/ResolvedMarketsInspector';
 import { isAdminEmail } from '../config/admins';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
@@ -1676,6 +1677,17 @@ export default function Admin() {
             {markets.filter(m => m.status !== 'resolved').length === 0 && (
               <div className="text-[12px] text-muted text-center py-2">Keine aktiven Märkte</div>
             )}
+          </div>
+
+          {/* ── AUFLÖSUNGS-INSPEKTOR ─────────────────────────────────────────── */}
+          <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
+            <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">📊 Auszahlungs-Inspektor</div>
+            <div className="text-[10px] text-muted mb-3.5 leading-relaxed">
+              Kontroll-Übersicht für aufgelöste Märkte: Tipp, Einsatz und Auszahlung pro Spieler
+              (inkl. Mindestgarantie + Underdog-Bonus, <i>ohne</i> Streak-Boni — die laufen separat
+              über den Activity-Feed).
+            </div>
+            <ResolvedMarketsInspector />
           </div>
 
           </>}
