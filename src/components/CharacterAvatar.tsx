@@ -103,6 +103,11 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
   const isDailyWinner = !!dailyWinnerId && player.id === dailyWinnerId;
 
   const overlay = 'absolute inset-0 w-full h-full object-contain pointer-events-none';
+  // Körper, Trikot und Hand werden minimal nach unten versetzt, damit oberhalb
+  // des Trikots etwas Hals sichtbar bleibt. Wert in Prozent — skaliert mit der
+  // Avatar-Größe (sm/md/lg). Kopf, Krone, Medaille, Effekte und Hintergrund-
+  // Badges bleiben unverändert auf ihrer Originalposition.
+  const overlayBody = `${overlay} translate-y-[3%]`;
   const shopSrc = (id: string) => `/shop/${id}.webp`;
 
   return (
@@ -122,7 +127,7 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
           Shop-Trikot ersetzt den Default-Körper komplett (bodyId wird dann nicht
           gerendert), damit das Trikot-Asset den ganzen Rumpf abdecken kann. */}
       {player.bodyId && !shop.torso && (
-        <img src={`/characters/outfits/${enc(player.bodyId)}.webp`} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
+        <img src={`/characters/outfits/${enc(player.bodyId)}.webp`} alt="" onError={hideOnError} className={`${overlayBody} z-[10]`} />
       )}
       {player.headId && (
         <img src={`/characters/heads/${enc(player.headId)}.webp`} alt={player.name} onError={hideOnError} className={`${overlay} z-20`} />
@@ -135,21 +140,21 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
 
       {/* z-10: Shop-Trikot ersetzt den Default-Körper (gleiche Ebene wie Outfit). */}
       {shop.torso && (
-        <img src={shopSrc(shop.torso)} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
+        <img src={shopSrc(shop.torso)} alt="" onError={hideOnError} className={`${overlayBody} z-[10]`} />
       )}
       {/* z-15: Trikot-Accessoire */}
       {acc.torso && (
         <img src={`/overlays/accessories/${acc.torso}.webp`} alt="" onError={hideOnError}
-          className={`${overlay} z-[15]`} />
+          className={`${overlayBody} z-[15]`} />
       )}
       {/* z-28: Shop-Hand */}
       {shop.hand && (
-        <img src={shopSrc(shop.hand)} alt="" onError={hideOnError} className={`${overlay} z-[28]`} />
+        <img src={shopSrc(shop.hand)} alt="" onError={hideOnError} className={`${overlayBody} z-[28]`} />
       )}
       {/* z-30: Hand-Accessoire */}
       {acc.hand && (
         <img src={`/overlays/accessories/${acc.hand}.webp`} alt="" onError={hideOnError}
-          className={`${overlay} z-30`} />
+          className={`${overlayBody} z-30`} />
       )}
       {/* z-38: Shop-Kopf */}
       {shop.head && (
