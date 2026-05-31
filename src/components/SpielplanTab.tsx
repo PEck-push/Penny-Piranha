@@ -33,6 +33,7 @@ export default function SpielplanTab() {
   const [confirmBet, setConfirmBet] = useState<{
     marketId: string; optionId: string; optionLabel: string; amount: number;
   } | null>(null);
+  const [betPending, setBetPending] = useState(false);
 
   const markets     = useStore(s => s.markets);
   const bets        = useStore(s => s.bets);
@@ -86,10 +87,16 @@ export default function SpielplanTab() {
     setConfirmBet({ marketId, optionId, optionLabel, amount: betAmount });
   };
 
-  const executeBet = () => {
+  const executeBet = async () => {
+    if (betPending) return;
     if (!confirmBet || !me || me.tokens < confirmBet.amount) return;
-    placeBet(confirmBet.marketId, confirmBet.optionId, confirmBet.optionLabel, confirmBet.amount);
-    closeBetSheet();
+    setBetPending(true);
+    try {
+      await placeBet(confirmBet.marketId, confirmBet.optionId, confirmBet.optionLabel, confirmBet.amount);
+      closeBetSheet();
+    } finally {
+      setBetPending(false);
+    }
   };
 
   if (!me) return null;
@@ -570,15 +577,17 @@ export default function SpielplanTab() {
             <div className="flex gap-3 w-full">
               <button
                 onClick={() => setConfirmBet(null)}
-                className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                disabled={betPending}
+                className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Abbrechen
               </button>
               <button
                 onClick={executeBet}
-                className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_4px_20px_rgba(255,212,71,0.35)] hover:shadow-[0_6px_28px_rgba(255,212,71,0.45)] transition-all"
+                disabled={betPending}
+                className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_4px_20px_rgba(255,212,71,0.35)] hover:shadow-[0_6px_28px_rgba(255,212,71,0.45)] transition-all disabled:opacity-60 disabled:cursor-wait"
               >
-                ⚽ Tippen!
+                {betPending ? '…' : '⚽ Tippen!'}
               </button>
             </div>
           </div>

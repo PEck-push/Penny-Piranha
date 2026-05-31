@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { clsx } from 'clsx';
 import { useStore } from '../store';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface RevealScreenProps {
@@ -13,8 +13,10 @@ interface RevealScreenProps {
 // Zauberer-Videos (mp4) im public-Ordner:
 //   public/win.mp4   — Zauberer füllt das Bierglas   (Gewinn)
 //   public/loss.mp4  — Zauberer lässt das Glas fallen (Verlust)
+//   public/draw.mp4  — Edge-Case ±0 (optional; Fallback: win.mp4)
 const WIN_VIDEO  = '/win.mp4';
 const LOSS_VIDEO = '/loss.mp4';
+const DRAW_VIDEO = '/draw.mp4';
 
 // Timing in ms.
 const NUMBER_DELAY_MS = 4300; // Zahl erscheint erst NACH 4,3 s Video
@@ -30,7 +32,11 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
   const me = useStore(s => s.players.find(p => p.id === currentUser));
 
   const net = Math.round(me?.dailyNetGain ?? 0);
-  const isWin = net >= 0;
+  const isWin  = net > 0;
+  const isDraw = net === 0;
+  // Bei ±0 zuerst draw.mp4; wenn nicht vorhanden, fängt onError und schaltet
+  // auf win.mp4 als Fallback (siehe drawFallback unten).
+  const [drawFallback, setDrawFallback] = useState(false);
 
   const [showNumber, setShowNumber] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -42,7 +48,12 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     doneRef.current = true;
     if (currentUser && db) {
       try {
-        await updateDoc(doc(db, 'players', currentUser), { unseenResolutions: [], dailyNetGain: 0 });
+        // Nur die aufgelösten Markt-IDs entfernen — verhindert, dass parallele
+        // neue Resolutions, die zwischenzeitlich reinkamen, mit-genullt werden.
+        await updateDoc(doc(db, 'players', currentUser), {
+          unseenResolutions: arrayRemove(...marketIds),
+          dailyNetGain: 0,
+        });
       } catch { /* nächste Session erneut */ }
     }
     onDone();
@@ -70,7 +81,12 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoFailed]);
 
-  void marketIds; // wird über unseenResolutions:[] geleert
+  // Videoauswahl: bei ±0 → draw.mp4 (mit Fallback auf win.mp4, falls noch
+  // nicht hochgeladen); Gewinn → win, Verlust → loss.
+  const videoSrc = isDraw
+    ? (drawFallback ? WIN_VIDEO : DRAW_VIDEO)
+    : isWin ? WIN_VIDEO : LOSS_VIDEO;
+  const tone: 'win' | 'loss' | 'draw' = isDraw ? 'draw' : isWin ? 'win' : 'loss';
 
   return (
     <div
@@ -85,21 +101,27 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
       {videoFailed ? (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className={clsx('absolute inset-0',
-            isWin
+            tone === 'win'
               ? 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(230,180,60,.28)_0%,transparent_60%)]'
-              : 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(255,61,90,.20)_0%,transparent_60%)]')} />
+              : tone === 'loss'
+                ? 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(255,61,90,.20)_0%,transparent_60%)]'
+                : 'bg-[radial-gradient(ellipse_at_50%_40%,rgba(255,255,255,.14)_0%,transparent_60%)]')} />
           <div className="relative text-[140px] leading-none" style={{ animation: 'auraGlow 2s ease-in-out infinite' }}>
-            {isWin ? '🍺' : '💥'}
+            {tone === 'win' ? '🍺' : tone === 'loss' ? '💥' : '😐'}
           </div>
         </div>
       ) : (
         <video
-          src={isWin ? WIN_VIDEO : LOSS_VIDEO}
+          src={videoSrc}
           autoPlay
           muted
           playsInline
           onEnded={() => { setShowNumber(true); closeNow(); }}
-          onError={() => setVideoFailed(true)}
+          onError={() => {
+            // ±0 ohne draw.mp4 → einmalig auf win.mp4 zurückfallen, statt sofort Emoji.
+            if (isDraw && !drawFallback) setDrawFallback(true);
+            else setVideoFailed(true);
+          }}
           className="absolute inset-0 w-full h-full object-cover"
         />
       )}
@@ -113,15 +135,19 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
           <div
             className={clsx(
               'font-black tracking-[-1px] drop-shadow-[0_4px_24px_rgba(0,0,0,0.9)]',
-              isWin ? 'text-yellow' : 'text-red',
+              tone === 'win' ? 'text-yellow' : tone === 'loss' ? 'text-red' : 'text-white',
             )}
             style={{ fontSize: 72, animation: 'tokenPop 600ms cubic-bezier(.2,1.4,.4,1) both' }}
           >
-            {isWin ? '+' : '−'}{Math.abs(net)}
+            {tone === 'win' ? '+' : tone === 'loss' ? '−' : '±'}{Math.abs(net)}
             <span className="text-[30px] ml-2 align-middle opacity-80">TKN</span>
           </div>
           <div className="text-[12px] font-bold text-white/70 mt-2">
-            {isWin ? 'Deine Bilanz seit zuletzt' : 'Autsch — deine Bilanz seit zuletzt'} · tippen zum Schließen
+            {tone === 'win'
+              ? 'Deine Bilanz seit zuletzt'
+              : tone === 'loss'
+                ? 'Autsch — deine Bilanz seit zuletzt'
+                : 'Knapp daneben — ±0 seit zuletzt'} · tippen zum Schließen
           </div>
         </div>
       )}

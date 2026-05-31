@@ -234,11 +234,20 @@ export default function Dashboard() {
       setConfirmBet({ optionId, optionLabel, amount: betAmount });
   };
 
-  const executeBet = () => {
-    if (selectedMarket && me && confirmBet && me.tokens >= confirmBet.amount) {
-      placeBet(selectedMarket.id, confirmBet.optionId, confirmBet.optionLabel, confirmBet.amount);
+  // Pending-Lock gegen Doppelklick: setConfirmBet räumt den Modal-State erst nach
+  // Abschluss des Firestore-Writes — ohne Lock kann der zweite Klick in den ~150 ms
+  // dazwischen erneut placeBet auslösen und einen Duplikat-Bet anlegen.
+  const [betPending, setBetPending] = useState(false);
+  const executeBet = async () => {
+    if (betPending) return;
+    if (!selectedMarket || !me || !confirmBet || me.tokens < confirmBet.amount) return;
+    setBetPending(true);
+    try {
+      await placeBet(selectedMarket.id, confirmBet.optionId, confirmBet.optionLabel, confirmBet.amount);
       setConfirmBet(null);
       setSelectedMarket(null);
+    } finally {
+      setBetPending(false);
     }
   };
 
@@ -1303,8 +1312,8 @@ export default function Dashboard() {
               <br /><span className="text-[12px] text-red/80 font-bold uppercase tracking-wider mt-2 block">Kann nicht rückgängig gemacht werden!</span>
             </div>
             <div className="flex gap-3 w-full">
-              <button onClick={() => setConfirmBet(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
-              <button onClick={executeBet} className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(255,212,71,0.4)] transition-all">Bestätigen</button>
+              <button onClick={() => setConfirmBet(null)} disabled={betPending} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Abbrechen</button>
+              <button onClick={executeBet} disabled={betPending} className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(255,212,71,0.4)] transition-all disabled:opacity-60 disabled:cursor-wait">{betPending ? '…' : 'Bestätigen'}</button>
             </div>
           </div>
         </div>
@@ -1323,9 +1332,20 @@ export default function Dashboard() {
               <span className="text-[12px] text-muted block mt-0.5">Änderbar bis zum 1. WM-Spiel.</span>
             </div>
             <div className="flex gap-3 w-full">
-              <button onClick={() => setConfirmTip(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
-              <button onClick={() => { placeTip(confirmTip.marketId, confirmTip.optionId, confirmTip.optionLabel); setConfirmTip(null); }}
-                className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(255,212,71,0.4)] transition-all">Tippen</button>
+              <button onClick={() => setConfirmTip(null)} disabled={betPending} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Abbrechen</button>
+              <button
+                onClick={async () => {
+                  if (betPending) return;
+                  setBetPending(true);
+                  try {
+                    await placeTip(confirmTip.marketId, confirmTip.optionId, confirmTip.optionLabel);
+                    setConfirmTip(null);
+                  } finally {
+                    setBetPending(false);
+                  }
+                }}
+                disabled={betPending}
+                className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(255,212,71,0.4)] transition-all disabled:opacity-60 disabled:cursor-wait">{betPending ? '…' : 'Tippen'}</button>
             </div>
           </div>
         </div>
