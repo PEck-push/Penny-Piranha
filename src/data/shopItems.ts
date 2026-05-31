@@ -221,6 +221,16 @@ export const SHOP_BG_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     available: true,
     sortOrder: 200,
   },
+  {
+    id: 'bier_aura',
+    label: 'Bier-Aura',
+    description: 'Bernstein-Glow mit Schaumkrone und aufsteigenden Blasen. Prost!',
+    slot: 'background',
+    icon: '🍺',
+    price: 400,
+    available: true,
+    sortOrder: 210,
+  },
 ];
 
 export const isShopItemAvailable = (item: ShopItem, now = Date.now()): boolean => {
