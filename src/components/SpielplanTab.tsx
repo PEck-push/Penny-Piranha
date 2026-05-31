@@ -404,6 +404,7 @@ export default function SpielplanTab() {
             {/* ── Already bet ── */}
             {selectedMarket && selectedMyBet && (
               <div className="p-5">
+                {isKnockoutMarket(selectedMarket) && <KnockoutHint />}
                 {selectedTotal > 0 && (
                   <div className="mb-4">
                     <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2">Aktuelle Quoten</div>
@@ -474,6 +475,7 @@ export default function SpielplanTab() {
             {/* ── Bet form ── */}
             {selectedMarket && !selectedMyBet && selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
               <div className="p-4 pb-8">
+                {isKnockoutMarket(selectedMarket) && <KnockoutHint />}
                 {/* Odds */}
                 {selectedTotal > 0 && (
                   <div className="mb-4">
@@ -583,5 +585,31 @@ export default function SpielplanTab() {
         </div>
       )}
     </>
+  );
+}
+
+// K.-o.-Phase: alles ab Sechzehntelfinale. Diese Spiele können in Verlängerung/
+// Elfern gehen — wir lösen aber nach Wettbüro-Standard nach dem 90-Min-Stand auf.
+const KO_PHASES = new Set([
+  'sechzehntelfinale', 'achtelfinale', 'viertelfinale', 'halbfinale', 'platz3', 'finale',
+]);
+
+function isKnockoutMarket(m: Market): boolean {
+  return m.marketSubtype === 'wm-match' && KO_PHASES.has(String((m as any).phase ?? ''));
+}
+
+function KnockoutHint() {
+  return (
+    <div className="bg-yellow/8 border border-yellow/30 rounded-xl p-3 mb-4">
+      <div className="flex items-start gap-2">
+        <span className="text-[16px] leading-none">⚠️</span>
+        <div className="text-[11px] text-yellow/90 leading-relaxed">
+          <b>K.-o.-Spiel:</b> Diese Wette gilt für den Endstand nach{' '}
+          <b>90 Min + Nachspielzeit</b>. Verlängerung und Elfmeterschießen zählen{' '}
+          <b>nicht</b> — bei 1:1 nach 90 Min gewinnt der Tipp auf{' '}
+          <b>„Unentschieden"</b>, unabhängig davon, wer das Spiel später gewinnt.
+        </div>
+      </div>
+    </div>
   );
 }
