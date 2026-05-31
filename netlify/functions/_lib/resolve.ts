@@ -36,6 +36,27 @@ interface BetDoc {
   amount: number;
 }
 
+// Optionaler End-Score, der vom auto-resolve mit übergeben wird (API-Daten).
+// Wird im Feed-Text und am Markt-Doc als `finalScore` festgehalten.
+export interface ResolveScore {
+  home: number;
+  away: number;
+  duration?: string;          // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+  penaltiesHome?: number | null;
+  penaltiesAway?: number | null;
+  teamA: string;
+  teamB: string;
+}
+
+function formatScoreLine(s: ResolveScore): string {
+  const base = `${s.teamA} ${s.home}:${s.away} ${s.teamB}`;
+  if (s.duration === 'PENALTY_SHOOTOUT' && s.penaltiesHome != null && s.penaltiesAway != null) {
+    return `${base} (i. E. ${s.penaltiesHome}:${s.penaltiesAway})`;
+  }
+  if (s.duration === 'EXTRA_TIME') return `${base} (n. V.)`;
+  return base;
+}
+
 // Persistiert den tatsächlich ausgezahlten Betrag pro Bet, damit der Client im
 // Verlauf nicht nachträglich neu rechnen muss (ehrliche Anzeige inkl. Mindest-
 // garantie und Underdog-Bonus, exklusive Streak-Boni).
@@ -71,6 +92,7 @@ export async function resolveMarketAdmin(
   marketId: string,
   winningOptionId: string,
   by: 'auto' | 'admin' = 'auto',
+  score?: ResolveScore,
 ): Promise<{ ok: boolean; skipped?: boolean; payouts?: Record<string, number> }> {
   const db = getDb();
   const marketRef = db.collection('markets').doc(marketId);
@@ -292,6 +314,13 @@ export async function resolveMarketAdmin(
     for (const b of allBets) if (!betPayouts.has(b.id)) betPayouts.set(b.id, 0);
 
     const batch = db.batch();
+    const finalScorePersist = score ? {
+      home: score.home,
+      away: score.away,
+      ...(score.duration ? { duration: score.duration } : {}),
+      ...(score.penaltiesHome != null ? { penaltiesHome: score.penaltiesHome } : {}),
+      ...(score.penaltiesAway != null ? { penaltiesAway: score.penaltiesAway } : {}),
+    } : null;
     batch.update(marketRef, {
       status: 'resolved',
       winningOptionId,
@@ -299,6 +328,7 @@ export async function resolveMarketAdmin(
       resolvedBy: by,
       resolvedAt: FieldValue.serverTimestamp(),
       resolveInProgress: false,
+      ...(finalScorePersist ? { finalScore: finalScorePersist } : {}),
     });
 
     const bettorIds = [...new Set<string>(allBets.map(b => String(b.playerId)))];
@@ -365,11 +395,12 @@ export async function resolveMarketAdmin(
     persistBetPayouts(batch, betPayouts);
 
     const winLabel = options.find(o => o.id === winningOptionId)?.label ?? winningOptionId;
+    const headline = score ? formatScoreLine(score) : (market.question ?? marketId);
     const feedRef = db.collection('feed').doc();
     batch.set(feedRef, {
       type: 'market_resolved',
       marketId,
-      text: `Ergebnis: ${market.question ?? marketId} → ${winLabel}`,
+      text: `Ergebnis: ${headline} → ${winLabel}`,
       ts: FieldValue.serverTimestamp(),
     });
     for (const f of feedExtra) {

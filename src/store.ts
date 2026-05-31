@@ -168,6 +168,20 @@ export interface Market {
   // Übereinstimmung mit der vom Admin gewählten richtigen Menge. Der Tipp wird als
   // ein Bet gespeichert (optionId = kanonischer Schlüssel der Auswahl).
   multiSelect?: boolean;
+  // Vom Resolve gesetzt (auto-resolve mit API-Score). Im Admin-Inspector & im
+  // Feed zur Anzeige des End-Ergebnisses verwendet. `duration` = REGULAR |
+  // EXTRA_TIME | PENALTY_SHOOTOUT (football-data.org).
+  finalScore?: {
+    home: number;
+    away: number;
+    duration?: string;
+    penaltiesHome?: number;
+    penaltiesAway?: number;
+  };
+  // Firestore-Timestamp serialisiert — kann beim Lesen als
+  // { seconds, nanoseconds } oder mit toMillis() ankommen.
+  resolvedAt?: unknown;
+  resolvedBy?: 'auto' | 'admin';
 }
 
 export interface Bet {

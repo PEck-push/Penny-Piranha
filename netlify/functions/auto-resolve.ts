@@ -79,8 +79,18 @@ export default async (req: Request) => {
       winningOptionId = options[idx]?.id ?? winningOptionId;
     }
 
+    const score = {
+      home: home as number,
+      away: away as number,
+      duration: m.score?.duration,
+      penaltiesHome: m.score?.penalties?.home ?? null,
+      penaltiesAway: m.score?.penalties?.away ?? null,
+      teamA: entry.data.teamA ?? m.homeTeam?.name ?? 'Heim',
+      teamB: entry.data.teamB ?? m.awayTeam?.name ?? 'Gast',
+    };
+
     try {
-      await resolveMarketAdmin(entry.id, winningOptionId, 'auto');
+      await resolveMarketAdmin(entry.id, winningOptionId, 'auto', score);
       resolved++;
       console.log(`[auto-resolve] ${entry.data.teamA} ${home}-${away} ${entry.data.teamB} → ${winningOptionId}`);
     } catch (err: any) {
