@@ -2,79 +2,118 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Players: lesen für alle authed. create/update/delete nur auf der eigenen
-    // Doc oder bei Test-Spielern (Admin verwaltet sie clientseitig). Vorher war
-    // update offen für jeden authed — damit konnte jeder Spieler fremde Token-
-    // Stände und isAdmin-Flags überschreiben.
+    // ── Players ─────────────────────────────────────────────────────────────
+    // Schreibrechte sind doppelt beschränkt:
+    //   1. Nur die eigene Doc (oder ein Test-Spieler).
+    //   2. „Schutzfelder" (Tokens, Streaks, Shop-Bestand, Reveal-Queue usw.)
+    //      dürfen NICHT direkt vom Client geschrieben werden — die werden
+    //      ausschliesslich von den Netlify-Functions via Admin-SDK gesetzt
+    //      (place-bet, change-bet, purchase-shop-item, buyback, resolve-market,
+    //      tick, go-live). Damit ist Self-Token-Manipulation aus dem Browser
+    //      verschlossen.
+    //   Test-Spieler bleiben offen: der Admin verwaltet sie clientseitig
+    //   (Anlegen, Pool-Simulation per Test-Wetten).
     match /players/{playerId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && (request.auth.uid == playerId || request.resource.data.isTestPlayer == true);
-      allow update: if request.auth != null
-        && (request.auth.uid == playerId || resource.data.isTestPlayer == true);
       allow delete: if request.auth != null
         && (request.auth.uid == playerId || resource.data.isTestPlayer == true);
+
+      allow update: if request.auth != null && (
+        // Test-Spieler: weiterhin offen für den Admin-Pfad.
+        resource.data.isTestPlayer == true
+        // Eigene Doc: nur Felder ausserhalb der Schutzliste.
+        // dailyNetGain + unseenResolutions sind bewusst NICHT geschützt —
+        // RevealScreen.finish() und simulateReveal müssen sie für den
+        // eigenen User setzen können.
+        || (request.auth.uid == playerId
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'tokens', 'isAdmin', 'approved', 'buybackUsed',
+              'shopInventory',
+              'currentStreak', 'bestStreak', 'streakLevel', 'streakHistory',
+              'unlockedOverlays', 'austriaSpecialCorrect', 'underdogCorrect',
+              'badges', 'isTestPlayer'
+            ]))
+      );
     }
 
-    // Usernames: eindeutige Namens-Reservierung (Doc-ID = slug des Namens).
-    // Wird in einer Transaction bei der Registrierung gesetzt → echte
-    // Eindeutigkeit ohne Race. Jeder darf lesen (Prüfung), aber nur ein Doc
-    // mit der eigenen uid anlegen. Löschen erlaubt (Reset/Kick via Admin-SDK).
+    // ── Usernames: Namens-Reservierung ────────────────────────────────────────
     match /usernames/{name} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
       allow delete: if request.auth != null;
     }
 
-    // Markets: any authenticated user can read and write (admin creates/resolves).
+    // ── Markets ───────────────────────────────────────────────────────────────
+    // Lesen für alle authed. Schreiben weiter offen für authed (Admin-Panel
+    // legt Märkte an, pausiert/sperrt/storniert sie clientseitig). Pool-
+    // Mutationen via Wett-Platzierung laufen jetzt aber über `place-bet` —
+    // dort wird `options[].pool` atomar fortgeschrieben.
     match /markets/{marketId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
     }
 
-    // Bets: private app — any authenticated user can create and delete bets.
-    // Allows admin to place bets on behalf of test players and to bulk-delete
-    // during reset. The invite-code registration gate is the security perimeter.
+    // ── Bets ─────────────────────────────────────────────────────────────────
+    // Lesen für jeden authed. Schreiben NUR über Server-Endpoints
+    // (place-bet, change-bet, resolve-market). Damit kann sich kein Spieler
+    // einen Pool oder Payout-Eintrag erfinden.
     match /bets/{betId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if false;
     }
 
-    // Answers: same reasoning as bets (delete needed for reset).
+    // ── Answers ──────────────────────────────────────────────────────────────
+    // Offene Antworten („Wer schiesst?"): Spieler dürfen ihre eigene Antwort
+    // anlegen; Bulk-Delete beim Reset macht die Netlify-Function go-live.
     match /answers/{answerId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.playerId == request.auth.uid;
+      allow delete: if false;
+      allow update: if false;
     }
 
-    // App state: invite code readable without auth (needed for registration gate).
+    // ── App state ────────────────────────────────────────────────────────────
+    // Invite-Code öffentlich lesbar (Registrier-Gate). Schreiben offen, aber
+    // sensible Felder (jackpot, currentMatchday, hausbank) NUR über Server-SDK.
     match /appState/{doc} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null
+        && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['jackpot', 'currentMatchday', 'hausbank']);
     }
 
-    // Schedule: WM 2026 fixtures (written by Netlify Functions via Admin SDK).
+    // ── Schedule: Server-only (Admin-SDK Import).
     match /schedule/{matchId} {
       allow read: if request.auth != null;
+      allow write: if false;
     }
 
-    // Feed: authenticated users can read; write needed for admin reset.
+    // ── Feed ─────────────────────────────────────────────────────────────────
+    // Lesen für alle authed. Feed-Einträge schreiben nur Server-Endpoints
+    // (purchase-shop-item, resolve-market, jackpot-Distribution usw.).
     match /feed/{eventId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if false;
     }
 
-    // Auto-deductions audit: read-only for authenticated users.
+    // ── Auto-deductions audit: nur lesen (Server schreibt via Admin-SDK).
     match /autoDeductions/{deductionId} {
       allow read: if request.auth != null;
+      allow write: if false;
     }
 
-    // Shop-Items: jeder authentifizierte Spieler liest den Katalog. Schreiben ist
-    // serverseitig (Firestore-Transaction beim Kauf) bzw. UI-seitig (Admin) auf
-    // PIN-gegateten Admin-Flow beschränkt — derselbe Trust-Level wie bei
-    // markets/bets im aktuellen Spielstand.
+    // ── Shop-Items ───────────────────────────────────────────────────────────
+    // Lesen für alle authed. Schreiben (Katalog-Pflege) weiter im Admin-Panel
+    // erlaubt, aber das sensible `sold`-Feld (Stock-Bookkeeping) darf NUR der
+    // Server (purchase-shop-item) inkrementieren.
     match /shopItems/{itemId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null
+        && (resource == null
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['sold']));
     }
   }
 }
