@@ -46,11 +46,13 @@ export const SHOP_SLOT_LABELS: Record<ShopSlot, string> = {
   background: 'Hintergrund',
 };
 
+// Im UI angebotene Slots. Bewusst auf die drei Shop-Kategorien beschränkt
+// (Hand, Trikot, Hintergrund) — Admin-Anlage, Filter und Inventar-Sektionen
+// richten sich danach. `ShopSlot` und `SHOP_SLOT_LABELS` behalten weitere
+// Keys (head/effect) als Backward-Kompatibilität für bestehende Avatar-Layer.
 export const SHOP_SLOTS: { slot: ShopSlot; label: string }[] = [
-  { slot: 'head',       label: 'Kopf' },
-  { slot: 'torso',      label: 'Trikot' },
   { slot: 'hand',       label: 'Hand' },
-  { slot: 'effect',     label: 'Effekt' },
+  { slot: 'torso',      label: 'Trikot' },
   { slot: 'background', label: 'Hintergrund' },
 ];
 
@@ -59,12 +61,12 @@ export const SHOP_SLOTS: { slot: ShopSlot; label: string }[] = [
 // Preise/Slots sind beliebig wählbar — der User legt später die echten Items an.
 export const SHOP_EXAMPLE_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
   {
-    id: 'ex_sombrero',
-    label: 'Sombrero',
-    description: 'Klassischer Strohhut für Sonnenanbeter — Beispiel-Item.',
-    slot: 'head',
-    icon: '🤠',
-    price: 150,
+    id: 'ex_beer_stein',
+    label: 'Bierkrug',
+    description: 'Frisch gezapft. Prost! — Beispiel-Item.',
+    slot: 'hand',
+    icon: '🍺',
+    price: 200,
     available: true,
     sortOrder: 10,
   },
@@ -79,26 +81,6 @@ export const SHOP_EXAMPLE_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     sortOrder: 20,
   },
   {
-    id: 'ex_beer_stein',
-    label: 'Bierkrug',
-    description: 'Frisch gezapft. Prost! — Beispiel-Item.',
-    slot: 'hand',
-    icon: '🍺',
-    price: 200,
-    available: true,
-    sortOrder: 30,
-  },
-  {
-    id: 'ex_sparkles',
-    label: 'Glitzer-Aura',
-    description: 'Funkelnder Effekt rund um deinen Charakter — Beispiel-Item.',
-    slot: 'effect',
-    icon: '✨',
-    price: 400,
-    available: true,
-    sortOrder: 40,
-  },
-  {
     id: 'ex_stadium_bg',
     label: 'Stadion-Hintergrund',
     description: 'Volle Tribüne als Hintergrund — Beispiel-Item.',
@@ -106,7 +88,7 @@ export const SHOP_EXAMPLE_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     icon: '🏟️',
     price: 350,
     available: true,
-    sortOrder: 50,
+    sortOrder: 30,
   },
 ];
 
