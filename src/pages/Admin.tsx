@@ -48,6 +48,8 @@ export default function Admin() {
   // Schedule import from football-data.org API (via Netlify Function)
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [importMsg, setImportMsg] = useState('');
+  const [prepStatus, setPrepStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [prepMsg, setPrepMsg] = useState('');
 
   // WM-Match market creation
   const [wmGroup, setWmGroup] = useState('A');
@@ -173,7 +175,6 @@ export default function Admin() {
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
-  const fullReset = useStore(s => s.fullReset);
   const closeMarket = useStore(s => s.closeMarket);
   const deleteMarket = useStore(s => s.deleteMarket);
   const createTestPlayer = useStore(s => s.createTestPlayer);
@@ -2510,14 +2511,43 @@ export default function Admin() {
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Session</div>
             <button onClick={() => navigate('/cashout')} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-red to-orange font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(255,61,90,0.3)] transition-all hover:-translate-y-px mb-3">💰 CASHOUT ÖFFNEN</button>
-            <button onClick={async () => {
-              if (window.confirm('Wirklich ALLES auf null stellen? Märkte, Wetten, Antworten, Feed, Jackpot und alle Test-Spieler werden gelöscht. Admin-Accounts, Spielplan und Invite-Code bleiben.')) {
-                try { await fullReset(); alert('Auf null gestellt ✓'); }
-                catch (e) { console.error(e); alert('Fehler beim Zurücksetzen.'); }
-              }
-            }} className="w-full p-3.5 border border-red/40 rounded-xl bg-red/10 font-sans text-[14px] font-black text-red cursor-pointer transition-all hover:bg-red/20">
-              ⚠️ ALLES AUF NULL STELLEN
+            <button
+              disabled={prepStatus === 'loading'}
+              onClick={async () => {
+                if (!window.confirm(
+                  'KOMPLETT-RESET VOR GO-LIVE\n\n'
+                  + 'Es bleiben NUR Michael Matouschowsky und Philipp Eckhardt erhalten — beide als Admin und mit zurueckgesetztem Charakter (muessen neu auswaehlen).\n\n'
+                  + 'Alle anderen Spieler, alle Wetten, Maerkte, Antworten, Feed und Jackpot werden geloescht. Spielplan, Shop-Katalog und Invite-Code bleiben.\n\n'
+                  + 'Testmodus bleibt aktiv — Live gehen ist ein separater Schritt.\n\nWirklich ausfuehren?'
+                )) return;
+                setPrepStatus('loading');
+                setPrepMsg('');
+                try {
+                  const token = await auth.currentUser?.getIdToken();
+                  if (!token) throw new Error('Nicht eingeloggt.');
+                  const res = await fetch('/.netlify/functions/prepare-go-live', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+                  setPrepStatus('ok');
+                  const keptNames = (data.kept ?? []).map((k: any) => k.name).join(', ') || '(keine gefunden!)';
+                  setPrepMsg(`Reset OK. Behalten: ${keptNames}. ${data.deletedPlayers ?? 0} Spieler geloescht.`);
+                } catch (err: any) {
+                  setPrepStatus('error');
+                  setPrepMsg(err.message || 'Reset fehlgeschlagen');
+                }
+              }}
+              className="w-full p-3.5 border border-red/40 rounded-xl bg-red/10 font-sans text-[14px] font-black text-red cursor-pointer transition-all hover:bg-red/20 disabled:opacity-50"
+            >
+              {prepStatus === 'loading' ? '… läuft' : '⚠️ KOMPLETT-RESET VOR GO-LIVE'}
             </button>
+            {prepMsg && (
+              <div className={`mt-2 text-[12px] ${prepStatus === 'ok' ? 'text-emerald-400' : 'text-red'}`}>
+                {prepMsg}
+              </div>
+            )}
           </div>
 
           <div className="mt-8 text-center mb-6">

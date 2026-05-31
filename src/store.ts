@@ -301,7 +301,6 @@ interface AppState {
   deleteMarket: (marketId: string) => Promise<void>;
   createTestPlayer: (name?: string) => Promise<void>;
   autoBetTestPlayers: () => Promise<void>;
-  fullReset: () => Promise<void>;
   submitAnswer: (marketId: string, text: string) => void;
   createMarket: (market: Omit<Market, 'id' | 'createdAt'>) => void;
   resolveOpenQuestion: (marketId: string, winnerPlayerIds: string[]) => void;
@@ -1120,63 +1119,6 @@ export const useStore = create<AppState>()((set, get) => {
             await get().placeBetAs(tp.id, m.id, opt.id, opt.label, amount);
           }
         }
-      }
-    },
-
-    // Vollständiger Reset (Testmodus): leert ALLE Spieldaten inkl. Test-Spieler.
-    // Admin-Accounts, Spielplan und Invite-Code bleiben erhalten.
-    fullReset: async () => {
-      clearSessionCookie();
-      const state = get();
-      const keptPlayers = state.players.filter(p => !p.isTestPlayer);
-      const resetFields = {
-        tokens: 1000, buybackUsed: false, comboMalus: false, badges: [],
-        currentStreak: 0, bestStreak: 0, streakLevel: 'none' as StreakLevel,
-        streakHistory: [], austriaSpecialCorrect: 0, underdogCorrect: 0,
-        dailyNetGain: 0, unlockedOverlays: [], activeAccessoryId: null,
-        activeBadgeId: null, unseenResolutions: [],
-        // Shop: alles auf null im fullReset (Testmodus-Wipe). Der per-Spieler
-        // Charakter-Reset (resetPlayerCharacter) lässt Inventar dagegen in Ruhe.
-        shopInventory: [], activeShopItems: {}, lastShopVisitTs: 0,
-      };
-      // Optimistic local update.
-      set({
-        markets: [], bets: [], answers: [], feed: [], jackpot: 0,
-        currentPhase: 'gruppenphase', testMode: true, adminMessage: '',
-        players: keptPlayers.map(p => ({ ...p, ...resetFields })),
-      });
-      if (!db) return;
-      try {
-        // ── Spieler-Tokens ZUERST in Firestore schreiben, damit nachfolgende
-        // onSnapshot-Events (ausgelöst durch deleteAll) bereits die neuen Werte
-        // zurückliefern und den lokalen Zustand nicht mehr überschreiben.
-        for (const p of keptPlayers) {
-          await setDoc(doc(db, 'players', p.id), resetFields, { merge: true });
-        }
-
-        const deleteAll = async (colName: string, filter?: (data: any) => boolean) => {
-          const snap = await getDocs(collection(db, colName));
-          const docsToDelete = filter ? snap.docs.filter(d => filter(d.data())) : snap.docs;
-          for (let i = 0; i < docsToDelete.length; i += 400) {
-            const batch = writeBatch(db);
-            docsToDelete.slice(i, i + 400).forEach(d => batch.delete(d.ref));
-            await batch.commit();
-          }
-        };
-        await deleteAll('bets');
-        await deleteAll('markets');
-        await deleteAll('answers');
-        await deleteAll('feed');
-        await deleteAll('players', (d) => d.isTestPlayer === true);
-        // Shop-Katalog bleibt erhalten, aber verkaufte Stückzahlen zurücksetzen,
-        // damit knappe Items nicht fälschlich „ausverkauft" bleiben.
-        const shopSnap = await getDocs(collection(db, 'shopItems'));
-        for (const d of shopSnap.docs) {
-          if ((d.data() as ShopItem).sold) await updateDoc(d.ref, { sold: 0 });
-        }
-        await setDoc(doc(db, 'appState', 'global'), { jackpot: 0, testMode: true, adminMessage: '', currentMatchday: '' }, { merge: true });
-      } catch (err) {
-        console.error('[Store] fullReset Fehler:', err);
       }
     },
 
