@@ -207,31 +207,9 @@ export const SHOP_TORSO_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
 ];
 
 // ── Hintergrund-Charge ────────────────────────────────────────────────────────
-// Hintergrund-Items rendern hinter dem Charakter (z-Index 5). Glitzer-Aura ist
-// das erste echte BG-Item — sofort verfügbar, unbegrenzt.
-// WebP-Datei: public/shop/glitzer_aura.webp
-export const SHOP_BG_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
-  {
-    id: 'glitzer_aura',
-    label: 'Glitzer-Aura',
-    description: 'Funkelnde goldene Aura mit feinem Sternenkranz — bringt jeden zum Strahlen.',
-    slot: 'background',
-    icon: '✨',
-    price: 400,
-    available: true,
-    sortOrder: 200,
-  },
-  {
-    id: 'bier_aura',
-    label: 'Bier-Aura',
-    description: 'Bernstein-Glow mit Schaumkrone und aufsteigenden Blasen. Prost!',
-    slot: 'background',
-    icon: '🍺',
-    price: 400,
-    available: true,
-    sortOrder: 210,
-  },
-];
+// (entfernt — neue Hintergrund-Items werden via Admin-Formular angelegt, sobald
+// die WebPs verfuegbar sind. Bei Bedarf hier neue SHOP_BG_ITEMS-Konstante +
+// seedShopBgItems-Aktion wieder aktivieren.)
 
 export const isShopItemAvailable = (item: ShopItem, now = Date.now()): boolean => {
   if (!item.available) return false;

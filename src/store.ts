@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
-import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, SHOP_BG_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
+import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { calcWinnerPayout } from './utils/credits';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc } from 'firebase/firestore';
@@ -340,7 +340,6 @@ interface AppState {
   seedShopExamples: () => Promise<{ added: number }>;
   seedShopFirstItems: () => Promise<{ added: number }>;
   seedShopTorsoItems: () => Promise<{ added: number }>;
-  seedShopBgItems: () => Promise<{ added: number }>;
   resetState: () => void;
 }
 
@@ -1252,31 +1251,6 @@ export const useStore = create<AppState>()((set, get) => {
         await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
       } catch (err) {
         console.error('[Store] seedShopTorsoItems Fehler:', err);
-      }
-      return { added };
-    },
-
-    // ── Shop: Hintergrund-Items anlegen/aktualisieren (glitzer_aura, …) ────────
-    // Gleiche Upsert-Logik wie seedShopTorsoItems.
-    seedShopBgItems: async () => {
-      if (!db) return { added: 0 };
-      const existing = new Map(get().shopItems.map(i => [i.id, i]));
-      const now = Date.now();
-      let added = 0;
-      try {
-        for (const it of SHOP_BG_ITEMS) {
-          const prev = existing.get(it.id);
-          if (!prev) {
-            await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
-            added++;
-          } else {
-            const { sold: _seed, ...defWithoutSold } = it;
-            await updateDoc(doc(db, 'shopItems', it.id), defWithoutSold as any);
-          }
-        }
-        await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
-      } catch (err) {
-        console.error('[Store] seedShopBgItems Fehler:', err);
       }
       return { added };
     },
