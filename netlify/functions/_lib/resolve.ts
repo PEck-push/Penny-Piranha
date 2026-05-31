@@ -342,6 +342,11 @@ export async function resolveMarketAdmin(
 
     const feedExtra: Array<{ type: string; playerId: string; playerName: string; text: string; creditsChange: number }> = [];
 
+    // Streak/Underdog werden NUR bei einer „echten" Auflösung (resType === 'normal')
+    // angewandt. Bei all-same-side (reine Rückzahlung) oder no-winner (niemand
+    // richtig) gibt es keinen Streak-Tick und keinen Underdog-Bonus — der Streak
+    // bleibt unverändert, kein Milestone-Bonus wird ausgeschüttet.
+    const isRealResult = resType === 'normal';
     for (const ps of playerSnaps) {
       if (!ps.exists) continue;
       const p = ps.data() as any;
@@ -349,48 +354,52 @@ export async function resolveMarketAdmin(
       const correct = !!myBet && myBet.optionId === winningOptionId;
       const basePayout = payouts[ps.id] ?? 0;
 
-      const newStreak = correct ? (p.currentStreak ?? 0) + 1 : 0;
-      let level: 'none' | 'on_fire' | 'damn_hot' = 'none';
-      if (newStreak >= 7) level = 'damn_hot';
-      else if (newStreak >= 4) level = 'on_fire';
-
-      // Streak milestone bonus (only on the exact threshold cross)
-      let streakBonus = 0;
-      const overlayAdds: string[] = [];
-      if (correct && newStreak === 4) { streakBonus = 30; overlayAdds.push('on_fire'); }
-      if (correct && newStreak === 7) { streakBonus = 100; overlayAdds.push('damn_hot'); }
-      if (streakBonus > 0) {
-        jackpotDelta -= streakBonus;
-        feedExtra.push({
-          type: newStreak === 7 ? 'streak_damn_hot' : 'streak_on_fire',
-          playerId: ps.id,
-          playerName: p.displayName ?? p.name ?? '?',
-          text: newStreak === 7
-            ? `🔥🔥 ${p.displayName ?? p.name} ist DAMN HOT! 7er-Streak! +100 Cr.`
-            : `🔥 ${p.displayName ?? p.name} ist ON FIRE! 4er-Streak! +30 Cr.`,
-          creditsChange: streakBonus,
-        });
-      }
-
       const upd: Record<string, any> = {
-        tokens: FieldValue.increment(basePayout + streakBonus),
-        currentStreak: newStreak,
-        streakLevel: level,
-        bestStreak: Math.max(p.bestStreak ?? 0, newStreak),
+        tokens: FieldValue.increment(basePayout),
         unseenResolutions: FieldValue.arrayUnion(marketId),
         dailyNetGain: FieldValue.increment(basePayout - (myBet?.amount ?? 0)),
       };
-      if (correct && isUnderdog) upd.underdogCorrect = FieldValue.increment(1);
 
-      // Accessoires automatisch freischalten (rein kosmetisch, nicht auto-getragen).
-      const accessoryAdds: string[] = [];
-      if (correct && newStreak === 4) accessoryAdds.push('flames');        // Kopf: Flammen
-      if (correct && isUnderdog)      accessoryAdds.push('underdog_medal'); // Hand: Underdog-Orden
+      if (isRealResult) {
+        const newStreak = correct ? (p.currentStreak ?? 0) + 1 : 0;
+        let level: 'none' | 'on_fire' | 'damn_hot' = 'none';
+        if (newStreak >= 7) level = 'damn_hot';
+        else if (newStreak >= 4) level = 'on_fire';
 
-      const allOverlayAdds = [...overlayAdds, ...accessoryAdds];
-      if (allOverlayAdds.length > 0) upd.unlockedOverlays = FieldValue.arrayUnion(...allOverlayAdds);
-      // activeBadgeId nur aus den Badge-Overlays (nicht aus Accessoires) setzen.
-      if (overlayAdds.length > 0) upd.activeBadgeId = overlayAdds[overlayAdds.length - 1];
+        // Streak milestone bonus (only on the exact threshold cross)
+        let streakBonus = 0;
+        const overlayAdds: string[] = [];
+        if (correct && newStreak === 4) { streakBonus = 30; overlayAdds.push('on_fire'); }
+        if (correct && newStreak === 7) { streakBonus = 100; overlayAdds.push('damn_hot'); }
+        if (streakBonus > 0) {
+          upd.tokens = FieldValue.increment(basePayout + streakBonus);
+          jackpotDelta -= streakBonus;
+          feedExtra.push({
+            type: newStreak === 7 ? 'streak_damn_hot' : 'streak_on_fire',
+            playerId: ps.id,
+            playerName: p.displayName ?? p.name ?? '?',
+            text: newStreak === 7
+              ? `🔥🔥 ${p.displayName ?? p.name} ist DAMN HOT! 7er-Streak! +100 Cr.`
+              : `🔥 ${p.displayName ?? p.name} ist ON FIRE! 4er-Streak! +30 Cr.`,
+            creditsChange: streakBonus,
+          });
+        }
+
+        upd.currentStreak = newStreak;
+        upd.streakLevel = level;
+        upd.bestStreak = Math.max(p.bestStreak ?? 0, newStreak);
+        if (correct && isUnderdog) upd.underdogCorrect = FieldValue.increment(1);
+
+        // Accessoires automatisch freischalten (rein kosmetisch, nicht auto-getragen).
+        const accessoryAdds: string[] = [];
+        if (correct && newStreak === 4) accessoryAdds.push('flames');        // Kopf: Flammen
+        if (correct && isUnderdog)      accessoryAdds.push('underdog_medal'); // Hand: Underdog-Orden
+
+        const allOverlayAdds = [...overlayAdds, ...accessoryAdds];
+        if (allOverlayAdds.length > 0) upd.unlockedOverlays = FieldValue.arrayUnion(...allOverlayAdds);
+        // activeBadgeId nur aus den Badge-Overlays (nicht aus Accessoires) setzen.
+        if (overlayAdds.length > 0) upd.activeBadgeId = overlayAdds[overlayAdds.length - 1];
+      }
 
       batch.update(ps.ref, upd);
     }
@@ -413,6 +422,38 @@ export async function resolveMarketAdmin(
     }
 
     await batch.commit();
+
+    // ── Combo-Legs nachziehen ─────────────────────────────────────────────────
+    // Abhängige Combo-Märkte (offen oder gesperrt) bekommen das Leg-Resultat
+    // dieses Markts und werden automatisch aufgelöst, wenn entweder ein Miss
+    // vorliegt (sofort verloren) oder alle Legs als Hit feststehen (gewonnen).
+    // Wichtig: Diese Logik lebte bisher nur client-seitig (`store.resolveMarket`)
+    // und blieb nach der Server-Migration auf der Strecke.
+    try {
+      const combosSnap = await db.collection('markets').where('type', '==', 'combo').get();
+      for (const cd of combosSnap.docs) {
+        const combo = cd.data() as any;
+        if (combo.status !== 'open' && combo.status !== 'locked') continue;
+        const legs: any[] = Array.isArray(combo.comboLegs) ? combo.comboLegs : [];
+        if (!legs.some(l => l.marketId === marketId)) continue;
+        const updatedLegs = legs.map(leg =>
+          leg.marketId === marketId
+            ? { ...leg, status: leg.predictedOptionId === winningOptionId ? 'hit' : 'miss' }
+            : leg
+        );
+        await cd.ref.update({ comboLegs: updatedLegs });
+        const anyMiss = updatedLegs.some(l => l.status === 'miss');
+        const allHit = updatedLegs.every(l => l.status === 'hit');
+        if (anyMiss) {
+          await resolveMarketAdmin(cd.id, 'combo-miss', by);
+        } else if (allHit) {
+          await resolveMarketAdmin(cd.id, 'combo-win', by);
+        }
+      }
+    } catch (err) {
+      console.error('[resolve] Combo-Legs nachziehen Fehler:', err);
+    }
+
     return { ok: true, payouts };
   } catch (err) {
     await releaseClaim(marketRef);

@@ -31,10 +31,15 @@ export default function Cashout() {
   const navigate = useNavigate();
 
   // Lokaler Slider-Wert für flüssiges Ziehen; persistiert (geteilt für alle
-  // Admins) erst beim Loslassen — kein Firestore-Write pro Drag-Schritt.
+  // Admins) erst nach Bestätigung — vermeidet, dass ein versehentlicher Tap auf
+  // den Slider den Live-Kurs auf das Maximum springen lässt.
   const [rate, setRate] = useState(storedRate);
+  const [pendingRate, setPendingRate] = useState<number | null>(null);
   useEffect(() => { setRate(storedRate); }, [storedRate]);
   const exchangeRate = rate;
+  // Sicherheits-Cap: 2 €/100 TKN (statt 5) deckt jedes realistische Szenario ab
+  // und limitiert den Schaden eines Fehl-Taps.
+  const MAX_RATE = 2;
 
   const sortedPlayers = [...players].sort((a, b) => b.tokens - a.tokens);
   // Nur echte Spieler (keine Test-Spieler) für die Auszahlungs-Gesamtsumme.
@@ -59,13 +64,13 @@ export default function Cashout() {
           <input
             type="range"
             min="0.1"
-            max="5"
+            max={MAX_RATE}
             step="0.1"
             value={rate}
             onChange={(e) => setRate(parseFloat(e.target.value))}
-            onPointerUp={() => setExchangeRate(rate)}
-            onTouchEnd={() => setExchangeRate(rate)}
-            onMouseUp={() => setExchangeRate(rate)}
+            onPointerUp={() => { if (rate !== storedRate) setPendingRate(rate); }}
+            onTouchEnd={() => { if (rate !== storedRate) setPendingRate(rate); }}
+            onMouseUp={() => { if (rate !== storedRate) setPendingRate(rate); }}
             className="w-full h-1.5 bg-input rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-yellow [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
           />
           <div className="flex justify-between items-center mt-3 pt-3 border-t border-white/10">
@@ -83,13 +88,34 @@ export default function Cashout() {
           ))}
         </div>
 
-        <button 
+        <button
           onClick={() => navigate('/admin')}
           className="mt-12 text-[12px] text-muted underline hover:text-white transition-colors"
         >
           Zurück zum Admin Panel
         </button>
       </div>
+
+      {/* ── Wechselkurs-Bestätigung ─────────────────────────────────────── */}
+      {pendingRate != null && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
+          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+            <div className="w-16 h-16 rounded-full bg-yellow/10 border border-yellow/25 flex items-center justify-center text-[28px] mb-4">💱</div>
+            <div className="text-[20px] font-black text-white mb-2">Kurs setzen?</div>
+            <div className="text-[14px] text-muted mb-4 leading-relaxed">
+              100 TKN = <b className="text-yellow">{pendingRate.toFixed(2)} €</b><br />
+              <span className="text-[12px] text-white/80">
+                Gesamt: <b className="text-green">{((totalTokens / 100) * pendingRate).toFixed(2)} €</b> über {realPlayers.length} Spieler
+              </span>
+            </div>
+            <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-5">Wirkt für alle Admins</div>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => { setRate(storedRate); setPendingRate(null); }} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
+              <button onClick={async () => { await setExchangeRate(pendingRate); setPendingRate(null); }} className="flex-1 p-3 rounded-xl font-bold text-bg bg-gradient-to-r from-yellow to-orange shadow-[0_0_15px_rgba(255,212,71,0.4)] transition-all">Bestätigen</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

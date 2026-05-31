@@ -22,7 +22,8 @@ export const initFirebaseSync = () => {
 
   sub(onSnapshot(collection(db, 'players'), snap => {
     const players = snap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-    if (players.length === 0) return;
+    // Leeres Resultat IST eine valide Information (z. B. direkt nach go-live):
+    // dann sollen auch die letzten Player-Daten aus dem State verschwinden.
     useStore.setState({ players });
   }, err => console.error('[Firebase] players Fehler:', err)));
 

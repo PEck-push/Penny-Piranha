@@ -3,7 +3,7 @@ import { ACCESSORIES } from './data/accessories';
 import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { calcWinnerPayout } from './utils/credits';
 import { db, auth } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export type FeedEventType =
@@ -249,19 +249,11 @@ export const clearSessionCookie = () => {
 };
 
 // ─── Initial Data ─────────────────────────────────────────────────────────────
-export const INITIAL_PLAYERS: Player[] = [
-  { id: 'p1',  name: 'Alex',    avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p2',  name: 'Neigi',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p3',  name: 'Michi',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p4',  name: 'Steindl', avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p5',  name: 'Paco',    avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p6',  name: 'Luigi',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p7',  name: 'Stefan',  avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p8',  name: 'Jakob',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p9',  name: 'Philipp', avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p10', name: 'Memo',    avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p11', name: 'Moz',     avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-];
+// Initial leer — die Spielerliste kommt ausschließlich aus Firestore. Frühere
+// Hardcoded-Testnamen (Alex/Neigi/…) führten dazu, dass eine leere players-
+// Collection nach `go-live` die alten Test-Namen weiterhin in der Rangliste
+// sichtbar gemacht hat.
+export const INITIAL_PLAYERS: Player[] = [];
 export const INITIAL_MARKETS: Market[] = [];
 
 // Namen & Farben für erfundene Test-Spieler (Testmodus).
@@ -295,9 +287,9 @@ interface AppState {
   setCurrentEmail: (email: string | null) => void;
   registerPlayer: (uid: string, data: Omit<Player, 'id'>) => Promise<void>;
   logoutAuth: () => Promise<void>;
-  placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
+  placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => Promise<void>;
   placeBetAs: (playerId: string, marketId: string, optionId: string, optionLabel: string, amount: number) => Promise<void>;
-  placeTip: (marketId: string, optionId: string, optionLabel: string) => void;
+  placeTip: (marketId: string, optionId: string, optionLabel: string) => Promise<void>;
   placeTipAs: (playerId: string, marketId: string, optionId: string, optionLabel: string) => Promise<void>;
   changeBet: (marketId: string, newOptionId: string, newOptionLabel: string, newAmount: number) => Promise<void>;
   changeTip: (marketId: string, newOptionId: string, newOptionLabel: string) => Promise<void>;
@@ -349,142 +341,13 @@ interface AppState {
 // Collections zurückgeliefert und alles aus dem localStorage gelöscht.
 // Jetzt: Firebase ist die einzige Wahrheit. Daten überleben jeden Refresh.
 export const useStore = create<AppState>()((set, get) => {
-  const resolveMarket = async (marketId: string, winningOptionId: string) => {
-    const state = get();
-    const market = state.markets.find(m => m.id === marketId);
-    if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-
-    const winOpt = market.options.find(o => o.id === winningOptionId);
-    const totalPool = getMarketTotal(market);
-    const winPool = winOpt?.pool ?? 0;
-    const allBets = state.bets.filter(b => b.marketId === marketId);
-    const winBets = allBets.filter(b => b.optionId === winningOptionId);
-    const pUpdates: Record<string, number> = {};
-    let newJackpot = state.jackpot;
-    let resType: ResolutionType;
-
-    if (market.marketSubtype === 'jackpot') {
-      // Einsatzfreie Sonderrunde: fester Haus-Preis, gleichmäßig auf richtige
-      // Tipper verteilt. Die Finale-Headline absorbiert zusätzlich den
-      // angesparten jackpot. Unbeanspruchte/Rest-Token rollen in den jackpot.
-      resType = 'normal';
-      const prize = (market.fixedPrize ?? 0) + (market.absorbsJackpotPot ? state.jackpot : 0);
-      const n = winBets.length;
-      let paid = 0;
-      if (n > 0) {
-        const each = Math.floor(prize / n);
-        winBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + each; paid += each; });
-      }
-      newJackpot = (market.absorbsJackpotPot ? 0 : state.jackpot) + prize - paid;
-    } else if (market.type === 'combo') {
-      const multiplier = market.multiplier ?? 3;
-      if (winningOptionId === 'combo-win') {
-        resType = 'normal';
-        const winnerBets = allBets.filter(b => b.optionId === 'combo-win');
-        let totalPayout = 0;
-        winnerBets.forEach(b => {
-          const payout = b.amount * multiplier;
-          pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + payout;
-          totalPayout += payout;
-        });
-        newJackpot = Math.max(0, state.jackpot - Math.max(0, totalPayout - totalPool));
-      } else {
-        resType = 'no-winner';
-        newJackpot = state.jackpot + totalPool;
-      }
-    } else if (market.multiSelect) {
-      // Einsatz-Multiple-Choice: Pools je Option sind hier leer (der Einsatz hängt
-      // an der Kombination). Parimutuel über die Summe ALLER Einsätze; nur exakt
-      // passende Tipps (b.optionId === winningOptionId) teilen den Topf anteilig.
-      const totalStake = allBets.reduce((s, b) => s + b.amount, 0);
-      const winStake = winBets.reduce((s, b) => s + b.amount, 0);
-      if (winStake === 0) {
-        resType = 'no-winner';
-        let refunded = 0;
-        allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-        newJackpot = state.jackpot + (totalStake - refunded);
-      } else {
-        // Multi-Select-Parimutuel + Mindestgarantie (calcWinnerPayout = Server-konform).
-        resType = 'normal';
-        let paid = 0;
-        winBets.forEach(b => {
-          const final = calcWinnerPayout(b.amount, winStake, totalStake);
-          pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + final;
-          paid += final;
-        });
-        newJackpot = Math.max(0, state.jackpot + (totalStake - paid));
-      }
-    } else if (!winOpt || winPool === 0) {
-      resType = 'no-winner';
-      let refunded = 0;
-      allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-      newJackpot = state.jackpot + (totalPool - refunded);
-    } else if (winPool === totalPool) {
-      // Alle auf derselben Seite: reine Rückzahlung des Einsatzes (kein Gewinn,
-      // also auch keine Mindestgarantie aus dem Jackpot).
-      resType = 'all-same-side';
-      winBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
-    } else {
-      // Parimutuel + Mindestgarantie über calcWinnerPayout — identische Math wie
-      // Server (MIN_WIN_BONUS=2, Math.round). Negativer Jackpot wird auf 0 begrenzt.
-      resType = 'normal';
-      const eff = totalPool;
-      let paid = 0;
-      winBets.forEach(b => {
-        const final = calcWinnerPayout(b.amount, winPool, eff);
-        pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + final;
-        paid += final;
-      });
-      newJackpot = Math.max(0, state.jackpot + (eff - paid));
-    }
-
-    set(s => ({
-      jackpot: newJackpot,
-      markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: resType } : m),
-      players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-    }));
-
-    if (db) {
-      try {
-        const batch = writeBatch(db);
-        batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId, resolutionType: resType });
-        batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-        Object.entries(pUpdates).forEach(([pid, amt]) => {
-          const p = state.players.find(pl => pl.id === pid);
-          if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-        });
-        await batch.commit();
-      } catch (err) {
-        console.error('[Store] resolveMarket Fehler:', err);
-      }
-    }
-
-    if (market.type !== 'combo') {
-      const freshState = get();
-      const affectedCombos = freshState.markets.filter(
-        m => m.type === 'combo' &&
-        (m.status === 'open' || m.status === 'locked') &&
-        m.comboLegs?.some(l => l.marketId === marketId)
-      );
-      for (const combo of affectedCombos) {
-        const updatedLegs: MarketComboLeg[] = (combo.comboLegs ?? []).map(leg =>
-          leg.marketId === marketId
-            ? { ...leg, status: leg.predictedOptionId === winningOptionId ? 'hit' : 'miss' }
-            : leg
-        );
-        set(s => ({ markets: s.markets.map(m => m.id === combo.id ? { ...m, comboLegs: updatedLegs } : m) }));
-        if (db) {
-          try {
-            await updateDoc(doc(db, 'markets', combo.id), { comboLegs: updatedLegs });
-          } catch (err) {
-            console.error('[Store] Combo-Legs Fehler:', err);
-          }
-        }
-        if (updatedLegs.some(l => l.status === 'miss')) await resolveMarket(combo.id, 'combo-miss');
-        else if (updatedLegs.every(l => l.status === 'hit')) await resolveMarket(combo.id, 'combo-win');
-      }
-    }
-  };
+  // ── Hinweis: Client-seitige Resolver wurden entfernt ────────────────────────
+  // Die Auflösung lebt seit der Server-Migration ausschliesslich in der
+  // Netlify-Function `/.netlify/functions/resolve-market` (Atomar via
+  // `resolveInProgress`-Claim, identische Payout-Logik). Die unten verbliebenen
+  // Stubs sind no-op + Warn-Log, falls noch irgendeine UI-Stelle sie aufruft —
+  // sie sollen verhindern, dass eine doppelte Auszahlung passiert (Client +
+  // Server gleichzeitig).
 
   return {
     players: INITIAL_PLAYERS,
@@ -553,9 +416,12 @@ export const useStore = create<AppState>()((set, get) => {
       const player = state.players.find(p => p.id === playerId);
       if (!player || player.tokens < amount) return;
       const mkt = state.markets.find(m => m.id === marketId);
-      if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
+      // Markt muss existieren und offen sein — locked/paused/resolved/cancelled
+      // dürfen keine neuen Einsätze annehmen (sonst Pool-Sprung nach Auflösung).
+      if (!mkt || mkt.status !== 'open') return;
+      if (mkt.expiresAt && Date.now() > mkt.expiresAt) return;
       // Wett-Schluss bei Anpfiff: auch wenn der Server-Lock (Cron) erst später greift.
-      if (mkt?.kickoffAt && Date.now() >= mkt.kickoffAt) return;
+      if (mkt.kickoffAt && Date.now() >= mkt.kickoffAt) return;
       const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
       if (alreadyBet) return;
 
@@ -598,7 +464,10 @@ export const useStore = create<AppState>()((set, get) => {
     placeTipAs: async (playerId, marketId, optionId, optionLabel) => {
       const state = get();
       const mkt = state.markets.find(m => m.id === marketId);
-      if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
+      // Wie bei placeBetAs: nur offene Märkte nehmen Tipps an.
+      if (!mkt || mkt.status !== 'open') return;
+      if (mkt.expiresAt && Date.now() > mkt.expiresAt) return;
+      if (mkt.kickoffAt && Date.now() >= mkt.kickoffAt) return;
       const alreadyTipped = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
       if (alreadyTipped) return;
 
@@ -751,37 +620,7 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     resolveOpenQuestion: async (marketId, winnerPlayerIds) => {
-      const state = get();
-      const market = state.markets.find(m => m.id === marketId);
-      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-      const pUpdates: Record<string, number> = {};
-      // Der angesparte jackpot ist für den Finale-Block reserviert und wird hier
-      // nicht mehr ausgeschüttet. Offene Fragen werden vom Admin bei Bedarf
-      // manuell per giveTokens belohnt.
-      const newJackpot = state.jackpot;
-      set(s => ({
-        jackpot: newJackpot,
-        markets: s.markets.map(m =>
-          m.id === marketId
-            ? { ...m, status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' }
-            : m
-        ),
-        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-      }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' });
-          batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-          Object.entries(pUpdates).forEach(([pid, amt]) => {
-            const p = state.players.find(pl => pl.id === pid);
-            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-          });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] resolveOpenQuestion Fehler:', err);
-        }
-      }
+      console.warn('[Store] resolveOpenQuestion: client-side resolver removed — use server endpoint.', { marketId, winnerPlayerIds });
     },
 
     submitAnswer: async (marketId, text) => {
@@ -816,63 +655,16 @@ export const useStore = create<AppState>()((set, get) => {
       }
     },
 
-    resolveMarket,
+    resolveMarket: async (marketId, winningOptionId) => {
+      console.warn('[Store] resolveMarket: client-side resolver removed — use /.netlify/functions/resolve-market.', { marketId, winningOptionId });
+    },
 
     resolveRollover: async (marketId) => {
-      const state = get();
-      const market = state.markets.find(m => m.id === marketId);
-      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-      const allBets = state.bets.filter(b => b.marketId === marketId);
-      const pUpdates: Record<string, number> = {};
-      let refunded = 0;
-      allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-      const newJackpot = state.jackpot + (getMarketTotal(market) - refunded);
-      set(s => ({
-        jackpot: newJackpot,
-        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId: null, resolutionType: 'rollover' } : m),
-        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-      }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: null, resolutionType: 'rollover' });
-          batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-          Object.entries(pUpdates).forEach(([pid, amt]) => {
-            const p = state.players.find(pl => pl.id === pid);
-            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-          });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] resolveRollover Fehler:', err);
-        }
-      }
+      console.warn('[Store] resolveRollover: client-side resolver removed — use server endpoint.', { marketId });
     },
 
     resolveStorno: async (marketId) => {
-      const state = get();
-      const market = state.markets.find(m => m.id === marketId);
-      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-      const pUpdates: Record<string, number> = {};
-      state.bets.filter(b => b.marketId === marketId).forEach(b => {
-        pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount;
-      });
-      set(s => ({
-        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'cancelled', resolutionType: 'storno' } : m),
-        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-      }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'markets', marketId), { status: 'cancelled', resolutionType: 'storno' });
-          Object.entries(pUpdates).forEach(([pid, amt]) => {
-            const p = state.players.find(pl => pl.id === pid);
-            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-          });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] resolveStorno Fehler:', err);
-        }
-      }
+      console.warn('[Store] resolveStorno: client-side resolver removed — use server endpoint.', { marketId });
     },
 
     lockMarket: async (marketId) => {
@@ -983,10 +775,20 @@ export const useStore = create<AppState>()((set, get) => {
     simulateReveal: async (net) => {
       const uid = get().currentUser;
       if (!uid) return;
-      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, dailyNetGain: net, unseenResolutions: ['sim-reveal'] } : p) }));
+      // arrayUnion statt direkter Überschreibung — sonst würde der Test-Reveal
+      // echte ausstehende Resolutions des Admins überschreiben (und beim
+      // Wegklicken mitlöschen). 'sim-reveal' wird vom RevealScreen sauber via
+      // arrayRemove(...marketIds) wieder entfernt.
+      const player = get().players.find(p => p.id === uid);
+      const localUnseen = Array.from(new Set([...(player?.unseenResolutions ?? []), 'sim-reveal']));
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, dailyNetGain: net, unseenResolutions: localUnseen } : p) }));
       if (db) {
-        try { await updateDoc(doc(db, 'players', uid), { dailyNetGain: net, unseenResolutions: ['sim-reveal'] }); }
-        catch (err) { console.error('[Store] simulateReveal Fehler:', err); }
+        try {
+          await updateDoc(doc(db, 'players', uid), {
+            dailyNetGain: net,
+            unseenResolutions: arrayUnion('sim-reveal'),
+          });
+        } catch (err) { console.error('[Store] simulateReveal Fehler:', err); }
       }
     },
 

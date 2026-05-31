@@ -201,11 +201,15 @@ export default function Admin() {
   const setWhatsappGroupLink = useStore(s => s.setWhatsappGroupLink);
   const navigate = useNavigate();
 
+  // Admin-PIN aus Env-Var (Fallback 1234 für lokale Entwicklung). Vor Go-Live
+  // VITE_ADMIN_PIN setzen, sonst bleibt der bisherige Default.
+  const ADMIN_PIN = (((import.meta as any).env?.VITE_ADMIN_PIN as string | undefined) ?? '1234').trim();
+
   const handlePinInput = (num: string) => {
     if (pin.length < 4) {
       const p = pin + num;
       setPin(p);
-      if (p === '1234') setTimeout(() => setUnlocked(true), 300);
+      if (p === ADMIN_PIN) setTimeout(() => setUnlocked(true), 300);
       else if (p.length === 4) setTimeout(() => setPin(''), 500);
     }
   };
@@ -761,7 +765,7 @@ export default function Admin() {
           <button onClick={() => navigate('/dashboard')} className="absolute top-6 left-6 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted hover:text-white transition-colors">✕</button>
           <img src="/logo-icon.webp" alt="" className="h-[72px] w-auto mb-3" style={{ animation: 'auraGlow 3s ease-in-out infinite' }} />
           <div className="text-[18px] font-black text-white mb-1">Admin-Zugang</div>
-          <div className="text-[12px] text-muted mb-7">Nur für den Host · PIN: 1234</div>
+          <div className="text-[12px] text-muted mb-7">Nur für den Host</div>
           <div className="flex gap-3 mb-8">
             {[0,1,2,3].map(i => (
               <div key={i} className={clsx("w-3.5 h-3.5 rounded-full border-2 transition-all", i < pin.length ? "bg-blue2 border-blue2 shadow-[0_0_12px_rgba(93,143,255,0.6)]" : "border-white/10 bg-transparent")} />
@@ -817,7 +821,8 @@ export default function Admin() {
           {/* ── SYSTEM TAB ─────────────────────────────────────────── */}
           {adminTab === 'system' && <>
 
-          {/* ── REVEAL TESTEN ──────────────────────────────────────── */}
+          {/* ── REVEAL TESTEN (nur im Testmodus) ───────────────────── */}
+          {testMode && (
           <div className="bg-card border border-purple2/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[18px]">🎬</span>
@@ -827,7 +832,7 @@ export default function Admin() {
               Setzt deine Tagesbilanz auf einen Testwert und springt ins Dashboard — der
               Reveal-Screen (Zauberer-Video + Zahl) spielt dann sofort ab.
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <button
                 onClick={async () => { await simulateReveal(Math.floor(Math.random() * 480 + 20)); navigate('/dashboard'); }}
                 className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
@@ -837,6 +842,11 @@ export default function Admin() {
                 onClick={async () => { await simulateReveal(-Math.floor(Math.random() * 480 + 20)); navigate('/dashboard'); }}
                 className="p-2.5 rounded-xl bg-red/15 border border-red/40 text-red text-[11px] font-black hover:bg-red/25 transition-colors">
                 💥 Verlust
+              </button>
+              <button
+                onClick={async () => { await simulateReveal(0); navigate('/dashboard'); }}
+                className="p-2.5 rounded-xl bg-white/10 border border-white/30 text-white text-[11px] font-black hover:bg-white/20 transition-colors">
+                😐 ±0
               </button>
               <button
                 onClick={async () => {
@@ -849,6 +859,7 @@ export default function Admin() {
               </button>
             </div>
           </div>
+          )}
 
           {/* ── TESTMODUS / LIVE GEHEN ─────────────────────────────── */}
           <div className={clsx(
@@ -2631,24 +2642,37 @@ export default function Admin() {
       )}
 
       {/* ── RESOLUTION CONFIRMATION ────────────────────────────────────────────── */}
-      {pendingResolution && (
+      {pendingResolution && (() => {
+        // Markt-Titel + Pool-Snapshot heraussuchen, damit der Admin im Confirm
+        // sieht, WELCHEN Markt er gerade scharf schaltet (kritisch bei mobiler
+        // Bedienung mit kleinen, eng beieinanderliegenden Buttons).
+        const mkt = markets.find(m => m.id === pendingResolution.marketId);
+        const totalPool = mkt ? mkt.options.reduce((s, o) => s + (o.pool ?? 0), 0) : 0;
+        return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
-          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+          <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[340px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
             <div className="w-16 h-16 rounded-full bg-red/10 border border-red/25 flex items-center justify-center text-[28px] mb-4">⚠️</div>
             <div className="text-[20px] font-black text-white mb-2">Ergebnis bestätigen</div>
-            <div className="text-[14px] text-muted mb-2 leading-relaxed">
+            {mkt && (
+              <div className="text-[13px] font-semibold text-white/95 mb-2 leading-snug px-1">„{mkt.question}"</div>
+            )}
+            <div className="text-[14px] text-muted mb-1 leading-relaxed">
               {pendingResolution.type === 'win' && <>Gewinner: <b className="text-white">„{pendingResolution.optionLabel}"</b></>}
-              {pendingResolution.type === 'rollover' && <><b className="text-purple2">ROLLOVER</b> durchführen?</>}
-              {pendingResolution.type === 'storno' && <><b className="text-muted">STORNO</b> — alle erhalten Einsatz zurück.</>}
+              {pendingResolution.type === 'rollover' && <><b className="text-purple2">ROLLOVER</b> — 50 % Einsatz zurück, Rest in Jackpot.</>}
+              {pendingResolution.type === 'storno' && <><b className="text-muted">STORNO</b> — alle erhalten vollen Einsatz zurück.</>}
             </div>
+            {totalPool > 0 && (
+              <div className="text-[11px] text-muted/80 mb-3">Pool: <b className="text-white">{totalPool} TKN</b></div>
+            )}
             <div className="text-[11px] text-red/80 font-bold uppercase tracking-wider mb-5">Kann nicht rückgängig gemacht werden!</div>
             <div className="flex gap-3 w-full">
-              <button onClick={() => setPendingResolution(null)} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
-              <button onClick={executeResolution} className="flex-1 p-3 rounded-xl font-bold text-white bg-gradient-to-r from-red to-orange shadow-[0_0_15px_rgba(255,61,90,0.4)] transition-all">Bestätigen ✓</button>
+              <button onClick={() => setPendingResolution(null)} className="flex-1 p-3.5 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">Abbrechen</button>
+              <button onClick={executeResolution} className="flex-1 p-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-red to-orange shadow-[0_0_15px_rgba(255,61,90,0.4)] transition-all">Bestätigen ✓</button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {pendingClose && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">

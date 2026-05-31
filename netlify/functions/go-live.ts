@@ -36,7 +36,8 @@ export default async (req: Request, _context: Context) => {
       const slug = data.name ? String(data.name).trim().toLowerCase().replace(/[/.#$[\]]/g, '_') : '';
 
       if (isAdmin) {
-        // Admin-Spieler auf Startzustand zurücksetzen
+        // Admin-Spieler auf Startzustand zurücksetzen — inkl. Shop, damit der
+        // Admin nicht mit Test-gekauften Items in den Live-Betrieb startet.
         await docSnap.ref.update({
           tokens: 1000,
           buybackUsed: false,
@@ -49,10 +50,15 @@ export default async (req: Request, _context: Context) => {
           dailyNetGain: 0,
           unlockedOverlays: [],
           activeAccessoryId: null,
+          activeAccessories: {},
           activeBadgeId: null,
           unseenResolutions: [],
           badges: [],
           comboMalus: false,
+          // Shop-Reset
+          shopInventory: [],
+          activeShopItems: {},
+          lastShopVisitTs: 0,
         });
         // Namens-Reservierung des Admins sicherstellen (Eindeutigkeit lebt jetzt
         // in der usernames-Collection), damit der Name nicht neu vergeben wird.
@@ -102,6 +108,7 @@ export default async (req: Request, _context: Context) => {
         hausbank: 0,
         tournamentActive: true,
         currentMatchday: '',
+        shopLastDropTs: 0,
         lastUpdated: FieldValue.serverTimestamp(),
       },
       { merge: true },
