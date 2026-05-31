@@ -63,6 +63,22 @@ function SplashScreen() {
   );
 }
 
+// Vollflächige Sperre für Querformat auf Mobile + Tablet. Sichtbar nur wenn
+// (a) Geräte-Orientierung = landscape UND (b) Viewport-Breite < lg-Breakpoint
+// (1024 px, deckt Smartphones und gängige Tablets ab). Auf echten Desktops
+// (Breite >= 1024 px) bleibt das Overlay versteckt, damit Querformat-Fenster
+// am Laptop normal nutzbar bleiben. Pure-CSS-Lösung via Tailwind-Variants,
+// kein JS-State nötig — wechselt automatisch beim Drehen.
+function LandscapeBlocker() {
+  return (
+    <div className="hidden max-lg:landscape:flex fixed inset-0 z-[9999] bg-bg flex-col items-center justify-center text-center px-8 gap-5">
+      <div className="text-6xl" style={{ animation: 'rotateHint 2s ease-in-out infinite' }}>📱</div>
+      <div className="text-xl font-black text-white">Bitte ins Hochformat drehen</div>
+      <div className="text-sm text-muted max-w-xs">Krügerl Propheten ist nur für Portrait optimiert.</div>
+    </div>
+  );
+}
+
 export default function App() {
   const currentUser = useStore(state => state.currentUser);
   const currentEmail = useStore(state => state.currentEmail);
@@ -110,10 +126,11 @@ export default function App() {
     );
   }, [me?.id, me?.email, currentEmail]);
 
-  if (!splashDone || authLoading) return <SplashScreen />;
+  if (!splashDone || authLoading) return <><LandscapeBlocker /><SplashScreen /></>;
 
   return (
     <BrowserRouter>
+      <LandscapeBlocker />
       <div className="w-full h-full flex flex-col items-center sm:justify-center">
         <div className="hidden sm:block text-center mb-6 shrink-0">
           <img src="/logo-full.webp" alt="Krügerl Propheten — Das WM-Tippspiel" className="h-[88px] w-auto mx-auto" />

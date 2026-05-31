@@ -77,6 +77,10 @@
   from { background-position: 0%; }
   to { background-position: 200%; }
 }
+@keyframes rotateHint {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  20%, 40%      { transform: rotate(-90deg); }
+}
 @keyframes blnk {
   0%, 100% { opacity: 1; }
   50% { opacity: .2; }
