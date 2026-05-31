@@ -48,12 +48,16 @@ export interface ResolveScore {
   teamB: string;
 }
 
+// Headline für den Feed. Wir lösen Märkte nach dem 90-Min-Stand auf
+// (Wettbüro-1X2-Standard), daher zeigen wir IMMER `home:away` als 90-Min-Stand.
+// Bei Verlängerung/Elfern hängen wir den Verlauf transparent dran, damit klar
+// ist: die Wette ist nach 90 Min entschieden, das Spiel ging aber weiter.
 function formatScoreLine(s: ResolveScore): string {
   const base = `${s.teamA} ${s.home}:${s.away} ${s.teamB}`;
   if (s.duration === 'PENALTY_SHOOTOUT' && s.penaltiesHome != null && s.penaltiesAway != null) {
-    return `${base} (i. E. ${s.penaltiesHome}:${s.penaltiesAway})`;
+    return `${base} (n. 90 Min · i. E. ${s.penaltiesHome}:${s.penaltiesAway})`;
   }
-  if (s.duration === 'EXTRA_TIME') return `${base} (n. V.)`;
+  if (s.duration === 'EXTRA_TIME') return `${base} (n. 90 Min · entschieden i. d. Verlängerung)`;
   return base;
 }
 

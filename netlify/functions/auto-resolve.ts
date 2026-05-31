@@ -61,16 +61,16 @@ export default async (req: Request) => {
 
     const options: Array<{ id: string }> = entry.data.options ?? [];
 
-    // WICHTIG (K.-o.-Phase): `score.fullTime` ist bei Spielen mit Verlängerung/
-    // Elfmeterschießen der Stand nach regulärer/verlängerter Zeit (oft remis).
-    // Der tatsächliche Sieger steht in `score.winner` — den bevorzugen wir, damit
-    // ein im Elfer entschiedenes Spiel NICHT fälschlich als „draw" aufgelöst wird.
+    // WETTBÜRO-STANDARD (1X2 / 90-Min-Markt): Endstand nach regulärer Spielzeit
+    // (inkl. Nachspielzeit) entscheidet — Verlängerung und Elfmeterschießen
+    // zählen NICHT. `score.fullTime` aus football-data.org ist explizit der
+    // 90-Min-Stand (auch bei Spielen, die später in der Verlängerung/per Elfer
+    // entschieden wurden). Daher gewinnt bei K.-o.-Spielen mit 1:1 nach 90 Min
+    // der Tipp auf „Unentschieden" (X), unabhängig vom finalen Sieger.
     let key: 'home' | 'away' | 'draw';
-    const fdWinner = m.score?.winner;
-    if (fdWinner === 'HOME_TEAM') key = 'home';
-    else if (fdWinner === 'AWAY_TEAM') key = 'away';
-    else if (fdWinner === 'DRAW') key = 'draw';
-    else key = home > away ? 'home' : away > home ? 'away' : 'draw';
+    if (home > away) key = 'home';
+    else if (away > home) key = 'away';
+    else key = 'draw';
 
     let winningOptionId: string = key;
     // Fallback to positional option ids if custom labels were used

@@ -1,7 +1,7 @@
 import type { Context } from '@netlify/functions';
 import { getDb, FieldValue } from './_lib/firebaseAdmin';
 import { verifyAdmin } from './_lib/adminAuth';
-import { fetchMatches } from './_lib/footballData';
+import { fetchMatches, stageToPhase } from './_lib/footballData';
 
 // HTTP POST — admin-only. Golden-Test mit einem echten Spiel (z. B. CL-Finale):
 //   { action: 'list',   competition?='CL' }
@@ -50,6 +50,10 @@ export default async (req: Request, _context: Context) => {
       const kickoffAt = new Date(m.utcDate).getTime();
       const now = Date.now();
       const locked = kickoffAt <= now;
+      // Phase aus dem API-Stage ableiten. Wichtig für K.-o.-Spiele, damit das
+      // UI den 90-Min-Hinweis im Tipp-Panel anzeigt.
+      const phase = stageToPhase(m.stage || '');
+      const safePhase = phase === 'unknown' ? 'gruppenphase' : phase;
 
       const ref = db.collection('markets').doc();
       await ref.set({
@@ -73,7 +77,7 @@ export default async (req: Request, _context: Context) => {
         teamB: away,
         kickoffAt,
         groupLabel: `${competition}-Test`,
-        phase: 'gruppenphase',
+        phase: safePhase,
         minBet: 10,
         maxBet: 150,
         autoDeductAmount: 10,
