@@ -17,6 +17,32 @@ const DIM: Record<NonNullable<Props['size']>, string> = {
 // Märkten — identisch zur Rangliste). Tagessieger = höchster Tagesgewinn (>0).
 // Beide liefern eine ID (oder ''), damit Zustand-Selektoren nur bei echtem
 // Wechsel ein Re-Render auslösen (primitiver Rückgabewert).
+//
+// Memo-Caches: bei 40+ Spielern werden diese Funktionen für JEDEN Avatar bei
+// JEDEM Store-Change neu ausgewertet (O(players × bets) pro Avatar). Der Cache
+// vergleicht Array-Referenzen — Zustand liefert bei jedem set() neue Refs, aber
+// genau dann muss die Berechnung auch wirklich neu laufen. Innerhalb desselben
+// Snapshots aber teilen sich alle Avatare das Ergebnis.
+let leaderCache: { players: Player[]; bets: Bet[]; markets: Market[]; id: string } | null = null;
+function memoLeaderId(players: Player[], bets: Bet[], markets: Market[]): string {
+  if (
+    leaderCache
+    && leaderCache.players === players
+    && leaderCache.bets === bets
+    && leaderCache.markets === markets
+  ) return leaderCache.id;
+  const id = computeLeaderId(players, bets, markets);
+  leaderCache = { players, bets, markets, id };
+  return id;
+}
+let dailyCache: { players: Player[]; id: string } | null = null;
+function memoDailyWinnerId(players: Player[]): string {
+  if (dailyCache && dailyCache.players === players) return dailyCache.id;
+  const id = computeDailyWinnerId(players);
+  dailyCache = { players, id };
+  return id;
+}
+
 function computeLeaderId(players: Player[], bets: Bet[], markets: Market[]): string {
   // „Offen" für die Gesamtvermögens-Berechnung: noch nicht aufgelöst, d.h.
   // status='open' (Wett-Phase) oder status='locked' (Spiel läuft).
@@ -69,8 +95,10 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
   const shop = player.activeShopItems ?? {};
 
   // Abgeleitete Auto-Status (primitive IDs → minimale Re-Renders).
-  const leaderId = useStore(s => computeLeaderId(s.players, s.bets, s.markets));
-  const dailyWinnerId = useStore(s => computeDailyWinnerId(s.players));
+  // Berechnung läuft via Modul-Memo nur einmal pro neuem Store-Snapshot — egal
+  // wie viele Avatare gleichzeitig im Tree sind.
+  const leaderId = useStore(s => memoLeaderId(s.players, s.bets, s.markets));
+  const dailyWinnerId = useStore(s => memoDailyWinnerId(s.players));
   const isLeader = !!leaderId && player.id === leaderId;
   const isDailyWinner = !!dailyWinnerId && player.id === dailyWinnerId;
 

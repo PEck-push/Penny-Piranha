@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
 import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
-import { calcWinnerPayout } from './utils/credits';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -410,51 +409,61 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     // Platziert eine Wette im Namen eines beliebigen Spielers (für Test-Spieler
-    // und das manuelle Befüllen von Pools im Admin-Panel).
+    // und das manuelle Befüllen von Pools im Admin-Panel). Geht jetzt durch den
+    // Server-Endpunkt `/.netlify/functions/place-bet`, der atomar
+    //   (a) Status/Anpfiff/Expires prüft,
+    //   (b) Tokens dekrementiert,
+    //   (c) Pool inkrementiert,
+    //   (d) Bet-Doc anlegt
+    // — verhindert Lost-Update bei parallelen Wetten und Selbst-Beschenken
+    // via Devtools.
     placeBetAs: async (playerId, marketId, optionId, optionLabel, amount) => {
       const state = get();
       const player = state.players.find(p => p.id === playerId);
-      if (!player || player.tokens < amount) return;
+      if (!player) return;
       const mkt = state.markets.find(m => m.id === marketId);
-      // Markt muss existieren und offen sein — locked/paused/resolved/cancelled
-      // dürfen keine neuen Einsätze annehmen (sonst Pool-Sprung nach Auflösung).
       if (!mkt || mkt.status !== 'open') return;
       if (mkt.expiresAt && Date.now() > mkt.expiresAt) return;
-      // Wett-Schluss bei Anpfiff: auch wenn der Server-Lock (Cron) erst später greift.
       if (mkt.kickoffAt && Date.now() >= mkt.kickoffAt) return;
       const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
       if (alreadyBet) return;
+      if (amount > 0 && player.tokens < amount) return;
 
-      const bet: Bet = {
-        id: crypto.randomUUID(),
-        marketId, playerId, optionId, optionLabel, amount,
-        timestamp: Date.now(),
-      };
-      set(s => ({
-        bets: [...s.bets, bet],
-        players: s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens - amount } : p),
-        markets: s.markets.map(m =>
-          m.id === marketId
-            ? { ...m, options: m.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) }
-            : m
-        ),
-      }));
-      if (db) {
-        try {
-          const updatedMkt = get().markets.find(m => m.id === marketId);
-          const batch = writeBatch(db);
-          batch.set(doc(db, 'bets', bet.id), bet);
-          batch.update(doc(db, 'players', playerId), { tokens: player.tokens - amount });
-          if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] placeBetAs Fehler:', err);
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] placeBetAs: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/place-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, optionId, optionLabel, amount, playerId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] placeBetAs Server-Fehler:', data?.error ?? res.status);
+          return;
         }
+        // Optimistic local update — onSnapshot überschreibt das gleich mit Server-Truth.
+        const betId = `${marketId}__${playerId}`;
+        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount, timestamp: Date.now() };
+        set(s => ({
+          bets: [...s.bets.filter(b => b.id !== betId), bet],
+          players: amount > 0
+            ? s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens - amount } : p)
+            : s.players,
+          markets: amount > 0
+            ? s.markets.map(m =>
+                m.id === marketId
+                  ? { ...m, options: m.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) }
+                  : m)
+            : s.markets,
+        }));
+      } catch (err) {
+        console.error('[Store] placeBetAs Fehler:', err);
       }
     },
 
-    // Einsatzfreier Gratis-Tipp für Jackpot-Sonderrunden: kein Token-Abzug,
-    // kein Pool-Aufbau — wird als Bet mit amount: 0 gespeichert.
+    // Einsatzfreier Gratis-Tipp für Jackpot-Sonderrunden: nutzt denselben
+    // Server-Endpunkt mit amount: 0 — kein Token-Abzug, kein Pool-Aufbau.
     placeTip: async (marketId, optionId, optionLabel) => {
       const { currentUser, placeTipAs } = get();
       if (!currentUser) return;
@@ -462,27 +471,32 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     placeTipAs: async (playerId, marketId, optionId, optionLabel) => {
+      // Server-Endpoint kümmert sich um Status-/Doppel-Tipp-Check.
       const state = get();
       const mkt = state.markets.find(m => m.id === marketId);
-      // Wie bei placeBetAs: nur offene Märkte nehmen Tipps an.
       if (!mkt || mkt.status !== 'open') return;
       if (mkt.expiresAt && Date.now() > mkt.expiresAt) return;
       if (mkt.kickoffAt && Date.now() >= mkt.kickoffAt) return;
       const alreadyTipped = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
       if (alreadyTipped) return;
-
-      const bet: Bet = {
-        id: crypto.randomUUID(),
-        marketId, playerId, optionId, optionLabel, amount: 0,
-        timestamp: Date.now(),
-      };
-      set(s => ({ bets: [...s.bets, bet] }));
-      if (db) {
-        try {
-          await setDoc(doc(db, 'bets', bet.id), bet);
-        } catch (err) {
-          console.error('[Store] placeTipAs Fehler:', err);
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] placeTipAs: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/place-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, optionId, optionLabel, amount: 0, playerId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] placeTipAs Server-Fehler:', data?.error ?? res.status);
+          return;
         }
+        const betId = `${marketId}__${playerId}`;
+        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount: 0, timestamp: Date.now() };
+        set(s => ({ bets: [...s.bets.filter(b => b.id !== betId), bet] }));
+      } catch (err) {
+        console.error('[Store] placeTipAs Fehler:', err);
       }
     },
 
@@ -497,23 +511,38 @@ export const useStore = create<AppState>()((set, get) => {
       if (market.expiresAt && Date.now() > market.expiresAt) return;
       if (market.kickoffAt && Date.now() >= market.kickoffAt) return;
       if (player.tokens + oldBet.amount < newAmount) return;
-      const newBet: Bet = { id: crypto.randomUUID(), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
-      set(s => ({
-        bets: [...s.bets.filter(b => b.id !== oldBet.id), newBet],
-        players: s.players.map(p => p.id === uid ? { ...p, tokens: p.tokens + oldBet.amount - newAmount } : p),
-        markets: s.markets.map(m => m.id === marketId ? { ...m, options: m.options.map(o => o.id === oldBet.optionId ? { ...o, pool: o.pool - oldBet.amount } : o.id === newOptionId ? { ...o, pool: o.pool + newAmount } : o) } : m),
-      }));
-      if (db) {
-        try {
-          const updatedMkt = get().markets.find(m => m.id === marketId);
-          const batch = writeBatch(db);
-          batch.delete(doc(db, 'bets', oldBet.id));
-          batch.set(doc(db, 'bets', newBet.id), newBet);
-          batch.update(doc(db, 'players', uid), { tokens: player.tokens + oldBet.amount - newAmount });
-          if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
-          await batch.commit();
-        } catch (err) { console.error('[Store] changeBet Fehler:', err); }
-      }
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] changeBet: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/change-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, newOptionId, newOptionLabel, newAmount }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] changeBet Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        const betId = `${marketId}__${uid}`;
+        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
+        set(s => ({
+          bets: [...s.bets.filter(b => b.id !== oldBet.id && b.id !== betId), newBet],
+          players: s.players.map(p => p.id === uid ? { ...p, tokens: p.tokens + oldBet.amount - newAmount } : p),
+          markets: s.markets.map(m =>
+            m.id === marketId
+              ? {
+                  ...m,
+                  options: m.options.map(o => {
+                    let pool = o.pool;
+                    if (o.id === oldBet.optionId) pool -= oldBet.amount;
+                    if (o.id === newOptionId)     pool += newAmount;
+                    return { ...o, pool };
+                  }),
+                }
+              : m),
+        }));
+      } catch (err) { console.error('[Store] changeBet Fehler:', err); }
     },
 
     changeTip: async (marketId, newOptionId, newOptionLabel) => {
@@ -523,43 +552,43 @@ export const useStore = create<AppState>()((set, get) => {
       const oldBet = state.bets.find(b => b.marketId === marketId && b.playerId === uid);
       const market = state.markets.find(m => m.id === marketId);
       if (!oldBet || !market || market.status !== 'open') return;
-      const newBet: Bet = { id: crypto.randomUUID(), marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() };
-      set(s => ({ bets: [...s.bets.filter(b => b.id !== oldBet.id), newBet] }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.delete(doc(db, 'bets', oldBet.id));
-          batch.set(doc(db, 'bets', newBet.id), newBet);
-          await batch.commit();
-        } catch (err) { console.error('[Store] changeTip Fehler:', err); }
-      }
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] changeTip: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/change-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, newOptionId, newOptionLabel, newAmount: 0 }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] changeTip Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        const betId = `${marketId}__${uid}`;
+        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() };
+        set(s => ({ bets: [...s.bets.filter(b => b.id !== oldBet.id && b.id !== betId), newBet] }));
+      } catch (err) { console.error('[Store] changeTip Fehler:', err); }
     },
 
     closeMarket: async (marketId) => {
       const state = get();
       const market = state.markets.find(m => m.id === marketId);
       if (!market || (market.status !== 'open' && market.status !== 'locked')) return;
-      const marketBets = state.bets.filter(b => b.marketId === marketId);
-      const pUpdates: Record<string, number> = {};
-      marketBets.forEach(b => { pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount; });
-      const clearedOptions = market.options.map(o => ({ ...o, pool: 0 }));
-      set(s => ({
-        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'cancelled' as const, options: clearedOptions } : m),
-        bets: s.bets.filter(b => b.marketId !== marketId),
-        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-      }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'markets', marketId), { status: 'cancelled', options: clearedOptions });
-          for (const [pid, amt] of Object.entries(pUpdates)) {
-            const p = state.players.find(pl => pl.id === pid);
-            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-          }
-          for (const bet of marketBets) batch.delete(doc(db, 'bets', bet.id));
-          await batch.commit();
-        } catch (err) { console.error('[Store] closeMarket Fehler:', err); }
-      }
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] closeMarket: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/close-market', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] closeMarket Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+      } catch (err) { console.error('[Store] closeMarket Fehler:', err); }
     },
 
     deleteMarket: async (marketId) => {
@@ -708,16 +737,24 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     giveTokens: async (playerId, amount) => {
-      set(s => ({
-        players: s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens + amount } : p),
-      }));
-      const updatedPlayer = get().players.find(p => p.id === playerId);
-      if (db && updatedPlayer) {
-        try {
-          await updateDoc(doc(db, 'players', playerId), { tokens: updatedPlayer.tokens });
-        } catch (err) {
-          console.error('[Store] giveTokens Fehler:', err);
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] giveTokens: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/admin-grant', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, tokens: amount }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] giveTokens Server-Fehler:', data?.error ?? res.status);
+          return;
         }
+        set(s => ({
+          players: s.players.map(p => p.id === playerId ? { ...p, tokens: (p.tokens ?? 0) + amount } : p),
+        }));
+      } catch (err) {
+        console.error('[Store] giveTokens Fehler:', err);
       }
     },
 
@@ -725,16 +762,26 @@ export const useStore = create<AppState>()((set, get) => {
       const state = get();
       const player = state.players.find(p => p.id === playerId);
       if (!player || player.buybackUsed) return;
-      const newTokens = 800 + (player.tokens ?? 0);
-      set(s => ({
-        players: s.players.map(p => p.id === playerId ? { ...p, tokens: newTokens, buybackUsed: true } : p),
-      }));
-      if (db) {
-        try {
-          await updateDoc(doc(db, 'players', playerId), { tokens: newTokens, buybackUsed: true });
-        } catch (err) {
-          console.error('[Store] executeBuyback Fehler:', err);
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] executeBuyback: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/buyback', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(playerId !== state.currentUser ? { playerId } : {}),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] executeBuyback Server-Fehler:', data?.error ?? res.status);
+          return;
         }
+        const data = await res.json();
+        const newTokens = Number(data?.newTokens ?? (800 + (player.tokens ?? 0)));
+        set(s => ({
+          players: s.players.map(p => p.id === playerId ? { ...p, tokens: newTokens, buybackUsed: true } : p),
+        }));
+      } catch (err) {
+        console.error('[Store] executeBuyback Fehler:', err);
       }
     },
 
@@ -810,16 +857,25 @@ export const useStore = create<AppState>()((set, get) => {
 
     // Accessoire freischalten (Auto-Vergabe oder Admin/Test).
     grantAccessory: async (playerId, accessoryId) => {
-      set(s => ({
-        players: s.players.map(p => p.id === playerId
-          ? { ...p, unlockedOverlays: Array.from(new Set([...(p.unlockedOverlays ?? []), accessoryId])) }
-          : p),
-      }));
-      const p = get().players.find(pl => pl.id === playerId);
-      if (db && p) {
-        try { await updateDoc(doc(db, 'players', playerId), { unlockedOverlays: p.unlockedOverlays ?? [] }); }
-        catch (err) { console.error('[Store] grantAccessory Fehler:', err); }
-      }
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] grantAccessory: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/admin-grant', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, accessoryId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] grantAccessory Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        set(s => ({
+          players: s.players.map(p => p.id === playerId
+            ? { ...p, unlockedOverlays: Array.from(new Set([...(p.unlockedOverlays ?? []), accessoryId])) }
+            : p),
+        }));
+      } catch (err) { console.error('[Store] grantAccessory Fehler:', err); }
     },
 
     // Block-Sieger küren: Spieler mit den meisten richtigen Tipps im jeweiligen
@@ -853,68 +909,31 @@ export const useStore = create<AppState>()((set, get) => {
     purchaseShopItem: async (itemId) => {
       const uid = get().currentUser;
       if (!uid) return { ok: false, error: 'Nicht eingeloggt.' };
-      if (!db) return { ok: false, error: 'Keine Verbindung.' };
       const item = get().shopItems.find(i => i.id === itemId);
       if (!item) return { ok: false, error: 'Item nicht gefunden.' };
-      // Spielplan-Freischaltung prüfen (clientseitig, Economy ist Trust-basiert).
+      // Spielplan-Freischaltung clientseitig prüfen (sinnloser Server-Roundtrip
+      // sonst). Server prüft availableFrom nochmal.
       const unlockAt = shopUnlockAt(item, get().schedule);
       if (unlockAt != null && unlockAt > Date.now()) {
         return { ok: false, error: item.unlockLabel ? `Freischaltung: ${item.unlockLabel}.` : 'Noch nicht freigeschaltet.' };
       }
-
       try {
-        let cost = 0;
-        let itemLabel = item.label;
-        await runTransaction(db, async (tx) => {
-          const playerRef = doc(db, 'players', uid);
-          const itemRef   = doc(db, 'shopItems', itemId);
-          const [pSnap, iSnap] = await Promise.all([tx.get(playerRef), tx.get(itemRef)]);
-          if (!pSnap.exists()) throw new Error('Spieler-Profil fehlt.');
-          if (!iSnap.exists()) throw new Error('Item nicht mehr verfügbar.');
-          const pdata = pSnap.data() as Player;
-          const idata = iSnap.data() as ShopItem;
-          itemLabel = idata.label ?? itemLabel;
-          const now = Date.now();
-          if (!idata.available) throw new Error('Aktuell nicht im Verkauf.');
-          if (idata.availableFrom && idata.availableFrom > now) throw new Error('Noch nicht freigeschaltet.');
-          if (idata.availableUntil && idata.availableUntil < now) throw new Error('Nicht mehr verfügbar.');
-          const inv = pdata.shopInventory ?? [];
-          if (inv.includes(itemId)) throw new Error('Bereits im Inventar.');
-          // Knappheit: globalen Stock prüfen + atomar erhöhen (verhindert, dass
-          // zwei gleichzeitige Käufe dasselbe Einzelstück abgreifen).
-          const sold = idata.sold ?? 0;
-          if (idata.stock != null && sold >= idata.stock) throw new Error('Ausverkauft.');
-          const tokens = pdata.tokens ?? 0;
-          if (tokens < idata.price) throw new Error(`Nicht genug Tokens (brauche ${idata.price}).`);
-          cost = idata.price;
-          tx.update(playerRef, {
-            tokens: tokens - cost,
-            shopInventory: [...inv, itemId],
-          });
-          if (idata.stock != null) tx.update(itemRef, { sold: sold + 1 });
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Nicht authentifiziert.' };
+        const res = await fetch('/.netlify/functions/purchase-shop-item', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId }),
         });
-
-        // Optimistic local update
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: data?.error ?? 'Kauf fehlgeschlagen.' };
+        const cost = Number(data?.cost ?? item.price);
+        // Optimistic local update — Server hat schon geschrieben, onSnapshot syncs gleich.
         set(s => ({
           players: s.players.map(p => p.id === uid
             ? { ...p, tokens: (p.tokens ?? 0) - cost, shopInventory: [...(p.shopInventory ?? []), itemId] }
             : p),
         }));
-
-        // Feed-Eintrag (best-effort)
-        const player = get().players.find(p => p.id === uid);
-        try {
-          await addDoc(collection(db, 'feed'), {
-            type: 'shop_purchase',
-            playerId: uid,
-            playerName: player?.name ?? '',
-            text: `${player?.name ?? 'Jemand'} hat „${itemLabel}" im Shop gekauft 🛍️`,
-            creditsChange: -cost,
-            ts: serverTimestamp(),
-          });
-        } catch (err) {
-          console.warn('[Store] Shop-Kauf Feed-Event Fehler:', err);
-        }
         return { ok: true };
       } catch (err: any) {
         console.error('[Store] purchaseShopItem Fehler:', err);
