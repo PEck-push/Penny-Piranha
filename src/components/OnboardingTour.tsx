@@ -7,6 +7,9 @@ interface Step {
   body: string;
   /** data-tour-Attribut(e) der hervorzuhebenden Elemente. */
   target?: string | string[];
+  /** Karten-Position: 'top' = oben festkleben, 'bottom' = unten ueber Nav.
+   *  Default 'auto' = groesste vertikale Luecke zwischen den Targets. */
+  cardPosition?: 'top' | 'bottom' | 'auto';
 }
 
 const STEPS: Step[] = [
@@ -16,13 +19,15 @@ const STEPS: Step[] = [
   },
   {
     title: 'Token & Jackpot',
-    body: 'Du startest mit 1.000 Token — damit wettest du. Der Jackpot oben ist vor allem die Preiskasse für die Gratis-Sonderwetten und kommt aus der Hausbank. Liegt bei einer normalen Wette niemand richtig, fließt der Pool zusätzlich in den Jackpot.',
+    body: 'Du startest mit 1.000 Token. Der Jackpot (oben) ist die Preiskasse für die Gratis-Sonderwetten. Liegt bei einer normalen Wette niemand richtig, fließt der Pool zusätzlich in den Jackpot.',
     target: ['jackpot', 'tokens'],
+    cardPosition: 'bottom',
   },
   {
     title: 'Wo wird getippt?',
     body: 'WM-Spiele tippst du im Tab „Spielplan" — oder bequem im Tab „Wetten", wo alle offenen Spiele für dich aufgelistet sind. Wichtig: Jedes offene Spiel muss getippt werden, sonst kostet es Token.',
     target: ['tab-spielplan', 'tab-wetten'],
+    cardPosition: 'top',
   },
   {
     title: 'Hilfe & Tipps',
@@ -125,13 +130,24 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
   const hasRects = mergedRects.length > 0;
 
   const vh = typeof window !== 'undefined' ? window.innerHeight : 700;
-  // Karte in den groessten freien Korridor zwischen den Targets legen, statt
-  // pauschal oben/unten zu kleben. Dadurch landet sie nicht ueber dem Element,
-  // das sie eigentlich beschreibt.
-  const gap = hasRects ? findBiggestGap(mergedRects, vh) : null;
-  const cardStyle: React.CSSProperties = gap
-    ? { top: gap.top + Math.max(8, (gap.bottom - gap.top) * 0.05), left: '50%', transform: 'translateX(-50%)' }
-    : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+  // Explizite Per-Step-Position schlaegt jede Auto-Logik — der Step-Autor
+  // weiss am besten, wo die Karte hingehoert, ohne dass eine schlaue Logik
+  // sich in jedem Special-Case verheddert.
+  const explicitPos = step.cardPosition;
+  let cardStyle: React.CSSProperties;
+  if (explicitPos === 'top') {
+    cardStyle = { top: 24, left: '50%', transform: 'translateX(-50%)' };
+  } else if (explicitPos === 'bottom') {
+    cardStyle = { bottom: NAV_RESERVE + 16, left: '50%', transform: 'translateX(-50%)' };
+  } else if (hasRects) {
+    // Fallback Auto: groesste vertikale Luecke zwischen Targets/Bildschirm.
+    const gap = findBiggestGap(mergedRects, vh);
+    cardStyle = gap
+      ? { top: gap.top + Math.max(8, (gap.bottom - gap.top) * 0.05), left: '50%', transform: 'translateX(-50%)' }
+      : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+  } else {
+    cardStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+  }
 
   if (typeof document === 'undefined') return null;
 
