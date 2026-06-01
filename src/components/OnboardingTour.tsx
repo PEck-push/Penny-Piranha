@@ -17,7 +17,7 @@ const STEPS: Step[] = [
   {
     title: 'Token & Jackpot',
     body: 'Du startest mit 1.000 Token — damit wettest du. Der Jackpot oben ist vor allem die Preiskasse für die Gratis-Sonderwetten und kommt aus der Hausbank. Liegt bei einer normalen Wette niemand richtig, fließt der Pool zusätzlich in den Jackpot.',
-    target: 'tokens',
+    target: ['jackpot', 'tokens'],
   },
   {
     title: 'Wo wird getippt?',
@@ -38,6 +38,59 @@ const STEPS: Step[] = [
 
 const PAD = 8;
 const RADIUS = 16;
+// Bottom-Nav schirmt sich selbst ab — Karte nicht dort hineinpositionieren.
+const NAV_RESERVE = 90;
+// Zwei Rects gelten als „nebeneinander" und werden zu EINEM Highlight-Ring
+// gemerged, wenn sie sich beruehren oder weniger als MERGE_GAP_PX trennen.
+// Verhindert die ueberlappenden Ringe bei zwei adjacent Tabs.
+const MERGE_GAP_PX = 12;
+
+interface SimpleRect { top: number; left: number; width: number; height: number; bottom: number; right: number; }
+
+// Naheliegende Rects zu einem Bounding-Rect zusammenfassen. Geht in einem
+// Pass durch die nach top sortierten Rects und merget jedes, das sich
+// horizontal UND vertikal mit dem aktuellen Cluster ueberschneidet/anstoesst.
+function mergeRects(rects: DOMRect[]): SimpleRect[] {
+  if (rects.length <= 1) {
+    return rects.map(r => ({ top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right }));
+  }
+  const sorted = [...rects].sort((a, b) => a.top - b.top || a.left - b.left);
+  const merged: SimpleRect[] = [];
+  for (const r of sorted) {
+    const last = merged[merged.length - 1];
+    const closeVert = last && r.top - last.bottom <= MERGE_GAP_PX;
+    const overlapsHoriz = last && !(r.right < last.left - MERGE_GAP_PX || r.left > last.right + MERGE_GAP_PX);
+    if (last && closeVert && overlapsHoriz) {
+      const left = Math.min(last.left, r.left);
+      const top = Math.min(last.top, r.top);
+      const right = Math.max(last.right, r.right);
+      const bottom = Math.max(last.bottom, r.bottom);
+      merged[merged.length - 1] = { left, top, right, bottom, width: right - left, height: bottom - top };
+    } else {
+      merged.push({ top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right });
+    }
+  }
+  return merged;
+}
+
+// Sucht den groessten freien vertikalen Korridor zwischen den Targets (oder
+// zwischen Bildschirm-Rand und naechstem Target). Liefert {top, bottom} des
+// Korridors. NAV_RESERVE wird vom Bildschirm-Boden abgezogen, damit die Karte
+// nicht hinter der Bottom-Nav verschwindet.
+function findBiggestGap(rects: SimpleRect[], vh: number): { top: number; bottom: number } | null {
+  if (rects.length === 0) return null;
+  const sorted = [...rects].sort((a, b) => a.top - b.top);
+  const usableBottom = vh - NAV_RESERVE;
+  const gaps: { top: number; bottom: number }[] = [];
+  let cursor = 0;
+  for (const r of sorted) {
+    if (r.top - cursor > 24) gaps.push({ top: cursor, bottom: r.top });
+    cursor = Math.max(cursor, r.bottom);
+  }
+  if (usableBottom - cursor > 24) gaps.push({ top: cursor, bottom: usableBottom });
+  if (gaps.length === 0) return null;
+  return gaps.reduce((a, b) => (b.bottom - b.top > a.bottom - a.top ? b : a));
+}
 
 // Spotlight-Coachmark-Tour: highlightet ein oder mehrere thematisierte Elemente
 // per Goldring + dunklem Umfeld (SVG-Maske mit Cutouts). Schritte ohne target
@@ -66,23 +119,18 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
     return () => { clearTimeout(t); window.removeEventListener('resize', find); };
   }, [i, step.target]);
 
-  const hasRects = rects.length > 0;
-
-  // Bounding-Box über alle Targets — bestimmt die Karten-Position.
-  const union = hasRects ? rects.reduce(
-    (acc, r) => ({
-      top: Math.min(acc.top, r.top),
-      bottom: Math.max(acc.bottom, r.bottom),
-    }),
-    { top: Infinity, bottom: -Infinity },
-  ) : null;
+  // Adjacent / sich beruehrende Rects (z. B. zwei Bottom-Nav-Tabs nebeneinander)
+  // zu einem Ring zusammenfassen — sonst entstehen sich ueberlappende Ringe.
+  const mergedRects = mergeRects(rects);
+  const hasRects = mergedRects.length > 0;
 
   const vh = typeof window !== 'undefined' ? window.innerHeight : 700;
-  const cardAtTop = !!union && (union.top + union.bottom) / 2 > vh / 2;
-  const cardStyle: React.CSSProperties = hasRects
-    ? cardAtTop
-      ? { top: 24, left: '50%', transform: 'translateX(-50%)' }
-      : { bottom: 100, left: '50%', transform: 'translateX(-50%)' }
+  // Karte in den groessten freien Korridor zwischen den Targets legen, statt
+  // pauschal oben/unten zu kleben. Dadurch landet sie nicht ueber dem Element,
+  // das sie eigentlich beschreibt.
+  const gap = hasRects ? findBiggestGap(mergedRects, vh) : null;
+  const cardStyle: React.CSSProperties = gap
+    ? { top: gap.top + Math.max(8, (gap.bottom - gap.top) * 0.05), left: '50%', transform: 'translateX(-50%)' }
     : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
 
   if (typeof document === 'undefined') return null;
@@ -95,7 +143,7 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
           <defs>
             <mask id="tour-spotlight-mask">
               <rect width="100%" height="100%" fill="white" />
-              {rects.map((r, idx) => (
+              {mergedRects.map((r, idx) => (
                 <rect
                   key={idx}
                   x={r.left - PAD}
@@ -113,8 +161,8 @@ export default function OnboardingTour({ onDone }: { onDone: () => void }) {
         </svg>
       )}
 
-      {/* Glühende Goldringe pro Target */}
-      {rects.map((r, idx) => (
+      {/* Glühende Goldringe pro Target-Cluster (gemerged) */}
+      {mergedRects.map((r, idx) => (
         <div
           key={idx}
           className="fixed pointer-events-none rounded-2xl"
