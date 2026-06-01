@@ -1,15 +1,16 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
-// Firebase Konfiguration — Zugang nur für dein privates Gaming-Netz
 const firebaseConfig = {
-  apiKey: "AIzaSyCQyd5Bd7-Wfo1lMVTtrUurR35_wVjZ61E",
-  authDomain: "gaming-abend.firebaseapp.com",
-  projectId: "gaming-abend",
-  storageBucket: "gaming-abend.firebasestorage.app",
-  messagingSenderId: "1063117923757",
-  appId: "1:1063117923757:web:4db03e206cace4ab932d24"
+  apiKey: "AIzaSyAo4zgCP3zM5DGHKoVw5n9RSVzNpqpB5Mw",
+  authDomain: "wm-tippspiel-2026-5c401.firebaseapp.com",
+  projectId: "wm-tippspiel-2026-5c401",
+  storageBucket: "wm-tippspiel-2026-5c401.firebasestorage.app",
+  messagingSenderId: "303045684830",
+  appId: "1:303045684830:web:a8e03430f3f0b6ca498ecf"
 };
 
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);

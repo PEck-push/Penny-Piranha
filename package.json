@@ -21,7 +21,9 @@
     "react-router-dom": "^6.26.2",
     "tailwind-merge": "^2.5.4",
     "vite": "^5.4.11",
-    "zustand": "^5.0.3"
+    "zustand": "^5.0.3",
+    "firebase-admin": "^12.7.0",
+    "@netlify/functions": "^2.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
