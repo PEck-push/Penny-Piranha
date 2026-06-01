@@ -16,7 +16,7 @@ service cloud.firestore {
         (request.auth.token.email != null
           && request.auth.token.email.lower() in ['marketing@gwt.at', 'philipp_eckhardt@live.de'])
         || (exists(/databases/$(database)/documents/players/$(request.auth.uid))
-            && get(/databases/$(database)/documents/players/$(request.auth.uid)).data.isAdmin == true)
+            && get(/databases/$(database)/documents/players/$(request.auth.uid)).data.get('isAdmin', false) == true)
       );
     }
 

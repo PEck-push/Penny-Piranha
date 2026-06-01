@@ -1132,11 +1132,11 @@ export const useStore = create<AppState>()((set, get) => {
         currentUser: uid,
       }));
       if (db) {
-        try {
-          await setDoc(doc(db, 'players', uid), { id: uid, ...data });
-        } catch (err) {
-          console.error('[Store] registerPlayer Fehler:', err);
-        }
+        // Fehler MÜSSEN hochbubbeln — sonst denkt Register.tsx, alles ist gut
+        // und der User landet profil-los im Dashboard ("Spielerprofil nicht
+        // gefunden"). Bei PERMISSION_DENIED durch Rules muss der User es
+        // sehen, damit wir Probleme erkennen.
+        await setDoc(doc(db, 'players', uid), { id: uid, ...data });
       }
     },
 
