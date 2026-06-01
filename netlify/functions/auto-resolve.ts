@@ -32,8 +32,8 @@ export default async (req: Request) => {
   // Kein gesperrter Markt mit footballDataOrgId → nichts automatisch aufzulösen.
   if (marketByFdoId.size === 0) return new Response('idle-no-api-markets', { status: 200 });
 
-  // 2) Erst jetzt die API abfragen (WC + CL; per RESOLVE_COMPETITIONS überschreibbar).
-  const comps = (process.env.RESOLVE_COMPETITIONS ?? 'WC,CL')
+  // 2) Erst jetzt die API abfragen (WC; per RESOLVE_COMPETITIONS überschreibbar).
+  const comps = (process.env.RESOLVE_COMPETITIONS ?? 'WC')
     .split(',').map(c => c.trim()).filter(Boolean);
   const finished: any[] = [];
   for (const c of comps) {
