@@ -2,57 +2,108 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── Admin-Erkennung ───────────────────────────────────────────────────────
+    // Spiegelt die Server-Logik (netlify/functions/_lib/adminAuth.ts):
+    //   1. Bekannte Admin-E-Mails (Fallback-Liste, identisch zum Server).
+    //   2. ODER ein Spieler-Dokument mit isAdmin == true (z. B. Michael nach
+    //      prepare-go-live). So funktionieren Admin-Schreibzugriffe auch für
+    //      Admins, deren E-Mail (noch) nicht in der Liste steht.
+    // get() läuft nur, wenn die E-Mail-Prüfung fehlschlägt (Short-Circuit), und
+    // in den meisten Regeln steht der eigene-Doc-Pfad davor — Admin-Reads fallen
+    // daher nur bei echten Admin-Aktionen an (selten).
+    function isAdmin() {
+      return request.auth != null && (
+        (request.auth.token.email != null
+          && request.auth.token.email.lower() in ['marketing@gwt.at', 'philipp_eckhardt@live.de'])
+        || (exists(/databases/$(database)/documents/players/$(request.auth.uid))
+            && get(/databases/$(database)/documents/players/$(request.auth.uid)).data.isAdmin == true)
+      );
+    }
+
     // ── Players ─────────────────────────────────────────────────────────────
-    // Schreibrechte sind doppelt beschränkt:
-    //   1. Nur die eigene Doc (oder ein Test-Spieler).
-    //   2. „Schutzfelder" (Tokens, Streaks, Shop-Bestand, Reveal-Queue usw.)
-    //      dürfen NICHT direkt vom Client geschrieben werden — die werden
-    //      ausschliesslich von den Netlify-Functions via Admin-SDK gesetzt
-    //      (place-bet, change-bet, purchase-shop-item, buyback, resolve-market,
-    //      tick, go-live). Damit ist Self-Token-Manipulation aus dem Browser
-    //      verschlossen.
-    //   Test-Spieler bleiben offen: der Admin verwaltet sie clientseitig
-    //   (Anlegen, Pool-Simulation per Test-Wetten).
+    // Schreibrechte sind mehrfach beschränkt:
+    //   1. CREATE: nur die eigene Doc, und nur mit sicheren Startwerten
+    //      (Tokens == 1000, kein Self-Admin, keine Selbst-Freigabe, kein
+    //      Test-Spieler-Flag, leere Streaks/Inventar). Damit kann sich niemand
+    //      per Hand-Request ein Millionen-Konto oder Admin-Rechte anlegen.
+    //   2. UPDATE: „Schutzfelder" (Tokens, Streaks, Shop-Bestand, Freigabe,
+    //      Admin-Flag …) dürfen NICHT direkt vom Client geschrieben werden — die
+    //      setzen ausschliesslich die Netlify-Functions via Admin-SDK (place-bet,
+    //      change-bet, purchase-shop-item, buyback, resolve-market, tick,
+    //      go-live). Admins dürfen zusätzlich Freigabe/Promotion/Charakter-Reset
+    //      anderer Spieler vornehmen (aber keine Tokens — die laufen über
+    //      admin-grant). Test-Spieler verwaltet ausschliesslich der Admin.
     match /players/{playerId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && (request.auth.uid == playerId || request.resource.data.isTestPlayer == true);
-      allow delete: if request.auth != null
-        && (request.auth.uid == playerId || resource.data.isTestPlayer == true);
+
+      allow create: if request.auth != null && (
+        // Selbst-Registrierung mit erzwungenen Startwerten.
+        (request.auth.uid == playerId
+          && request.resource.data.tokens == 1000
+          && (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false)
+          && (!('approved' in request.resource.data) || request.resource.data.approved == false)
+          && (!('buybackUsed' in request.resource.data) || request.resource.data.buybackUsed == false)
+          && (!('isTestPlayer' in request.resource.data) || request.resource.data.isTestPlayer == false)
+          && (!('currentStreak' in request.resource.data) || request.resource.data.currentStreak == 0)
+          && (!('bestStreak' in request.resource.data) || request.resource.data.bestStreak == 0)
+          && (!('unlockedOverlays' in request.resource.data) || request.resource.data.unlockedOverlays.size() == 0)
+          && (!('shopInventory' in request.resource.data) || request.resource.data.shopInventory.size() == 0)
+          && (!('badges' in request.resource.data) || request.resource.data.badges.size() == 0))
+        // Admin legt Test-Spieler an (Pool-Simulation im Testmodus).
+        || (isAdmin() && request.resource.data.isTestPlayer == true)
+      );
 
       allow update: if request.auth != null && (
-        // Test-Spieler: weiterhin offen für den Admin-Pfad.
-        resource.data.isTestPlayer == true
-        // Eigene Doc: nur Felder ausserhalb der Schutzliste.
-        // dailyNetGain + unseenResolutions sind bewusst NICHT geschützt —
-        // RevealScreen.finish() und simulateReveal müssen sie für den
-        // eigenen User setzen können.
-        || (request.auth.uid == playerId
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        // 1. Eigene Doc: alles ausser Schutzfeldern. dailyNetGain +
+        //    unseenResolutions sind bewusst NICHT geschützt — RevealScreen und
+        //    simulateReveal müssen sie für den eigenen User setzen können.
+        (request.auth.uid == playerId
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
               'tokens', 'isAdmin', 'approved', 'buybackUsed',
               'shopInventory',
               'currentStreak', 'bestStreak', 'streakLevel', 'streakHistory',
               'unlockedOverlays', 'austriaSpecialCorrect', 'underdogCorrect',
               'badges', 'isTestPlayer'
             ]))
+        // 2. Admin verwaltet Test-Spieler: volle Kontrolle (Pool-Simulation).
+        || (resource.data.isTestPlayer == true && isAdmin())
+        // 3. Admin verwaltet echte Spieler: Freigabe (approved), Promotion
+        //    (isAdmin) und Charakter-Reset — aber Tokens & Spielstand bleiben
+        //    server-seitig (admin-grant / resolve-market).
+        || (isAdmin()
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                'tokens', 'buybackUsed', 'shopInventory',
+                'currentStreak', 'bestStreak', 'streakLevel', 'streakHistory',
+                'unlockedOverlays', 'austriaSpecialCorrect', 'underdogCorrect', 'badges'
+              ]))
+      );
+
+      allow delete: if request.auth != null && (
+        request.auth.uid == playerId
+        || (resource.data.isTestPlayer == true && isAdmin())
       );
     }
 
     // ── Usernames: Namens-Reservierung ────────────────────────────────────────
+    // Reservierung zeigt immer auf den eigenen Account; löschen darf nur der
+    // Eigentümer (oder ein Admin). Bulk-Cleanup beim Reset macht die Netlify-
+    // Function go-live via Admin-SDK (umgeht die Rules).
     match /usernames/{name} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow delete: if request.auth != null;
+      allow delete: if request.auth != null
+        && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
     // ── Markets ───────────────────────────────────────────────────────────────
-    // Lesen für alle authed. Schreiben weiter offen für authed (Admin-Panel
-    // legt Märkte an, pausiert/sperrt/storniert sie clientseitig). Pool-
-    // Mutationen via Wett-Platzierung laufen jetzt aber über `place-bet` —
-    // dort wird `options[].pool` atomar fortgeschrieben.
+    // Lesen für alle authed. Schreiben NUR für Admins (Markt anlegen, sperren,
+    // pausieren, öffnen, löschen im Admin-Panel). Die automatische Markt-Öffnung
+    // und das Kickoff-Locking laufen server-seitig (tick.ts via Admin-SDK), die
+    // Pool-Fortschreibung über place-bet — beide umgehen die Rules. Damit kann
+    // kein Spieler mehr Pools, Status, Sieger oder Anstosszeit manipulieren.
     match /markets/{marketId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
     // ── Bets ─────────────────────────────────────────────────────────────────
@@ -76,13 +127,19 @@ service cloud.firestore {
     }
 
     // ── App state ────────────────────────────────────────────────────────────
-    // Invite-Code öffentlich lesbar (Registrier-Gate). Schreiben offen, aber
-    // sensible Felder (jackpot, currentMatchday, hausbank) NUR über Server-SDK.
+    // Invite-Code öffentlich lesbar (Registrier-Gate). Admins dürfen alles
+    // schreiben (adminMessage, exchangeRate, whatsappGroupLink, Shop-Drop-Ts,
+    // Jackpot-Override). Nicht-Admins dürfen sensible Felder NICHT anfassen —
+    // insbesondere nicht den Umrechnungskurs (Auszahlungswert!), den Testmodus,
+    // Jackpot/Hausbank oder den WhatsApp-Link.
     match /appState/{doc} {
       allow read: if true;
-      allow write: if request.auth != null
-        && !request.resource.data.diff(resource.data).affectedKeys()
-              .hasAny(['jackpot', 'currentMatchday', 'hausbank']);
+      allow write: if isAdmin()
+        || (request.auth != null
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                'jackpot', 'currentMatchday', 'hausbank',
+                'testMode', 'exchangeRate', 'adminMessage', 'whatsappGroupLink'
+              ]));
     }
 
     // ── Schedule: Server-only (Admin-SDK Import).
@@ -106,14 +163,20 @@ service cloud.firestore {
     }
 
     // ── Shop-Items ───────────────────────────────────────────────────────────
-    // Lesen für alle authed. Schreiben (Katalog-Pflege) weiter im Admin-Panel
-    // erlaubt, aber das sensible `sold`-Feld (Stock-Bookkeeping) darf NUR der
-    // Server (purchase-shop-item) inkrementieren.
+    // Lesen für alle authed. Katalog-Pflege NUR durch Admins; zusätzlich darf
+    // selbst der Admin-Client das `sold`-Feld (Stock-Bookkeeping) nicht ändern —
+    // das inkrementiert ausschliesslich der Server (purchase-shop-item). Damit
+    // kann niemand mehr einen Item-Preis auf 0 setzen und gratis „kaufen".
     match /shopItems/{itemId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
+      allow write: if isAdmin()
         && (resource == null
             || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['sold']));
+    }
+
+    // ── Default-Deny (Defense-in-Depth): alles Nicht-Gematchte ist gesperrt.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
