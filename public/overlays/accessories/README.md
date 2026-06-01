@@ -5,12 +5,16 @@ Transparente **WebP**, Vorlage **1080×1080**, vollflächig/deckungsgleich zum C
 
 | Datei | Slot | Auslöser |
 |---|---|---|
-| `underdog_medal.webp` | Hand | Underdog-Sieg (automatisch) |
-| `flames.webp` | Kopf | 4er-Streak (automatisch) |
-| `crown_gold.webp` | Kopf | Spieltagskönig (Admin/manuell) |
 | `alpenmuetze.webp` | Kopf | Österreich-Block-Sieger |
-| `jersey_at_gold.webp` | Trikot | Österreich-Block-Sieger |
-| `jersey_finale.webp` | Trikot | Finale-Block-Sieger |
-| `trophy.webp` | Hand | Turniersieger (Admin/manuell) |
+| `underdog_medal.webp` | Hand | Underdog-Sieg (automatisch) |
 
 Die IDs stammen aus `src/data/accessories.ts` — neue Accessoires dort ergänzen.
+
+## Bewusst nicht umgesetzt (Doppelungen)
+
+- **Spieltagskönig** wird über den Auto-Effekt `overlays/effects/tagessieger.webp`
+  (z-50, Medaille oben rechts) dargestellt — kein zusätzliches Kopf-Accessoire nötig.
+- **4er-/7er-Streak** laufen über die Hintergrund-Badges
+  `overlays/badges/on_fire.webp` und `damn_hot.webp` — kein Kopf-Flammen-Accessoire nötig.
+- **Turniersieger** (Pokal), **Österreich-Block-Trikot** (gold) und **Finale-Trikot**
+  sind aus der App entfernt.
