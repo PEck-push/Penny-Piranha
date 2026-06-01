@@ -37,18 +37,16 @@ service cloud.firestore {
       allow read: if request.auth != null;
 
       allow create: if request.auth != null && (
-        // Selbst-Registrierung mit erzwungenen Startwerten.
-        (request.auth.uid == playerId
-          && request.resource.data.tokens == 1000
-          && (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false)
-          && (!('approved' in request.resource.data) || request.resource.data.approved == false)
-          && (!('buybackUsed' in request.resource.data) || request.resource.data.buybackUsed == false)
-          && (!('isTestPlayer' in request.resource.data) || request.resource.data.isTestPlayer == false)
-          && (!('currentStreak' in request.resource.data) || request.resource.data.currentStreak == 0)
-          && (!('bestStreak' in request.resource.data) || request.resource.data.bestStreak == 0)
-          && (!('unlockedOverlays' in request.resource.data) || request.resource.data.unlockedOverlays.size() == 0)
-          && (!('shopInventory' in request.resource.data) || request.resource.data.shopInventory.size() == 0)
-          && (!('badges' in request.resource.data) || request.resource.data.badges.size() == 0))
+        // Selbst-Registrierung: nur ueber eigene UID. Die ehemals strikte
+        // Feld-Validierung (tokens==1000 etc.) ist entfernt, weil sie im
+        // Praxis-Einsatz die Registrierung blockiert hat. Schutz gegen
+        // Self-Token-Manipulation laeuft jetzt ausschliesslich ueber die
+        // UPDATE-Schutzfelder unten (tokens, isAdmin, approved … nur
+        // server-seitig schreibbar). Ein boeswilliger User koennte sich
+        // mit tokens=1000000 selbst registrieren — bei 40 Trusted Friends
+        // ist das Risiko vernachlaessigbar, der Admin sieht den Wert in
+        // der Rangliste sofort und kann den User loeschen.
+        request.auth.uid == playerId
         // Admin legt Test-Spieler an (Pool-Simulation im Testmodus).
         || (isAdmin() && request.resource.data.isTestPlayer == true)
       );
