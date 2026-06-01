@@ -238,6 +238,17 @@ export default function Dashboard() {
   // Abschluss des Firestore-Writes — ohne Lock kann der zweite Klick in den ~150 ms
   // dazwischen erneut placeBet auslösen und einen Duplikat-Bet anlegen.
   const [betPending, setBetPending] = useState(false);
+
+  // Race-Condition-Fenster: nach Login feuert die Firestore-Listener-Subscription
+  // erst nach kurzer Verzögerung. Bis dahin ist `me` undefined und der „Kein
+  // Spielerprofil gefunden"-Screen würde kurz aufblitzen. Wir zeigen stattdessen
+  // einen Loader und schalten erst nach 1,5 s auf den Error-Screen um — bis
+  // dahin hat der Listener fast immer geliefert.
+  const [profileGracePassed, setProfileGracePassed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setProfileGracePassed(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
   const executeBet = async () => {
     if (betPending) return;
     if (!selectedMarket || !me || !confirmBet || me.tokens < confirmBet.amount) return;
@@ -266,6 +277,25 @@ export default function Dashboard() {
   };
 
   if (!me) {
+    // Innerhalb des 1,5 s-Fensters: Loader (gleiche Optik wie der Splash-Loader
+    // in App.tsx, damit die Übergabe ohne sichtbaren Sprung passiert).
+    if (!profileGracePassed) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center bg-bg px-8 gap-5 text-center">
+          <img src="/logo-icon.webp" alt="" className="w-20 h-20 object-contain"
+            style={{ animation: 'auraGlow 3s ease-in-out infinite' }} />
+          <div className="relative w-8 h-8">
+            <div className="absolute inset-0 rounded-full border border-transparent"
+              style={{ borderTopColor: 'rgba(167,123,255,.9)', borderRightColor: 'rgba(230,180,60,.5)', animation: 'magicSpin 1.2s linear infinite' }} />
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[8px]" style={{ animation: 'sparkle 1.2s ease-in-out infinite' }}>✦</span>
+          </div>
+          <div className="font-mono text-[10px] text-muted tracking-[0.25em] uppercase animate-[puls_1.8s_ease-in-out_infinite]">
+            Lade Profil…
+          </div>
+        </div>
+      );
+    }
+    // Nach 1,5 s ohne Profil: echter Error-Screen.
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-bg px-8 gap-5 text-center">
         <img src="/logo-icon.webp" alt="" className="w-20 h-20 object-contain" />
