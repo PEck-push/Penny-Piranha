@@ -163,6 +163,8 @@ export interface Market {
   jackpotBlockLabel?: string;  // z.B. "🏁 Ende Gruppenphase"
   fixedPrize?: number;         // fester Token-Preis dieser Frage (vom Haus)
   absorbsJackpotPot?: boolean; // Finale-Headline: schluckt angesparten jackpot
+  allowMultiWinner?: boolean;  // mehrere Optionen koennen gleichzeitig richtig sein
+                               // (z. B. Surprise-Out, wenn zwei Favoriten in derselben Runde rausfliegen)
   // Multiple-Choice: Spieler kreuzt mehrere Antworten an, gewinnt nur bei exakter
   // Übereinstimmung mit der vom Admin gewählten richtigen Menge. Der Tipp wird als
   // ein Bet gespeichert (optionId = kanonischer Schlüssel der Auswahl).

@@ -9,7 +9,9 @@ import {
 
 // HTTP POST — admin-only. Zentraler, atomarer Auflösungs-Endpunkt für das
 // Admin-Panel. Body:
-//   { action: 'win',      marketId, winningOptionId }      → Gewinner-Auflösung
+//   { action: 'win',      marketId, winningOptionId, winningOptionIds? }
+//                                                          → Gewinner-Auflösung
+//                                                            (Array fuer Multi-Winner)
 //   { action: 'rollover', marketId }                        → 50% Einsatz zurück
 //   { action: 'storno',   marketId }                        → 100% Einsatz zurück
 //   { action: 'open',     marketId, winnerPlayerIds: [] }   → offene Frage auswerten
@@ -19,16 +21,24 @@ export default async (req: Request, _context: Context) => {
 
   let body: any;
   try { body = await req.json(); } catch { body = {}; }
-  const { action, marketId, winningOptionId, winnerPlayerIds } = body ?? {};
+  const { action, marketId, winningOptionId, winningOptionIds, winnerPlayerIds } = body ?? {};
   if (!marketId || !action) return json({ error: 'marketId und action sind erforderlich.' }, 400);
 
   try {
     let result;
     switch (action) {
-      case 'win':
-        if (!winningOptionId) return json({ error: 'winningOptionId fehlt.' }, 400);
-        result = await resolveMarketAdmin(marketId, winningOptionId, 'admin');
+      case 'win': {
+        // Multi-Winner-Body akzeptieren — Array hat Vorrang. Der "primaere"
+        // winningOptionId wird auf den ersten Eintrag der Liste gehoben, das
+        // volle Set bleibt fuer die Aufloesung erhalten.
+        const multiIds: string[] | undefined = Array.isArray(winningOptionIds) && winningOptionIds.length > 0
+          ? winningOptionIds.map(String)
+          : undefined;
+        const primaryId: string = multiIds ? multiIds[0] : winningOptionId;
+        if (!primaryId) return json({ error: 'winningOptionId oder winningOptionIds fehlt.' }, 400);
+        result = await resolveMarketAdmin(marketId, primaryId, 'admin', undefined, multiIds);
         break;
+      }
       case 'rollover':
         result = await rolloverMarketAdmin(marketId, 'admin');
         break;

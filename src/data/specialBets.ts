@@ -12,6 +12,11 @@ export interface SpecialBetTemplate {
   block?: 'block1' | 'austria' | 'block2' | 'finale';
   fixedPrize?: number;
   absorbsJackpotPot?: boolean;
+  // Mehrere Optionen koennen gleichzeitig richtig sein (z. B. wenn zwei
+  // Topfavoriten in derselben K.O.-Runde rausfliegen). Admin haakt bei der
+  // Aufloesung mehrere Optionen ab, der Preis wird gleichmaessig auf alle
+  // Tipper der markierten Optionen verteilt.
+  allowMultiWinner?: boolean;
 }
 
 // Anzeige-Label je Jackpot-Block.
@@ -38,6 +43,7 @@ export const INTERNATIONAL_SPECIALS: SpecialBetTemplate[] = [
     id: 'surprise-out',
     title: '😱 Welcher Topfavorit scheidet zuerst aus?',
     options: ['Brasilien', 'Frankreich', 'England', 'Deutschland', 'Spanien', 'Portugal', 'Argentinien'],
+    allowMultiWinner: true, // mehrere Favoriten koennen in derselben Runde rausfliegen
   },
   {
     id: 'milestone-group-goals',
@@ -114,6 +120,7 @@ export const JACKPOT_TEMPLATES: SpecialBetTemplate[] = [
     title: '😱 Welcher Topfavorit scheidet zuerst aus?',
     options: ['Brasilien', 'Frankreich', 'England', 'Deutschland', 'Spanien', 'Portugal', 'Argentinien'],
     block: 'block2', fixedPrize: 350, // 7 Opt., schwer
+    allowMultiWinner: true, // mehrere Favoriten koennen in derselben Runde rausfliegen
   },
   // Finale-Jackpot — klassische Tipps, großer Showdown (größte Preise) · Σ 1300
   {

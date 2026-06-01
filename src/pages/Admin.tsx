@@ -77,7 +77,14 @@ export default function Admin() {
   // Resolution confirmation popup
   const [pendingResolution, setPendingResolution] = useState<{
     marketId: string; optionId: string; optionLabel: string; type: 'win' | 'rollover' | 'storno';
+    // Multi-Winner: bei Spezialwetten / Jackpot-Runden mit allowMultiWinner
+    // koennen mehrere Optionen markiert werden. optionId enthaelt dann den
+    // ersten Eintrag, optionIds das volle Set.
+    optionIds?: string[];
   } | null>(null);
+  // Multi-Winner Vorauswahl pro Markt — Set von OptionIds, die der Admin
+  // gerade als korrekt markiert hat (vor dem Bestaetigungs-Dialog).
+  const [multiWinnerSel, setMultiWinnerSel] = useState<Record<string, Set<string>>>({});
   // Close-market / delete confirmation
   const [pendingClose, setPendingClose] = useState<{ marketId: string; question: string } | null>(null);
   // Gratis-/Jackpot-Wette schließen: Löschen ODER Absagen wählbar
@@ -499,6 +506,7 @@ export default function Admin() {
       isOpenQuestion: false,
       marketSubtype: 'spezialwette',
       austriaBlock: !!tpl.austria,
+      allowMultiWinner: !!tpl.allowMultiWinner,
       minBet: 10,
       maxBet: 0,
       autoDeductAmount: 0,
@@ -533,6 +541,7 @@ export default function Admin() {
       jackpotBlockLabel: tpl.block ? JACKPOT_BLOCK_LABELS[tpl.block] : undefined,
       fixedPrize: tpl.fixedPrize ?? 0,
       absorbsJackpotPot: !!tpl.absorbsJackpotPot,
+      allowMultiWinner: !!tpl.allowMultiWinner,
       minBet: 0,
       maxBet: 0,
       autoDeductAmount: 0,
@@ -686,13 +695,29 @@ export default function Admin() {
 
   const executeResolution = async () => {
     if (!pendingResolution) return;
-    const { marketId, optionId, type } = pendingResolution;
-    const ok = type === 'win'
-      ? await callResolve({ action: 'win', marketId, winningOptionId: optionId })
-      : type === 'rollover'
-        ? await callResolve({ action: 'rollover', marketId })
-        : await callResolve({ action: 'storno', marketId });
-    if (ok) setPendingResolution(null);
+    const { marketId, optionId, optionIds, type } = pendingResolution;
+    let ok: boolean;
+    if (type === 'win') {
+      // Multi-Winner: optionIds-Array mitgeben, Server splittet den Preis
+      // auf alle Tipper aller markierten Optionen.
+      ok = optionIds && optionIds.length > 1
+        ? await callResolve({ action: 'win', marketId, winningOptionId: optionIds[0], winningOptionIds: optionIds })
+        : await callResolve({ action: 'win', marketId, winningOptionId: optionId });
+    } else if (type === 'rollover') {
+      ok = await callResolve({ action: 'rollover', marketId });
+    } else {
+      ok = await callResolve({ action: 'storno', marketId });
+    }
+    if (ok) {
+      setPendingResolution(null);
+      // Multi-Winner-Vorauswahl fuer diesen Markt entsorgen.
+      setMultiWinnerSel(prev => {
+        if (!prev[marketId]) return prev;
+        const next = { ...prev };
+        delete next[marketId];
+        return next;
+      });
+    }
   };
 
   // Spieler endgültig entfernen (z. B. wenn nicht gezahlt wurde). Löscht Profil,
@@ -1521,6 +1546,47 @@ export default function Admin() {
                         className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">
                         ✗ Gescheitert
                       </button>
+                    </>
+                  ) : m.allowMultiWinner ? (
+                    // Multi-Winner: toggle-bare Optionen + separater Bestaetigen-Button.
+                    // Mehrere Optionen koennen gleichzeitig richtig sein (z. B. zwei
+                    // Favoriten fliegen in derselben K.O.-Runde raus).
+                    <>
+                      {m.options.map((opt, i) => {
+                        const colors = ['text-green border-green/35','text-red border-red/35','text-blue2 border-blue2/35','text-yellow border-yellow/35','text-purple2 border-purple2/35'];
+                        const sel = multiWinnerSel[m.id] ?? new Set<string>();
+                        const isOn = sel.has(opt.id);
+                        return (
+                          <button key={opt.id}
+                            onClick={() => setMultiWinnerSel(prev => {
+                              const cur = new Set(prev[m.id] ?? []);
+                              if (cur.has(opt.id)) cur.delete(opt.id); else cur.add(opt.id);
+                              return { ...prev, [m.id]: cur };
+                            })}
+                            className={clsx(
+                              "text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer font-sans whitespace-nowrap transition-all",
+                              colors[i] ?? colors[0],
+                              isOn ? 'bg-white/10 ring-2 ring-yellow/60' : 'bg-transparent hover:bg-white/5',
+                            )}>
+                            {isOn ? '☑' : '☐'} {opt.label}
+                          </button>
+                        );
+                      })}
+                      {(() => {
+                        const sel = multiWinnerSel[m.id] ?? new Set<string>();
+                        if (sel.size === 0) return null;
+                        const ids = Array.from(sel);
+                        const labels = m.options.filter(o => sel.has(o.id)).map(o => o.label).join(' + ');
+                        return (
+                          <button
+                            onClick={() => setPendingResolution({
+                              marketId: m.id, optionId: ids[0], optionIds: ids, optionLabel: labels, type: 'win',
+                            })}
+                            className="text-[11px] font-black rounded-lg px-3 py-2.5 border-2 border-yellow/60 bg-yellow/15 text-yellow cursor-pointer whitespace-nowrap hover:bg-yellow/25 transition-all">
+                            ✓ Auflösen ({sel.size}{sel.size === 1 ? ' Sieger' : ' Sieger'})
+                          </button>
+                        );
+                      })()}
                     </>
                   ) : (
                     m.options.map((opt, i) => {

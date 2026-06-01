@@ -92,11 +92,17 @@ async function releaseClaim(marketRef: FirebaseFirestore.DocumentReference): Pro
   try { await marketRef.update({ resolveInProgress: false }); } catch { /* egal */ }
 }
 
+// Optionaler winningOptionIds-Parameter fuer Multi-Winner (Spezialwetten /
+// Jackpot-Runden mit allowMultiWinner=true). Wenn gesetzt, werden ALLE darin
+// enthaltenen Optionen als korrekt gewertet und ihre Tipper teilen sich den
+// Preis. winningOptionId bleibt der "primaere" Wert (erster Eintrag der Liste
+// bzw. der einzige bei klassischer Single-Winner-Aufloesung).
 export async function resolveMarketAdmin(
   marketId: string,
   winningOptionId: string,
   by: 'auto' | 'admin' = 'auto',
   score?: ResolveScore,
+  winningOptionIds?: string[],
 ): Promise<{ ok: boolean; skipped?: boolean; payouts?: Record<string, number> }> {
   const db = getDb();
   const marketRef = db.collection('markets').doc(marketId);
@@ -104,6 +110,13 @@ export async function resolveMarketAdmin(
 
   const market = await claimMarket(marketRef);
   if (!market) return { ok: true, skipped: true };
+
+  // Internes Gewinner-Set: bei explizitem Multi-Array dessen Inhalt, sonst
+  // nur die eine primaere Option.
+  const winningSet: string[] = Array.isArray(winningOptionIds) && winningOptionIds.length > 0
+    ? winningOptionIds.filter(Boolean)
+    : (winningOptionId ? [winningOptionId] : []);
+  const isMultiWinner = winningSet.length > 1;
 
   try {
     // ── Spieltag-Wechsel: Tagesbilanz (dailyNetGain) nur an Tagen mit echten
@@ -137,7 +150,10 @@ export async function resolveMarketAdmin(
 
     const betsSnap = await db.collection('bets').where('marketId', '==', marketId).get();
     const allBets: BetDoc[] = betsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-    const winBets = allBets.filter(b => b.optionId === winningOptionId);
+    // Multi-Winner: ein Bet gilt als korrekt, wenn seine optionId in der
+    // Gewinner-Menge enthalten ist. Klassisch (Single-Winner) ist die Menge
+    // nur ein Element — Verhalten identisch zu vorher.
+    const winBets = allBets.filter(b => winningSet.includes(b.optionId));
 
     // ── Jackpot-Sonderrunde (einsatzfrei, fester Haus-Preis) ──────────────────
     // Korrekte Tipper teilen den festen Preis gleichmäßig. Die Finale-Headline
@@ -154,6 +170,9 @@ export async function resolveMarketAdmin(
       batch.update(marketRef, {
         status: 'resolved',
         winningOptionId,
+        // Multi-Winner: alle als korrekt markierten Optionen festhalten,
+        // damit die Anzeige sie nachher kennt (Reveal, Rangliste-Details).
+        ...(isMultiWinner ? { winningOptionIds: winningSet } : {}),
         resolutionType: 'normal',
         resolvedBy: by,
         resolvedAt: FieldValue.serverTimestamp(),
@@ -328,6 +347,8 @@ export async function resolveMarketAdmin(
     batch.update(marketRef, {
       status: 'resolved',
       winningOptionId,
+      // Multi-Winner: zusaetzlich das volle Set persistieren.
+      ...(isMultiWinner ? { winningOptionIds: winningSet } : {}),
       resolutionType: resType,
       resolvedBy: by,
       resolvedAt: FieldValue.serverTimestamp(),
@@ -351,7 +372,7 @@ export async function resolveMarketAdmin(
       if (!ps.exists) continue;
       const p = ps.data() as any;
       const myBet = allBets.find(b => b.playerId === ps.id);
-      const correct = !!myBet && myBet.optionId === winningOptionId;
+      const correct = !!myBet && winningSet.includes(myBet.optionId);
       const basePayout = payouts[ps.id] ?? 0;
 
       const upd: Record<string, any> = {
