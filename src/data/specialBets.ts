@@ -131,8 +131,8 @@ export const JACKPOT_TEMPLATES: SpecialBetTemplate[] = [
   {
     id: 'jp-goldenball',
     title: '🥇 Wer gewinnt den Goldenen Ball?',
-    options: ['Mbappé', 'Bellingham', 'Vinícius Jr.', 'Messi', 'Yamal', 'Andere'],
-    block: 'finale', fixedPrize: 300, // 6 Opt.
+    options: ['Mbappé', 'Olise', 'Kane', 'Vinícius Jr.', 'Messi', 'Yamal', 'Andere'],
+    block: 'finale', fixedPrize: 300, // 7 Opt.
   },
   {
     id: 'jp-total-goals',
