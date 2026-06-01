@@ -1079,7 +1079,7 @@ export default function Dashboard() {
             ['my-bets',   'Wetten',    Target],
             ['leaderboard','Liga',     Trophy],
           ] as const).map(([tab, label, Icon]) => (
-            <div key={tab} data-tour={tab === 'spielplan' ? 'tab-spielplan' : undefined} onClick={() => setActiveTab(tab)} className="flex flex-col items-center px-1 pt-3 pb-3 gap-1.5 cursor-pointer relative">
+            <div key={tab} data-tour={tab === 'spielplan' ? 'tab-spielplan' : tab === 'my-bets' ? 'tab-wetten' : undefined} onClick={() => setActiveTab(tab)} className="flex flex-col items-center px-1 pt-3 pb-3 gap-1.5 cursor-pointer relative">
               <Icon className={clsx('w-5 h-5', activeTab === tab ? 'text-green' : 'text-muted')} strokeWidth={2} />
               <span className={clsx('text-[9px] font-black tracking-[0.06em] uppercase', activeTab === tab ? 'text-green' : 'text-muted')}>
                 {label}

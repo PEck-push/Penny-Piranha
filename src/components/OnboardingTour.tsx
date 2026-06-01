@@ -17,12 +17,12 @@ const STEPS: Step[] = [
   {
     title: 'Token & Jackpot',
     body: 'Du startest mit 1.000 Token — damit wettest du. Der Jackpot oben ist vor allem die Preiskasse für die Gratis-Sonderwetten und kommt aus der Hausbank. Liegt bei einer normalen Wette niemand richtig, fließt der Pool zusätzlich in den Jackpot.',
-    target: ['jackpot', 'tokens'],
+    target: 'tokens',
   },
   {
     title: 'Wo wird getippt?',
-    body: 'WM-Spiele tippst du im Tab „Spielplan" — unten in der Leiste. Sonderwetten und Gratis-Runden findest du hier im Dashboard. Wichtig: Jedes offene Spiel muss getippt werden, sonst kostet es Token.',
-    target: 'tab-spielplan',
+    body: 'WM-Spiele tippst du im Tab „Spielplan" — oder bequem im Tab „Wetten", wo alle offenen Spiele für dich aufgelistet sind. Wichtig: Jedes offene Spiel muss getippt werden, sonst kostet es Token.',
+    target: ['tab-spielplan', 'tab-wetten'],
   },
   {
     title: 'Hilfe & Tipps',
