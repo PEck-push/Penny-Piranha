@@ -4,11 +4,11 @@ import { verifyCron } from './_lib/cronAuth';
 
 // Runs every 15 minutes (see config.schedule below). Two jobs:
 //   1. OPEN: create a betting market for any scheduled match whose kickoff is
-//      within the next 48h and that has no market yet.
+//      within the next 72h and that has no market yet.
 //   2. LOCK: lock any open market whose kickoff has passed, snapshot the pool,
 //      and apply auto-deductions to players who didn't bet.
 
-const OPEN_WINDOW_MS = 48 * 60 * 60 * 1000;
+const OPEN_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 const PHASE_LIMITS: Record<string, { minBet: number; maxBet: number; autoDeduct: number }> = {
   gruppenphase:      { minBet: 10,  maxBet: 100, autoDeduct: 10 },
@@ -26,8 +26,8 @@ export default async (req: Request) => {
   const db = getDb();
   const now = Date.now();
 
-  // ── 1. OPEN markets 48h before kickoff ────────────────────────────────────
-  // Read-Optimierung: nur Spiele im 48h-Fenster lesen statt des ganzen Spielplans.
+  // ── 1. OPEN markets 72h before kickoff ────────────────────────────────────
+  // Read-Optimierung: nur Spiele im 72h-Fenster lesen statt des ganzen Spielplans.
   // Range-Query auf einem einzelnen Feld → kein Composite-Index nötig. Steht kein
   // Spiel an (z.B. vor dem Turnier), wird auch der markets-Read übersprungen.
   const scheduleSnap = await db
@@ -38,9 +38,13 @@ export default async (req: Request) => {
 
   if (!scheduleSnap.empty) {
     // Duplikat-Check nur für die Spiele im Fenster (matchId 'in'), statt ALLE
-    // wm-match-Märkte zu lesen. 'in' erlaubt max. 30 Werte — im 48h-Fenster
-    // liegen nie mehr als ein gutes Dutzend Spiele, daher unkritisch.
-    const windowMatchIds = scheduleSnap.docs.map(d => d.id).slice(0, 30);
+    // wm-match-Märkte zu lesen. 'in' erlaubt max. 30 Werte. Der Spielplan kommt
+    // durch die kickoffAt-Range-Query bereits aufsteigend sortiert — wir nehmen
+    // die 30 nächsten Spiele und öffnen NUR diese (Existenz-Check + Loop auf
+    // demselben Set). Bei einem dicht belegten 72h-Fenster mit >30 Spielen holt
+    // der nächste Tick (alle 15 Min) den Rest — weiterhin lange vor Anpfiff.
+    const windowDocs = scheduleSnap.docs.slice(0, 30);
+    const windowMatchIds = windowDocs.map(d => d.id);
     const existingMarkets = await db.collection('markets').where('matchId', 'in', windowMatchIds).get();
     const marketByMatch = new Map<string, any>();
     existingMarkets.forEach(d => {
@@ -48,7 +52,7 @@ export default async (req: Request) => {
       if (data.matchId) marketByMatch.set(data.matchId, { id: d.id, ...data });
     });
 
-    for (const doc of scheduleSnap.docs) {
+    for (const doc of windowDocs) {
       const match = doc.data() as any;
       const matchId = doc.id;
       if (marketByMatch.has(matchId)) continue;
