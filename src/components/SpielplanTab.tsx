@@ -569,9 +569,8 @@ export default function SpielplanTab() {
             <div className="text-[14px] text-muted mb-6 leading-relaxed">
               <b className="text-white">{confirmBet.amount} TKN</b> auf{' '}
               <b className="text-yellow">„{confirmBet.optionLabel}"</b>?
-              <br />
-              <span className="text-[11px] text-red/70 font-bold uppercase tracking-wider mt-2 block">
-                Nicht rückgängig machbar!
+              <span className="text-[12px] text-muted block mt-2">
+                Änderbar bis zum Anpfiff.
               </span>
             </div>
             <div className="flex gap-3 w-full">
