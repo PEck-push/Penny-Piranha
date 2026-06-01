@@ -37,7 +37,7 @@ export const INTERNATIONAL_SPECIALS: SpecialBetTemplate[] = [
   {
     id: 'surprise-out',
     title: '😱 Welcher Topfavorit scheidet zuerst aus?',
-    options: ['Brasilien', 'Frankreich', 'England', 'Deutschland', 'Spanien', 'Portugal', 'Argentinien', 'Keiner'],
+    options: ['Brasilien', 'Frankreich', 'England', 'Deutschland', 'Spanien', 'Portugal', 'Argentinien'],
   },
   {
     id: 'milestone-group-goals',
@@ -87,8 +87,8 @@ export const JACKPOT_TEMPLATES: SpecialBetTemplate[] = [
   {
     id: 'jp-aut-points',
     title: '🇦🇹 Wie viele Punkte holt Österreich in der Gruppenphase?',
-    options: ['0', '1', '3', '4', '6', '7', '9'],
-    block: 'austria', fixedPrize: 150, // 7 Opt., AT-Bonus
+    options: ['0', '1', '2', '3', '4', '5', '6', '7', '9'],
+    block: 'austria', fixedPrize: 150, // 9 Opt., AT-Bonus
   },
   {
     id: 'jp-aut-progress',
@@ -112,8 +112,8 @@ export const JACKPOT_TEMPLATES: SpecialBetTemplate[] = [
   {
     id: 'jp-surprise-out',
     title: '😱 Welcher Topfavorit scheidet zuerst aus?',
-    options: ['Brasilien', 'Frankreich', 'England', 'Deutschland', 'Spanien', 'Portugal', 'Argentinien', 'Keiner'],
-    block: 'block2', fixedPrize: 350, // 8 Opt., schwer
+    options: ['Brasilien', 'Frankreich', 'England', 'Deutschland', 'Spanien', 'Portugal', 'Argentinien'],
+    block: 'block2', fixedPrize: 350, // 7 Opt., schwer
   },
   // Finale-Jackpot — klassische Tipps, großer Showdown (größte Preise) · Σ 1300
   {
