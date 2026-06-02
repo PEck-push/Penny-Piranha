@@ -21,9 +21,12 @@ export default function SpielplanTab() {
   const [selectedMatch, setSelectedMatch] = useState<WmMatch | null>(null);
   const [betAmount, setBetAmount] = useState(50);
   const [confirmBet, setConfirmBet] = useState<{
-    marketId: string; optionId: string; optionLabel: string; amount: number;
+    marketId: string; optionId: string; optionLabel: string; amount: number; isChange?: boolean;
   } | null>(null);
   const [betPending, setBetPending] = useState(false);
+  // Bestehende Wette aendern: nach Klick auf "Wette aendern" wird die Bet-Form
+  // erneut angezeigt (Slider + Buttons), pre-filled mit dem aktuellen Einsatz.
+  const [isChangingBet, setIsChangingBet] = useState(false);
 
   const markets     = useStore(s => s.markets);
   const bets        = useStore(s => s.bets);
@@ -31,6 +34,7 @@ export default function SpielplanTab() {
   const currentUser = useStore(s => s.currentUser);
   const jackpot     = useStore(s => s.jackpot);
   const placeBet    = useStore(s => s.placeBet);
+  const changeBet   = useStore(s => s.changeBet);
   const liveSchedule = useStore(s => s.schedule);
   const me          = players.find(p => p.id === currentUser);
 
@@ -70,19 +74,28 @@ export default function SpielplanTab() {
     setSelectedMatch(null);
     setConfirmBet(null);
     setBetAmount(50);
+    setIsChangingBet(false);
   };
 
   const handleBet = (marketId: string, optionId: string, optionLabel: string) => {
     if (!me || me.tokens < betAmount) return;
-    setConfirmBet({ marketId, optionId, optionLabel, amount: betAmount });
+    setConfirmBet({ marketId, optionId, optionLabel, amount: betAmount, isChange: isChangingBet });
   };
 
   const executeBet = async () => {
     if (betPending) return;
-    if (!confirmBet || !me || me.tokens < confirmBet.amount) return;
+    if (!confirmBet || !me) return;
+    // Bei Aenderung wird der alte Einsatz refundiert + neuer abgezogen;
+    // Token-Check passiert serverseitig. Beim PlaceBet muss der volle Einsatz
+    // jetzt verfuegbar sein.
+    if (!confirmBet.isChange && me.tokens < confirmBet.amount) return;
     setBetPending(true);
     try {
-      await placeBet(confirmBet.marketId, confirmBet.optionId, confirmBet.optionLabel, confirmBet.amount);
+      if (confirmBet.isChange) {
+        await changeBet(confirmBet.marketId, confirmBet.optionId, confirmBet.optionLabel, confirmBet.amount);
+      } else {
+        await placeBet(confirmBet.marketId, confirmBet.optionId, confirmBet.optionLabel, confirmBet.amount);
+      }
       closeBetSheet();
     } finally {
       setBetPending(false);
@@ -398,8 +411,8 @@ export default function SpielplanTab() {
               </div>
             )}
 
-            {/* ── Already bet ── */}
-            {selectedMarket && selectedMyBet && (
+            {/* ── Already bet (Aenderungs-Modus zeigt stattdessen die Bet-Form unten) ── */}
+            {selectedMarket && selectedMyBet && !isChangingBet && (
               <div className="flex-1 flex flex-col overflow-hidden">
                 {isKnockoutMarket(selectedMarket) && (
                   <div className="px-4 pt-3 shrink-0"><KnockoutHint /></div>
@@ -466,7 +479,14 @@ export default function SpielplanTab() {
                       <b className="text-yellow">„{selectedMyBet.optionLabel}"</b>
                     </div>
                     {selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
-                      <div className="text-[10px] text-muted/70 mt-1.5">Änderbar bis zum Anpfiff.</div>
+                      <>
+                        <div className="text-[10px] text-muted/70 mt-1.5">Änderbar bis ~10 Min. vor Anpfiff.</div>
+                        <button
+                          onClick={() => { setIsChangingBet(true); setBetAmount(selectedMyBet.amount); }}
+                          className="mt-3 text-[11px] font-black text-yellow border border-yellow/30 bg-yellow/10 rounded-lg px-3 py-1.5 hover:bg-yellow/20 transition-colors cursor-pointer">
+                          ✏️ Wette ändern
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -484,9 +504,14 @@ export default function SpielplanTab() {
               </div>
             )}
 
-            {/* ── Bet form ── */}
-            {selectedMarket && !selectedMyBet && selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
+            {/* ── Bet form (auch im Aenderungs-Modus, dann mit changeBet statt placeBet) ── */}
+            {selectedMarket && (!selectedMyBet || isChangingBet) && selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
               <div className="flex-1 flex flex-col overflow-hidden">
+                {isChangingBet && (
+                  <div className="px-5 pt-3 text-[11px] font-black text-yellow text-center shrink-0">
+                    ✏️ Wette wird geändert — wähle eine neue Option oder einen anderen Einsatz
+                  </div>
+                )}
                 {isKnockoutMarket(selectedMarket) && (
                   <div className="px-4 pt-3 shrink-0"><KnockoutHint /></div>
                 )}
@@ -602,7 +627,7 @@ export default function SpielplanTab() {
               <b className="text-white">{confirmBet.amount} TKN</b> auf{' '}
               <b className="text-yellow">„{confirmBet.optionLabel}"</b>?
               <span className="text-[12px] text-muted block mt-2">
-                Änderbar bis zum Anpfiff.
+                Änderbar bis ~10 Min. vor Anpfiff.
               </span>
             </div>
             <div className="flex gap-3 w-full">

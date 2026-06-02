@@ -1368,7 +1368,7 @@ export default function Dashboard() {
             <div className="text-[14px] text-muted mb-6 leading-relaxed">
               <b className="text-white">{confirmBet.amount} TKN</b> auf <b className="text-yellow">„{confirmBet.optionLabel}"</b>?
               {selectedMarket.type === 'combo' && <><br /><span className="text-green font-black">Gewinn: {confirmBet.amount * (selectedMarket.multiplier ?? 3)} TKN</span></>}
-              <span className="text-[12px] text-muted block mt-2">Änderbar bis zum Anpfiff.</span>
+              <span className="text-[12px] text-muted block mt-2">Änderbar bis ~10 Min. vor Anpfiff.</span>
             </div>
             <div className="flex gap-3 w-full">
               <button onClick={() => setConfirmBet(null)} disabled={betPending} className="flex-1 p-3 rounded-xl font-bold text-muted bg-white/5 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Abbrechen</button>
