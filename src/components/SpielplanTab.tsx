@@ -400,43 +400,52 @@ export default function SpielplanTab() {
 
             {/* ── Already bet ── */}
             {selectedMarket && selectedMyBet && (
-              <div className="p-5">
-                {isKnockoutMarket(selectedMarket) && <KnockoutHint />}
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {isKnockoutMarket(selectedMarket) && (
+                  <div className="px-4 pt-3 shrink-0"><KnockoutHint /></div>
+                )}
+
+                {/* Pool: TKN + % (analog Wetten-Tab) */}
                 {selectedTotal > 0 && (
-                  <div className="mb-4">
-                    <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2">Aktuelle Quoten</div>
-                    <div className="h-3 rounded-full overflow-hidden flex mb-2">
+                  <div className="p-4 pt-3 border-b border-border shrink-0">
+                    <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2">Pool-Verteilung</div>
+                    <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
                       {selectedMarket.options.map((opt, i) => (
                         <div key={opt.id} className="h-full transition-all duration-500"
                           style={{ width: `${(opt.pool / selectedTotal) * 100}%`, backgroundColor: OPT_HEX[i] }} />
                       ))}
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-3">
                       {selectedMarket.options.map((opt, i) => (
-                        <div key={opt.id} className="flex-1 text-center">
-                          <div className={clsx('text-[12px] font-black', OPT_TEXT[i])}>
-                            {Math.round((opt.pool / selectedTotal) * 100)}%
-                          </div>
-                          <div className="text-[9px] text-muted">{opt.label}</div>
+                        <div key={opt.id} className={clsx('flex flex-col gap-0.5 min-w-0',
+                          i === 0 ? 'items-start' : i === selectedMarket.options.length - 1 ? 'items-end' : 'items-center')}>
+                          <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{opt.pool} TKN</span>
+                          <span className="text-[10px] text-muted font-bold truncate max-w-[100px]">{opt.label} — {Math.round((opt.pool / selectedTotal) * 100)}%</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Bet list (post-lock transparency) */}
-                {selectedMarket.status === 'locked' || selectedMarket.status === 'resolved' ? (
-                  <div className="mb-4 max-h-[160px] overflow-y-auto no-scrollbar">
-                    <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2">Alle Tipps</div>
-                    {bets.filter(b => b.marketId === selectedMarket.id).map(b => {
+                {/* Einsätze-Liste (flex-1, fuellt verbleibenden Raum) */}
+                <div className="p-4 border-b border-border flex-1 min-h-0 flex flex-col">
+                  <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2 shrink-0">Einsätze</div>
+                  <div className="flex-1 overflow-y-auto no-scrollbar">
+                    {bets.filter(b => b.marketId === selectedMarket.id).length === 0 ? (
+                      <div className="text-[12px] text-muted text-center py-3">Noch keine weiteren Einsätze.</div>
+                    ) : bets.filter(b => b.marketId === selectedMarket.id).map(b => {
                       const p = players.find(pl => pl.id === b.playerId);
                       const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                      const isMine = b.playerId === me.id;
                       return (
-                        <div key={b.id} className="flex items-center gap-2 py-1.5 border-b border-border/60 last:border-0">
-                          <div className="w-6 h-6 rounded-md bg-white/5 overflow-hidden shrink-0">
+                        <div key={b.id} className={clsx('flex items-center gap-2 py-2 border-b border-border/60 last:border-0',
+                          isMine && 'bg-yellow/5 -mx-2 px-2 rounded-md')}>
+                          <div className="w-8 h-8 rounded-md bg-white/5 overflow-hidden shrink-0">
                             {p && <CharacterAvatar player={p} size="sm" className="w-full h-full" />}
                           </div>
-                          <span className="flex-1 text-[12px] font-bold text-white truncate">{p?.name ?? '?'}</span>
+                          <span className="flex-1 text-[12px] font-bold text-white truncate">
+                            {p?.name ?? '?'}{isMine && ' (du)'}
+                          </span>
                           <span className={clsx('text-[10px] font-black px-1.5 py-0.5 rounded-md border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>
                             {b.optionLabel}
                           </span>
@@ -445,14 +454,20 @@ export default function SpielplanTab() {
                       );
                     })}
                   </div>
-                ) : null}
+                </div>
 
-                <div className="bg-yellow/10 border border-yellow/25 rounded-2xl p-4 text-center">
-                  <div className="text-[24px] mb-1">🔒</div>
-                  <div className="text-[14px] font-black text-yellow">Tipp gespeichert!</div>
-                  <div className="text-[12px] text-muted mt-1">
-                    <b className="text-white">{selectedMyBet.amount} TKN</b> auf{' '}
-                    <b className="text-yellow">„{selectedMyBet.optionLabel}"</b>
+                {/* Tipp-gespeichert-Box (fix unten — wie die Wett-Buttons im offenen Fall) */}
+                <div className="p-4 pb-5 shrink-0">
+                  <div className="bg-yellow/10 border border-yellow/25 rounded-2xl p-4 text-center">
+                    <div className="text-[24px] mb-1">🔒</div>
+                    <div className="text-[14px] font-black text-yellow">Tipp gespeichert!</div>
+                    <div className="text-[12px] text-muted mt-1">
+                      <b className="text-white">{selectedMyBet.amount} TKN</b> auf{' '}
+                      <b className="text-yellow">„{selectedMyBet.optionLabel}"</b>
+                    </div>
+                    {selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
+                      <div className="text-[10px] text-muted/70 mt-1.5">Änderbar bis zum Anpfiff.</div>
+                    )}
                   </div>
                 </div>
               </div>
