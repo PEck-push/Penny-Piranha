@@ -148,3 +148,15 @@ export const flag = (team: string): string => {
 
 export const isAustriaTeam = (name: string): boolean =>
   name === 'Österreich' || name.toLowerCase() === 'austria';
+
+// UTC-Timestamp → CEST-Anzeige (UTC+2, ohne DST-Behandlung — alle Spiele im Sommer).
+// Wird sowohl im Spielplan- als auch im Dashboard-Wett-Panel verwendet, damit
+// die Game-Header identisch aussehen.
+export function toCEST(ts: number): { date: string; time: string } {
+  const d = new Date(ts + 2 * 60 * 60 * 1000);
+  const day = d.getUTCDate().toString().padStart(2, '0');
+  const mon = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+  const h   = d.getUTCHours().toString().padStart(2, '0');
+  const min = d.getUTCMinutes().toString().padStart(2, '0');
+  return { date: `${day}.${mon}.`, time: `${h}:${min}` };
+}

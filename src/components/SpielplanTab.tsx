@@ -2,22 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { clsx } from 'clsx';
 import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
-import { flag, deName, isAustriaTeam } from '../utils/teams';
+import { flag, deName, isAustriaTeam, toCEST } from '../utils/teams';
 import CharacterAvatar from './CharacterAvatar';
 
 type WmMatch = ScheduleMatch;
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
-
-// Convert UTC timestamp to CEST display (UTC+2, no DST handling needed — all matches in summer)
-const toCEST = (ts: number) => {
-  const d = new Date(ts + 2 * 60 * 60 * 1000);
-  const day  = d.getUTCDate().toString().padStart(2, '0');
-  const mon  = (d.getUTCMonth() + 1).toString().padStart(2, '0');
-  const h    = d.getUTCHours().toString().padStart(2, '0');
-  const min  = d.getUTCMinutes().toString().padStart(2, '0');
-  return { date: `${day}.${mon}.`, time: `${h}:${min}` };
-};
 
 // WM-specific option colours: home=blue, draw=yellow, away=red
 const OPT_HEX    = ['#3B6EFF', '#FFD447', '#FF3D5A'];
@@ -359,7 +349,7 @@ export default function SpielplanTab() {
       {selectedMatch && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={closeBetSheet} />
-          <div className="relative z-10 bg-bg border border-border border-b-0 rounded-t-[28px] w-full max-w-[430px] max-h-[88vh] overflow-y-auto no-scrollbar shadow-[0_-20px_60px_rgba(0,0,0,0.75)]">
+          <div className="relative z-10 bg-bg border border-border border-b-0 rounded-t-[28px] w-full max-w-[430px] h-[92dvh] max-h-[92dvh] shadow-[0_-20px_60px_rgba(0,0,0,0.75)] flex flex-col overflow-hidden">
             {/* Accent line */}
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue2/70 to-transparent rounded-t-[28px]" />
 
@@ -481,36 +471,63 @@ export default function SpielplanTab() {
 
             {/* ── Bet form ── */}
             {selectedMarket && !selectedMyBet && selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
-              <div className="p-4 pb-8">
-                {isKnockoutMarket(selectedMarket) && <KnockoutHint />}
-                {/* Odds */}
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {isKnockoutMarket(selectedMarket) && (
+                  <div className="px-4 pt-3 shrink-0"><KnockoutHint /></div>
+                )}
+
+                {/* Pool: TKN + % (analog Wetten-Tab) */}
                 {selectedTotal > 0 && (
-                  <div className="mb-4">
-                    <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2">Aktuelle Verteilung</div>
-                    <div className="h-2.5 rounded-full overflow-hidden flex mb-2">
+                  <div className="p-4 pt-3 border-b border-border shrink-0">
+                    <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2">Pool-Verteilung</div>
+                    <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
                       {selectedMarket.options.map((opt, i) => (
                         <div key={opt.id} className="h-full transition-all duration-500"
                           style={{ width: `${(opt.pool / selectedTotal) * 100}%`, backgroundColor: OPT_HEX[i] }} />
                       ))}
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-3">
                       {selectedMarket.options.map((opt, i) => (
-                        <div key={opt.id} className="flex-1 text-center">
-                          <div className={clsx('text-[11px] font-black', OPT_TEXT[i])}>
-                            {Math.round((opt.pool / selectedTotal) * 100)}%
-                          </div>
-                          <div className="text-[9px] text-muted">{opt.pool} TKN</div>
+                        <div key={opt.id} className={clsx('flex flex-col gap-0.5 min-w-0',
+                          i === 0 ? 'items-start' : i === selectedMarket.options.length - 1 ? 'items-end' : 'items-center')}>
+                          <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{opt.pool} TKN</span>
+                          <span className="text-[10px] text-muted font-bold truncate max-w-[100px]">{opt.label} — {Math.round((opt.pool / selectedTotal) * 100)}%</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Slider */}
-                <div className="mb-5">
+                {/* Einsätze-Liste (flex-1, fuellt verbleibenden Raum) */}
+                <div className="p-4 border-b border-border flex-1 min-h-0 flex flex-col">
+                  <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2 shrink-0">Einsätze</div>
+                  <div className="flex-1 overflow-y-auto no-scrollbar">
+                    {bets.filter(b => b.marketId === selectedMarket.id).length === 0 ? (
+                      <div className="text-[12px] text-muted text-center py-3">Noch keine Einsätze — sei der/die Erste!</div>
+                    ) : bets.filter(b => b.marketId === selectedMarket.id).map(b => {
+                      const p = players.find(pl => pl.id === b.playerId);
+                      const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                      return (
+                        <div key={b.id} className="flex items-center gap-2 py-2 border-b border-border/60 last:border-0">
+                          <div className="w-8 h-8 rounded-md bg-white/5 overflow-hidden shrink-0">
+                            {p && <CharacterAvatar player={p} size="sm" className="w-full h-full" />}
+                          </div>
+                          <span className="flex-1 text-[12px] font-bold text-white truncate">{p?.name ?? '?'}</span>
+                          <span className={clsx('text-[10px] font-black px-1.5 py-0.5 rounded-md border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>
+                            {b.optionLabel}
+                          </span>
+                          <span className="font-mono text-[11px] text-muted">{b.amount}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Slider (fix) */}
+                <div className="p-4 border-b border-border shrink-0">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-[11px] font-black text-muted uppercase tracking-[0.1em]">Einsatz</span>
-                    <span className="font-mono text-[20px] font-bold text-yellow">{betAmount} <span className="text-[13px] text-muted">TKN</span></span>
+                    <span className="text-[11px] font-black text-muted uppercase tracking-[0.1em]">Dein Einsatz</span>
+                    <span className="font-mono text-[18px] font-bold text-yellow">{betAmount} <span className="text-[13px] text-muted">TKN</span></span>
                   </div>
                   <input
                     type="range"
@@ -528,8 +545,8 @@ export default function SpielplanTab() {
                   </div>
                 </div>
 
-                {/* Bet buttons */}
-                <div className="grid grid-cols-3 gap-2">
+                {/* Bet buttons (fix unten — immer sichtbar) */}
+                <div className="p-4 pb-5 grid grid-cols-3 gap-2 shrink-0">
                   {selectedMarket.options.map((opt, i) => {
                     const simOpt   = opt.pool + betAmount;
                     const simTotal = selectedTotal + betAmount + jackpot;

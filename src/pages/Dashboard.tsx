@@ -12,6 +12,7 @@ import SpielplanTab from '../components/SpielplanTab';
 import RevealScreen from '../components/RevealScreen';
 import FeedWidget from '../components/FeedWidget';
 import { JACKPOT_BLOCK_LABELS } from '../data/specialBets';
+import { flag, deName, toCEST } from '../utils/teams';
 
 const OPT_HEX    = ['#E6B43C','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
@@ -1095,25 +1096,51 @@ export default function Dashboard() {
       {/* ── BET MODAL ─────────────────────────────────────────────────────────── */}
       {selectedMarket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-3 py-4">
-          <div className="bg-bg rounded-[28px] flex flex-col relative overflow-hidden border border-border shadow-[0_20px_60px_rgba(0,0,0,0.7)] w-full max-w-[430px] max-h-[90vh]">
+          <div className="bg-bg rounded-[28px] flex flex-col relative overflow-hidden border border-border shadow-[0_20px_60px_rgba(0,0,0,0.7)] w-full max-w-[430px] h-[92dvh] max-h-[92dvh]">
             <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_-5%,rgba(230,180,60,.2)_0%,transparent_50%)]" />
-            <div className="relative z-10 flex flex-col">
-              
+            <div className="relative z-10 flex flex-col flex-1 min-h-0">
 
-              {/* Header */}
-              <div className="p-4 px-5 border-b border-border flex justify-between items-start shrink-0">
-                <div className="flex-1 min-w-0 pr-3">
-                  <div className="text-[10px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">
-                    {selectedMarket.type === 'combo'
-                      ? `🔗 COMBO · ${selectedMarket.multiplier}× Multiplikator`
-                      : selectedMarket.comboGroupId
-                        ? `🔗 COMBO · ${selectedMarket.comboGroupLabel ?? 'Combo'}`
-                        : `${selectedMarket.type} · Markt`}
+              {/* Header: Spielplan-Stil bei WM-Matches, sonst klassisch */}
+              {selectedMarket.marketSubtype === 'wm-match' && selectedMarket.teamA && selectedMarket.teamB && selectedMarket.kickoffAt ? (
+                <div className="p-4 px-5 border-b border-border shrink-0">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-[10px] font-black text-muted tracking-[0.1em] uppercase">
+                      WM 2026{selectedMarket.groupLabel ? ` · ${selectedMarket.groupLabel}` : ''}{(selectedMarket as any).matchday ? ` · Spieltag ${(selectedMarket as any).matchday}` : ''}
+                    </span>
+                    <button onClick={() => setSelectedMarket(null)} className="text-muted hover:text-white text-[20px] leading-none w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/5">×</button>
                   </div>
-                  <div className="text-[18px] font-black text-white leading-[1.2]">{selectedMarket.question}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-col items-start gap-1 flex-1 min-w-0">
+                      <span className="text-[28px] leading-none">{flag(selectedMarket.teamA)}</span>
+                      <span className="text-[15px] font-black text-white truncate max-w-full">{deName(selectedMarket.teamA)}</span>
+                    </div>
+                    <div className="flex flex-col items-center shrink-0 px-2">
+                      <span className="text-[10px] font-black text-muted/60 mb-0.5">VS</span>
+                      <span className="text-[11px] font-bold text-muted">{toCEST(selectedMarket.kickoffAt).date}</span>
+                      <span className="font-mono text-[14px] font-black text-white">{toCEST(selectedMarket.kickoffAt).time}</span>
+                      <span className="text-[9px] text-muted/60">CEST</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-1 min-w-0">
+                      <span className="text-[28px] leading-none">{flag(selectedMarket.teamB)}</span>
+                      <span className="text-[15px] font-black text-white truncate max-w-full text-right">{deName(selectedMarket.teamB)}</span>
+                    </div>
+                  </div>
                 </div>
-                <button onClick={() => setSelectedMarket(null)} className="text-muted hover:text-white p-2 shrink-0">✕</button>
-              </div>
+              ) : (
+                <div className="p-4 px-5 border-b border-border flex justify-between items-start shrink-0">
+                  <div className="flex-1 min-w-0 pr-3">
+                    <div className="text-[10px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">
+                      {selectedMarket.type === 'combo'
+                        ? `🔗 COMBO · ${selectedMarket.multiplier}× Multiplikator`
+                        : selectedMarket.comboGroupId
+                          ? `🔗 COMBO · ${selectedMarket.comboGroupLabel ?? 'Combo'}`
+                          : `${selectedMarket.type} · Markt`}
+                    </div>
+                    <div className="text-[18px] font-black text-white leading-[1.2]">{selectedMarket.question}</div>
+                  </div>
+                  <button onClick={() => setSelectedMarket(null)} className="text-muted hover:text-white p-2 shrink-0">✕</button>
+                </div>
+              )}
 
               {/* ── OPEN QUESTION ──────────────────────────────────── */}
               {selectedMarket.isOpenQuestion ? (
@@ -1142,10 +1169,10 @@ export default function Dashboard() {
                 </div>
               ) : (
                 /* ── REGULAR / COMBO BET ──────────────────────────── */
-                <div className="overflow-y-auto no-scrollbar">
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                   {/* Combo Legs */}
                   {selectedMarket.type === 'combo' && selectedMarket.comboLegs && (
-                    <div className="p-4 px-5 border-b border-border">
+                    <div className="p-4 px-5 border-b border-border shrink-0">
                       <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Legs</div>
                       {selectedMarket.comboLegs.map((leg, i) => (
                         <div key={i} className="flex items-center gap-2 mb-1.5 bg-input rounded-xl p-2 px-3">
@@ -1160,7 +1187,7 @@ export default function Dashboard() {
                   )}
 
                   {/* Pool */}
-                  <div className="p-4 px-5 border-b border-border">
+                  <div className="p-4 px-5 border-b border-border shrink-0">
                     {selectedMarket.multiSelect ? (
                       <>
                         <div className="text-[10px] font-black text-blue2 tracking-[0.12em] uppercase mb-1.5">☑️ Multiple Choice</div>
@@ -1189,9 +1216,10 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* Bets list */}
-                  <div className="p-3.5 px-5 border-b border-border max-h-[110px] overflow-y-auto no-scrollbar">
-                    <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Einsätze</div>
+                  {/* Bets list — flex-1, fuellt verbleibenden Raum, scrollt intern */}
+                  <div className="p-3.5 px-5 border-b border-border flex-1 min-h-0 flex flex-col">
+                    <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5 shrink-0">Einsätze</div>
+                    <div className="flex-1 overflow-y-auto no-scrollbar">
                     {bets.filter(b => b.marketId === selectedMarket.id).map(b => {
                       const p = players.find(pl => pl.id === b.playerId);
                       const foundIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
@@ -1211,11 +1239,12 @@ export default function Dashboard() {
                     {bets.filter(b => b.marketId === selectedMarket.id).length === 0 && (
                       <div className="text-[12px] text-muted text-center py-2">Noch keine Einsätze</div>
                     )}
+                    </div>
                   </div>
 
                   {/* Slider */}
                   {!selectedExpired && (
-                    <div className="p-4 px-5 border-b border-border">
+                    <div className="p-4 px-5 border-b border-border shrink-0">
                       <div className="flex justify-between mb-2.5">
                         <span className="text-[11px] font-black text-muted tracking-[0.1em] uppercase">Dein Einsatz</span>
                         <span className="font-mono text-[18px] font-bold text-yellow">{betAmount} TOKEN</span>
@@ -1232,7 +1261,7 @@ export default function Dashboard() {
 
                   {/* Expired notice */}
                   {selectedExpired && (
-                    <div className="p-4 text-center">
+                    <div className="p-4 text-center shrink-0">
                       <div className="text-red font-black text-[14px]">🔒 Hot Take abgelaufen</div>
                       <div className="text-muted text-[12px] mt-1">Keine Wetten mehr möglich</div>
                     </div>
@@ -1244,7 +1273,7 @@ export default function Dashboard() {
                     const isChanging = changingBetMarket === selectedMarket.id;
                     if (myBet && !isChanging) {
                       return (
-                        <div className="p-4 px-5 pb-7 text-center">
+                        <div className="p-4 px-5 pb-7 text-center shrink-0">
                           <div className="bg-green/10 border border-green/25 rounded-2xl p-4">
                             <div className="text-[13px] font-black text-green">✓ Deine Wette</div>
                             <div className="text-[15px] font-black text-white mt-1">
@@ -1268,7 +1297,7 @@ export default function Dashboard() {
                       });
                       const labels = selectedMarket.options.filter(o => pick.includes(o.id)).map(o => o.label).join(' + ');
                       return (
-                        <div className="p-4 px-5 pb-7 flex flex-col gap-2">
+                        <div className="p-4 px-5 pb-7 flex flex-col gap-2 shrink-0">
                           <div className="text-[11px] font-black text-blue2">☑️ Mehrere ankreuzbar — exakt richtig gewinnt</div>
                           <div className={clsx('grid gap-2', selectedMarket.options.length > 2 ? 'grid-cols-2' : 'grid-cols-2')}>
                             {selectedMarket.options.map(opt => {
