@@ -7,6 +7,7 @@ import { verifyAuth } from './_lib/userAuth';
 //   - Doppelkauf-Schutz (shopInventory)
 //   - Token-Saldo (>= price)
 //   - Token-Abzug + Inventar-Update + sold-Zähler
+//   - Kaufpreis fliesst in den Jackpot (recycling — wie Auto-Abzuege)
 // Anschließend Feed-Eintrag (best-effort, ausserhalb der Transaction).
 //
 // Schreibt nur für den eigenen Spieler (auth.uid).
@@ -28,6 +29,7 @@ export default async (req: Request, _ctx: Context) => {
   const uid = auth.uid!;
   const playerRef = db.collection('players').doc(uid);
   const itemRef   = db.collection('shopItems').doc(body.itemId);
+  const appRef    = db.collection('appState').doc('global');
 
   let cost = 0;
   let itemLabel = '';
@@ -65,6 +67,11 @@ export default async (req: Request, _ctx: Context) => {
         shopInventory: [...inv, body.itemId],
       });
       if (i.stock != null) tx.update(itemRef, { sold: sold + 1 });
+      // Kaufpreis in den Jackpot: ohne diesen Increment verschwinden die Tokens
+      // aus dem Spielsystem, was die Hausbank ungewollt erhoeht.
+      if (cost > 0) {
+        tx.set(appRef, { jackpot: FieldValue.increment(cost) }, { merge: true });
+      }
     });
 
     // Feed-Eintrag best-effort, blockiert nicht das ok-Ergebnis.
