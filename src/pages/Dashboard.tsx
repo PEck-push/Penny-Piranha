@@ -1192,7 +1192,7 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Pool */}
+                  {/* Pool / Tipper-Verteilung (Jackpot zeigt Spielerzahl statt TKN) */}
                   <div className="p-4 px-5 border-b border-border shrink-0">
                     {selectedMarket.multiSelect ? (
                       <>
@@ -1202,7 +1202,39 @@ export default function Dashboard() {
                         </div>
                         <div className="text-[12px] text-muted">Topf: <b className="text-white">{bets.filter(b => b.marketId === selectedMarket.id).reduce((s, b) => s + b.amount, 0)} TKN</b> · {bets.filter(b => b.marketId === selectedMarket.id).length} Tipps</div>
                       </>
-                    ) : (
+                    ) : isJackpotTip ? (() => {
+                      // Bei gratis Tipps: Verteilung anhand der Tipper-Anzahl statt TKN-Pool.
+                      const marketBets = bets.filter(b => b.marketId === selectedMarket.id);
+                      const counts = selectedMarket.options.map(opt =>
+                        marketBets.filter(b => b.optionId === opt.id).length);
+                      const total = counts.reduce((s, n) => s + n, 0) || 1;
+                      return (
+                        <>
+                          <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Tipper-Verteilung</div>
+                          {marketBets.length === 0 ? (
+                            <div className="text-[12px] text-muted text-center py-1">Noch keine Tipps abgegeben — sei der/die Erste!</div>
+                          ) : (
+                            <>
+                              <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
+                                {selectedMarket.options.map((opt, i) => (
+                                  counts[i] > 0 ? (
+                                    <div key={opt.id} className="h-full transition-all duration-500" style={{ width: `${(counts[i] / total) * 100}%`, backgroundColor: OPT_HEX[i] }} />
+                                  ) : null
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between">
+                                {selectedMarket.options.map((opt, i) => (
+                                  <div key={opt.id} className="flex flex-col gap-0.5">
+                                    <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{counts[i]}× Tipper</span>
+                                    <span className="text-[10px] text-muted font-bold">{opt.label} — {Math.round((counts[i] / total) * 100)}%</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })() : (
                       <>
                         <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Pool-Verteilung</div>
                         <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
@@ -1238,7 +1270,7 @@ export default function Dashboard() {
                           </div>
                           <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
                           <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
-                          <span className="font-mono text-[12px] text-muted">{b.amount}</span>
+                          {!isJackpotTip && <span className="font-mono text-[12px] text-muted">{b.amount}</span>}
                         </div>
                       );
                     })}
