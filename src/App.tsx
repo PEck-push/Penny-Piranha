@@ -135,7 +135,14 @@ export default function App() {
         <div className="hidden sm:block text-center mb-6 shrink-0">
           <img src="/logo-full.webp" alt="Krügerl Propheten — Das WM-Tippspiel" className="h-[88px] w-auto mx-auto" />
         </div>
-        <div className="w-full h-[100dvh] sm:h-[812px] sm:max-w-[375px] mx-auto bg-bg sm:rounded-[46px] overflow-hidden sm:border sm:border-white/5 sm:shadow-[0_50px_120px_rgba(0,0,0,0.85)] flex flex-col relative shrink-0 transform-gpu">
+        <div
+          className="w-full h-[100dvh] sm:h-[812px] sm:max-w-[375px] mx-auto bg-bg sm:rounded-[46px] overflow-hidden sm:border sm:border-white/5 sm:shadow-[0_50px_120px_rgba(0,0,0,0.85)] flex flex-col relative shrink-0 transform-gpu"
+          // iOS-Standalone-PWA (viewport-fit=cover + status-bar=translucent): die
+          // Statusleiste/Home-Indicator wuerden sonst ueber den Content rutschen.
+          // env(safe-area-inset-*) ist 0 im normalen Browser und auf Desktop —
+          // greift nur dort, wo iOS wirklich einen Inset meldet.
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
           <div className="hidden sm:block h-[44px] shrink-0 relative z-50" />
           <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col relative">
             <ErrorBoundary>
