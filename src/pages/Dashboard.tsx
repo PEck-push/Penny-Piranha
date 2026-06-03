@@ -1169,6 +1169,12 @@ export default function Dashboard() {
                 </div>
               ) : (
                 /* ── REGULAR / COMBO BET ──────────────────────────── */
+                (() => {
+                  // Jackpot-Sonderrunde / einsatzfreie Frage: kein Token-Slider,
+                  // kein stake-basierter Wett-Flow — clicken auf eine Option
+                  // oeffnet stattdessen den Gratis-Tipp-Confirm-Dialog.
+                  const isJackpotTip = selectedMarket.marketSubtype === 'jackpot' || selectedMarket.noStake === true;
+                  return (
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                   {/* Combo Legs */}
                   {selectedMarket.type === 'combo' && selectedMarket.comboLegs && (
@@ -1242,8 +1248,8 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Slider */}
-                  {!selectedExpired && (
+                  {/* Slider — nur bei stake-basierten Wetten, NICHT bei Jackpot/gratis */}
+                  {!selectedExpired && !isJackpotTip && (
                     <div className="p-4 px-5 border-b border-border shrink-0">
                       <div className="flex justify-between mb-2.5">
                         <span className="text-[11px] font-black text-muted tracking-[0.1em] uppercase">Dein Einsatz</span>
@@ -1258,6 +1264,13 @@ export default function Dashboard() {
                         className="w-full h-1.5 bg-input rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-blue [&::-webkit-slider-thumb]:to-purple [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg" />
                     </div>
                   )}
+                  {/* Gratis-Hinweis bei Jackpot-Sonderrunden */}
+                  {!selectedExpired && isJackpotTip && (
+                    <div className="px-5 py-3 border-b border-border shrink-0 text-center">
+                      <div className="text-[12px] font-black text-yellow">🎰 Gratis-Tipp · Festpreis: {selectedMarket.fixedPrize ?? 0} TKN</div>
+                      <div className="text-[10px] text-muted mt-0.5">Kein Einsatz — richtige Tipper teilen den Preis.</div>
+                    </div>
+                  )}
 
                   {/* Expired notice */}
                   {selectedExpired && (
@@ -1270,8 +1283,25 @@ export default function Dashboard() {
                   {/* Bet Buttons */}
                   {!selectedExpired && (() => {
                     const myBet = bets.find(b => b.marketId === selectedMarket.id && b.playerId === me.id);
-                    const isChanging = changingBetMarket === selectedMarket.id;
+                    const isChanging = isJackpotTip ? (changingTipMarket === selectedMarket.id) : (changingBetMarket === selectedMarket.id);
                     if (myBet && !isChanging) {
+                      // Jackpot/Gratis: keine TKN-Anzeige, eigener Aenderungs-Pfad (changeTip).
+                      if (isJackpotTip) {
+                        return (
+                          <div className="p-4 px-5 pb-7 text-center shrink-0">
+                            <div className="bg-yellow/10 border border-yellow/25 rounded-2xl p-4">
+                              <div className="text-[13px] font-black text-yellow">🎰 Gratis-Tipp abgegeben</div>
+                              <div className="text-[15px] font-black text-white mt-1">„{myBet.optionLabel}"</div>
+                              {selectedMarket.status === 'open' && (
+                                <button onClick={() => setChangingTipMarket(selectedMarket.id)}
+                                  className="mt-3 text-[11px] font-black text-yellow border border-yellow/30 bg-yellow/10 rounded-lg px-3 py-1.5 hover:bg-yellow/20 transition-colors cursor-pointer">
+                                  ✏️ Tipp ändern
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
                       return (
                         <div className="p-4 px-5 pb-7 text-center shrink-0">
                           <div className="bg-green/10 border border-green/25 rounded-2xl p-4">
@@ -1325,6 +1355,33 @@ export default function Dashboard() {
                         </div>
                       );
                     }
+                    // Jackpot/Gratis: kein Stake, kein Payout-Estimate — Klick oeffnet
+                    // den Gratis-Tipp-Confirm-Dialog (oder changeTip im Aenderungs-Modus).
+                    if (isJackpotTip) {
+                      return (
+                      <>
+                        {isChanging && (
+                          <div className="px-5 pt-3 text-[11px] font-black text-yellow text-center">
+                            ✏️ Tipp wird geändert — wähle eine neue Option
+                          </div>
+                        )}
+                        <div className={clsx('p-4 px-5 pb-7 grid gap-2 shrink-0', selectedMarket.options.length > 2 ? 'grid-cols-3' : 'grid-cols-2')}>
+                          {selectedMarket.options.map((opt, i) => {
+                            const handleClick = isChanging
+                              ? () => { changeTip(selectedMarket.id, opt.id, opt.label); setChangingTipMarket(null); setSelectedMarket(null); }
+                              : () => setConfirmTip({ marketId: selectedMarket.id, question: selectedMarket.question, optionId: opt.id, optionLabel: opt.label });
+                            return (
+                              <button key={opt.id} onClick={handleClick}
+                                className={clsx('rounded-[18px] cursor-pointer font-sans border-2 transition-all hover:-translate-y-0.5 flex flex-col items-center justify-center py-3 px-2',
+                                  i === 0 ? `border-transparent bg-gradient-to-br from-yellow to-orange text-bg shadow-[0_6px_24px_rgba(255,212,71,0.3)]` : `bg-transparent ${OPT_TEXT[i]} ${OPT_BORDER[i]} ${OPT_HOVER[i]}`)}>
+                                <span className="text-[14px] font-black leading-none">{opt.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                      );
+                    }
                     return (
                     <>
                       {isChanging && (
@@ -1353,6 +1410,8 @@ export default function Dashboard() {
                     );
                   })()}
                 </div>
+                  );
+                })()
               )}
             </div>
           </div>
