@@ -191,6 +191,47 @@ function pickFakt(todayKey: string): string {
   return pool[Math.abs(h) % pool.length];
 }
 
+// ── Natuerlicher Countdown ─────────────────────────────────────────────────
+// "morgen Abend", "am Donnerstagnachmittag" statt "in 2 Tagen und 22h".
+
+function viennaHour(ms: number): number {
+  return parseInt(new Intl.DateTimeFormat('en-US', {
+    timeZone: VIENNA_TZ, hour: '2-digit', hour12: false,
+  }).format(new Date(ms)), 10);
+}
+
+function daysDiffVienna(fromMs: number, toMs: number): number {
+  const fromUtc = Date.parse(viennaDayKey(fromMs) + 'T00:00:00Z');
+  const toUtc   = Date.parse(viennaDayKey(toMs)   + 'T00:00:00Z');
+  return Math.round((toUtc - fromUtc) / (24 * 60 * 60 * 1000));
+}
+
+// "abend" / "nachmittag" etc. fuer Komposition wie "Donnerstagabend".
+function todPart(hour: number): { compact: string; spaced: string } {
+  if (hour >= 5  && hour < 10) return { compact: 'morgen',     spaced: 'früh' };
+  if (hour >= 10 && hour < 13) return { compact: 'vormittag',  spaced: 'Vormittag' };
+  if (hour >= 13 && hour < 15) return { compact: 'mittag',     spaced: 'Mittag' };
+  if (hour >= 15 && hour < 18) return { compact: 'nachmittag', spaced: 'Nachmittag' };
+  if (hour >= 18 && hour < 22) return { compact: 'abend',      spaced: 'Abend' };
+  return { compact: 'nacht', spaced: 'Nacht' };
+}
+
+function naturalCountdown(fromMs: number, toMs: number): string {
+  const days = daysDiffVienna(fromMs, toMs);
+  const hour = viennaHour(toMs);
+  const { compact, spaced } = todPart(hour);
+  const timeStr = viennaTime(toMs);
+  const weekday = new Intl.DateTimeFormat('de-AT', {
+    timeZone: VIENNA_TZ, weekday: 'long',
+  }).format(new Date(toMs));
+
+  if (days <= 0) return `heute ${spaced} (${timeStr})`;
+  if (days === 1) return `morgen ${spaced} (${timeStr})`;
+  if (days === 2) return `übermorgen ${spaced} (${timeStr})`;
+  if (days <= 6) return `am ${weekday}${compact} (${timeStr})`;
+  return `in ${days} Tagen — ${weekday} ${spaced} (${timeStr})`;
+}
+
 async function buildSummary(): Promise<string> {
   const db = getDb();
   const now = Date.now();
@@ -304,17 +345,12 @@ async function buildSummary(): Promise<string> {
     lines.push(`💡 _${fakt}_`);
     lines.push('');
 
-    // Countdown bis erstes Spiel
+    // Countdown bis erstes Spiel — natuerliche Formulierung
     if (earliestKickoff != null) {
       const first = schedule.find(s => s.kickoffAt === earliestKickoff)!;
-      const hoursUntil = Math.round((earliestKickoff - now) / (60 * 60 * 1000));
-      const days = Math.floor(hoursUntil / 24);
-      const remHours = hoursUntil % 24;
-      const countdown = days > 0
-        ? `in ${days} Tag${days === 1 ? '' : 'en'}${remHours > 0 ? ` und ${remHours}h` : ''}`
-        : `in ${remHours}h`;
-      lines.push(`⏰ Erstes Spiel ${countdown}:`);
-      lines.push(`   *${first.teamA} vs. ${first.teamB}* — ${viennaTime(first.kickoffAt)} CEST`);
+      const when = naturalCountdown(now, earliestKickoff);
+      lines.push(`⏰ Erstes Spiel ${when}:`);
+      lines.push(`   *${first.teamA} vs. ${first.teamB}*`);
       lines.push('');
     }
 
