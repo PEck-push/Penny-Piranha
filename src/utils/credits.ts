@@ -40,3 +40,23 @@ export const poolShare = (optionPool: number, totalPool: number): number =>
 export const UNDERDOG_THRESHOLD = 0.15; // < 15% Pool-Anteil = Außenseiter
 export const FAVORITE_WARNING_THRESHOLD = 0.75; // > 75% = Warnhinweis
 export const UNDERDOG_BONUS = 0.1; // +10% Extra aus Hausbank
+
+// Gesamtvermoegen eines Spielers = verfuegbare Tokens + Einsaetze in noch
+// nicht aufgeloesten Maerkten (status open/locked). Wichtig fuer Schwellen-
+// Checks (Buyback-Berechtigung, Ueberlebensmodus): ein Spieler, dessen
+// Tokens nur in offenen Wetten gebunden sind, ist nicht "bankrott" — er
+// muss nur warten, bis sich die Wetten aufloesen.
+export function getTotalWealth(
+  playerId: string,
+  tokens: number,
+  bets: { playerId: string; marketId: string; amount: number }[],
+  markets: { id: string; status: string }[],
+): number {
+  const openMarketIds = new Set(
+    markets.filter(m => m.status === 'open' || m.status === 'locked').map(m => m.id),
+  );
+  const lockedStake = bets
+    .filter(b => b.playerId === playerId && openMarketIds.has(b.marketId))
+    .reduce((sum, b) => sum + (b.amount ?? 0), 0);
+  return tokens + lockedStake;
+}

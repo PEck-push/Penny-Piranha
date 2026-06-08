@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore, MarketOption, buildSelectionKey } from '../store';
+import { getTotalWealth } from '../utils/credits';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
@@ -201,6 +202,7 @@ export default function Admin() {
   const setJackpot = useStore(s => s.setJackpot);
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
+  const bets = useStore(s => s.bets);
   const whatsappGroupLink = useStore(s => s.whatsappGroupLink ?? '');
   const setWhatsappGroupLink = useStore(s => s.setWhatsappGroupLink);
   const navigate = useNavigate();
@@ -2094,8 +2096,11 @@ export default function Admin() {
 
           {/* ── BUYBACK ─────────────────────────────────────────── */}
           {(() => {
+            // Schwelle = Gesamtvermoegen (verfuegbar + gebundene Einsaetze).
+            // Spieler, deren Tokens nur in offenen Wetten "geparkt" sind, sind
+            // nicht buyback-berechtigt — sie muessen nur warten.
             const buybackEligible = players.filter(p =>
-              !p.buybackUsed && p.tokens < 25
+              !p.buybackUsed && getTotalWealth(p.id, p.tokens, bets, markets) < 25
             );
             if (buybackEligible.length === 0) return null;
             return (

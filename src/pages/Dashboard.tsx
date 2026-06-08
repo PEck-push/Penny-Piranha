@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore, Market, getMarketTotal, buildSelectionKey } from '../store';
-import { calcLivePayout } from '../utils/credits';
+import { calcLivePayout, getTotalWealth } from '../utils/credits';
 import { ACCESSORY_BY_ID } from '../data/accessories';
 import CharacterAvatar from '../components/CharacterAvatar';
 import OnboardingTour from '../components/OnboardingTour';
@@ -1037,23 +1037,29 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Buyback / Low-Balance Banner */}
-      {activeTab === 'dashboard' && !me.buybackUsed && me.tokens < 25 && (
+      {/* Buyback / Low-Balance Banner — Schwelle basiert auf Gesamtvermoegen
+          (verfuegbar + gebundene Einsaetze in offenen Maerkten), damit Spieler
+          mit nur "geparkten" Tokens nicht faelschlich im Ueberlebensmodus landen. */}
+      {(() => {
+        const totalWealth = getTotalWealth(me.id, me.tokens, bets, markets);
+        if (activeTab !== 'dashboard' || me.buybackUsed || totalWealth >= 25) return null;
+        return (
         <div className="relative z-30 mx-4 mb-2">
           <div className="bg-red/10 border border-red/35 rounded-2xl px-4 py-3 flex items-center gap-3">
             <span className="text-[24px] shrink-0">💸</span>
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-black text-red leading-tight">Guthaben fast aufgebraucht!</div>
               <div className="text-[11px] text-muted/80 mt-0.5">
-                {me.tokens === 0
+                {totalWealth === 0
                   ? 'Du bist bankrott. Buyback beim Admin möglich.'
-                  : `Nur noch ${me.tokens} Cr. — Überlebensmodus aktiv.`}
+                  : `Nur noch ${totalWealth} Cr. (inkl. offener Einsätze) — Überlebensmodus aktiv.`}
               </div>
             </div>
             <span className="text-[10px] font-black text-red/70 shrink-0">Buyback?</span>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Ticker */}
       {activeTab === 'dashboard' && openMarketsCount > 0 && (
