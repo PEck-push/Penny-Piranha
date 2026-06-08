@@ -110,10 +110,37 @@ function fmtTKN(n: number): string {
   return new Intl.NumberFormat('de-AT').format(Math.round(n));
 }
 
+// Rotierende Intros — variieren taeglich (deterministisch ueber den Wochentag,
+// damit man nicht zweimal hintereinander dasselbe sieht).
+const INTROS_TOURNAMENT = [
+  '📰 Wer ist heiß, wer kalt',
+  '🍻 Frische Tagesbilanz',
+  '⚡ Stand der Dinge',
+  '🎯 Daily der Wahrsager',
+  '🦅 Adlerblick auf gestern',
+  '📊 Krügerl-Update',
+  '🔥 Heißeste Propheten',
+];
+
+const INTROS_PRE = [
+  '⏰ Countdown zur ersten Wette',
+  '🍻 Bald geht\'s los — Zeit für die Tipps',
+  '🎯 Aufgepasst: Vorbereitung läuft',
+  '🚀 Letzte Chance vor dem Anpfiff',
+];
+
+function pickIntro(pool: string[], todayKey: string): string {
+  // Hash aus dem todayKey-String → konstanter Index pro Tag
+  let h = 0;
+  for (const c of todayKey) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return pool[Math.abs(h) % pool.length];
+}
+
 async function buildSummary(): Promise<string> {
   const db = getDb();
   const now = Date.now();
   const todayKey = viennaDayKey(now);
+  const tomorrowKey = viennaDayKey(now + 24 * 60 * 60 * 1000);
 
   // 1. Spieler + Bets + Markets parallel lesen
   const [playersSnap, betsSnap, marketsSnap, scheduleSnap, shopSnap] = await Promise.all([
@@ -128,11 +155,22 @@ async function buildSummary(): Promise<string> {
     .map(d => ({ id: d.id, ...(d.data() as any) }))
     .filter(p => !p.isTestPlayer);
   const bets: Bet[] = betsSnap.docs.map(d => ({ ...(d.data() as any) }));
-  const markets: Market[] = marketsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  const markets: any[] = marketsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
   const schedule: ScheduleEntry[] = scheduleSnap.docs.map(d => ({ matchId: d.id, ...(d.data() as any) }));
   const shopItems: ShopItem[] = shopSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
-  // 2. Tagessieger / Pechvogel — anhand dailyNetGain
+  // ── Turnier-Phase erkennen: vor dem ersten Spiel = Pre-Tournament-Modus ──
+  // Definition: das erste Match hat noch nicht angepfiffen (kickoffAt > now)
+  // UND kein einziges Match wurde bisher aufgeloest. Sobald das erste Spiel
+  // laeuft/vorbei ist, wechselt der Modus.
+  const earliestKickoff = schedule
+    .map(s => s.kickoffAt)
+    .filter(t => Number.isFinite(t) && t > 0)
+    .sort((a, b) => a - b)[0];
+  const anyResolved = markets.some((m: any) => m.status === 'resolved');
+  const inTournament = anyResolved || (earliestKickoff != null && earliestKickoff <= now);
+
+  // 2. Tagessieger / Pechvogel — nur im Turnier-Modus relevant
   const withGain = players
     .map(p => ({ name: p.name ?? '—', gain: p.dailyNetGain ?? 0 }))
     .filter(p => p.gain !== 0);
@@ -141,7 +179,7 @@ async function buildSummary(): Promise<string> {
 
   // 3. Top 3 Gesamt — tokens + offene Einsaetze in noch nicht aufgeloesten Maerkten
   const openMarketIds = new Set(
-    markets.filter(m => m.status === 'open' || m.status === 'locked').map(m => m.id),
+    markets.filter((m: any) => m.status === 'open' || m.status === 'locked').map((m: any) => m.id),
   );
   const openStakeByPlayer: Record<string, number> = {};
   for (const b of bets) {
@@ -160,33 +198,104 @@ async function buildSummary(): Promise<string> {
   // 4. Heutige Matches (Wiener Kalendertag) — sortiert nach Anpfiff
   const todayMatches = schedule
     .filter(m => viennaDayKey(m.kickoffAt) === todayKey)
-    .filter(m => m.kickoffAt > now - 60 * 60 * 1000) // nicht-vergangene
+    .filter(m => m.kickoffAt > now - 60 * 60 * 1000)
+    .sort((a, b) => a.kickoffAt - b.kickoffAt);
+  const tomorrowMatches = schedule
+    .filter(m => viennaDayKey(m.kickoffAt) === tomorrowKey)
     .sort((a, b) => a.kickoffAt - b.kickoffAt);
 
-  // 5. Shop-Drops heute (Freischaltung zwischen jetzt und Tag-Ende, oder bereits
-  //    heute frueh am gleichen Kalendertag) — typischerweise 12:00 Wien.
-  const tomorrowKey = viennaDayKey(now + 24 * 60 * 60 * 1000);
-  const shopDropsToday = shopItems
-    .filter(it => {
-      if (!it.available) return false;
-      const at = shopUnlockAt(it, schedule);
-      if (at == null) return false;
-      return viennaDayKey(at) === todayKey && at >= now - 6 * 60 * 60 * 1000;
-    })
-    .map(it => ({
-      label: it.label,
-      price: it.price,
-      stock: it.stock ?? null,
-      unlockTime: viennaTime(shopUnlockAt(it, schedule)!),
+  // 5. Shop-Drops — heute + Vorschau morgen
+  const allUpcoming = shopItems
+    .filter(it => it.available)
+    .map(it => ({ it, at: shopUnlockAt(it, schedule) }))
+    .filter(x => x.at != null) as { it: ShopItem; at: number }[];
+  const shopDropsToday = allUpcoming
+    .filter(x => viennaDayKey(x.at) === todayKey && x.at >= now - 6 * 60 * 60 * 1000)
+    .map(x => ({ label: x.it.label, price: x.it.price, stock: x.it.stock ?? null, time: viennaTime(x.at), at: x.at }));
+  const shopDropsTomorrow = allUpcoming
+    .filter(x => viennaDayKey(x.at) === tomorrowKey)
+    .map(x => ({ label: x.it.label, price: x.it.price, stock: x.it.stock ?? null, time: viennaTime(x.at), at: x.at }));
+
+  // ── Pre-Tournament: Shop-Drops der naechsten 7 Tage (Preisankuendigung) ──
+  const sevenDaysMs = now + 7 * 24 * 60 * 60 * 1000;
+  const shopDropsWeek = allUpcoming
+    .filter(x => x.at >= now - 6 * 60 * 60 * 1000 && x.at <= sevenDaysMs)
+    .sort((a, b) => a.at - b.at)
+    .map(x => ({
+      label: x.it.label,
+      price: x.it.price,
+      stock: x.it.stock ?? null,
+      dateDay: viennaDayKey(x.at).slice(8) + '.' + viennaDayKey(x.at).slice(5, 7) + '.',
+      time: viennaTime(x.at),
     }));
 
-  // 6. Text zusammenbauen — Sektionen mit leeren Daten werden uebersprungen.
+  // ── Offene Jackpot-Tipps (gratis Wetten, noch nicht aufgeloest) ──
+  const openJackpotMarkets = markets.filter((m: any) =>
+    (m.marketSubtype === 'jackpot' || m.noStake === true) && (m.status === 'open' || m.status === 'locked'),
+  );
+
+  // ── Text bauen ──
   const dateStr = new Intl.DateTimeFormat('de-AT', {
     timeZone: VIENNA_TZ, day: '2-digit', month: '2-digit', year: 'numeric',
   }).format(new Date(now));
-
   const lines: string[] = [];
+
+  // ─── A) Pre-Tournament-Modus ───────────────────────────────────────────
+  if (!inTournament) {
+    lines.push(`🍺 *KRÜGERL-PROPHETEN — Auf in die WM!*`);
+    lines.push(`_${pickIntro(INTROS_PRE, todayKey)}_  ·  ${dateStr}`);
+    lines.push('');
+
+    // Countdown bis erstes Spiel
+    if (earliestKickoff != null) {
+      const first = schedule.find(s => s.kickoffAt === earliestKickoff)!;
+      const hoursUntil = Math.round((earliestKickoff - now) / (60 * 60 * 1000));
+      const days = Math.floor(hoursUntil / 24);
+      const remHours = hoursUntil % 24;
+      const countdown = days > 0
+        ? `in ${days} Tag${days === 1 ? '' : 'en'}${remHours > 0 ? ` und ${remHours}h` : ''}`
+        : `in ${remHours}h`;
+      lines.push(`⏰ Erstes Spiel ${countdown}:`);
+      lines.push(`   *${first.teamA} vs. ${first.teamB}* — ${viennaTime(first.kickoffAt)} CEST`);
+      lines.push('');
+    }
+
+    if (openJackpotMarkets.length > 0) {
+      lines.push(`🎰 *${openJackpotMarkets.length} Gratis-Tipps warten* — kostenlos, Preise aus der Hausbank:`);
+      for (const m of openJackpotMarkets.slice(0, 10)) {
+        const prize = m.fixedPrize ? ` (${fmtTKN(m.fixedPrize)} TKN)` : '';
+        lines.push(`   • ${m.question}${prize}`);
+      }
+      if (openJackpotMarkets.length > 10) {
+        lines.push(`   … und ${openJackpotMarkets.length - 10} weitere`);
+      }
+      lines.push('');
+    }
+
+    if (tomorrowMatches.length > 0) {
+      lines.push('⚽ *Morgen am Start:*');
+      for (const m of tomorrowMatches.slice(0, 8)) {
+        lines.push(`   ${viennaTime(m.kickoffAt)}  ${m.teamA} vs. ${m.teamB}`);
+      }
+      lines.push('');
+    }
+
+    if (shopDropsWeek.length > 0) {
+      lines.push('🛒 *Shop-Releases:*');
+      for (const it of shopDropsWeek) {
+        const stockStr = it.stock != null ? ` · ${it.stock} Stück` : '';
+        lines.push(`   • ${it.dateDay} ${it.time} — ${it.label} · ${fmtTKN(it.price)} TKN${stockStr}`);
+      }
+      lines.push('');
+    }
+
+    lines.push('Tippen 👉 https://kruegerl-propheten.netlify.app');
+    return lines.join('\n');
+  }
+
+  // ─── B) Turnier-Modus (Standard-Daily) ─────────────────────────────────
   lines.push(`🍺 *KRÜGERL-PROPHETEN — Tagesspiegel ${dateStr}*`);
+  lines.push(`_${pickIntro(INTROS_TOURNAMENT, todayKey)}_`);
   lines.push('');
 
   if (sieger || pech) {
@@ -209,22 +318,24 @@ async function buildSummary(): Promise<string> {
       lines.push(`   ${viennaTime(m.kickoffAt)}  ${m.teamA} vs. ${m.teamB}`);
     }
     lines.push('');
-  } else if (tomorrowKey !== todayKey) {
-    const tomorrowMatches = schedule
-      .filter(m => viennaDayKey(m.kickoffAt) === tomorrowKey)
-      .sort((a, b) => a.kickoffAt - b.kickoffAt);
-    if (tomorrowMatches.length > 0) {
-      lines.push('⚽ Morgen:');
-      for (const m of tomorrowMatches.slice(0, 6)) {
-        lines.push(`   ${viennaTime(m.kickoffAt)}  ${m.teamA} vs. ${m.teamB}`);
-      }
-      lines.push('');
+  } else if (tomorrowMatches.length > 0) {
+    lines.push('⚽ Morgen:');
+    for (const m of tomorrowMatches.slice(0, 6)) {
+      lines.push(`   ${viennaTime(m.kickoffAt)}  ${m.teamA} vs. ${m.teamB}`);
     }
+    lines.push('');
   }
 
   if (shopDropsToday.length > 0) {
-    lines.push(`🛒 Shop um ${shopDropsToday[0].unlockTime}:`);
+    lines.push(`🛒 Shop heute um ${shopDropsToday[0].time}:`);
     for (const it of shopDropsToday) {
+      const stockStr = it.stock != null ? ` (${it.stock} Stück)` : '';
+      lines.push(`   • ${it.label} — ${fmtTKN(it.price)} TKN${stockStr}`);
+    }
+    lines.push('');
+  } else if (shopDropsTomorrow.length > 0) {
+    lines.push(`🛒 Shop morgen um ${shopDropsTomorrow[0].time}:`);
+    for (const it of shopDropsTomorrow) {
       const stockStr = it.stock != null ? ` (${it.stock} Stück)` : '';
       lines.push(`   • ${it.label} — ${fmtTKN(it.price)} TKN${stockStr}`);
     }
@@ -232,7 +343,6 @@ async function buildSummary(): Promise<string> {
   }
 
   lines.push('Jetzt tippen 👉 https://kruegerl-propheten.netlify.app');
-
   return lines.join('\n');
 }
 
