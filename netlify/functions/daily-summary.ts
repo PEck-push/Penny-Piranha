@@ -110,29 +110,84 @@ function fmtTKN(n: number): string {
   return new Intl.NumberFormat('de-AT').format(Math.round(n));
 }
 
-// Rotierende Intros — variieren taeglich (deterministisch ueber den Wochentag,
-// damit man nicht zweimal hintereinander dasselbe sieht).
-const INTROS_TOURNAMENT = [
-  '📰 Wer ist heiß, wer kalt',
-  '🍻 Frische Tagesbilanz',
-  '⚡ Stand der Dinge',
-  '🎯 Daily der Wahrsager',
-  '🦅 Adlerblick auf gestern',
-  '📊 Krügerl-Update',
-  '🔥 Heißeste Propheten',
+// ── WM-Fakten: zwei Pools, taeglich abwechselnd "alte" und "neue" Zeit ──
+// Cordoba 1978 mehrfach drin, weil es fuer uns Oesterreicher DER Klassiker ist.
+// 2026 wird absichtlich ausgelassen (die WM, die gerade laeuft).
+
+const FAKTEN_ALT = [
+  // — Die Wurzeln —
+  '1930: Erste WM ueberhaupt — in Uruguay. Nur 13 Teams. Frankreich brauchte 19 Tage Schiffsfahrt zur Anreise.',
+  '1934: Oesterreich wird Vierter — das beste WM-Ergebnis aller Zeiten. Das "Wunderteam" um Matthias Sindelar dominierte den europaeischen Fussball.',
+  '1942 und 1946: WM faellt aus — Weltkrieg. 12 Jahre Pause zwischen 1938 und 1950.',
+  // — Schock-Momente —
+  '1950: USA 1:0 England. Amerikanische Hobby-Kicker schlagen die Erfinder des Fussballs. Englische Zeitungen druckten "1:10" — sie hielten es fuer einen Tippfehler.',
+  '1950: Maracanazo — Uruguay schlaegt Brasilien im Endspiel vor 200.000 Fans im Maracana. In Brasilien wurden Selbstmorde gemeldet.',
+  '1954: Das Wunder von Bern — Deutschland 3:2 gegen Ungarn, die zuvor 4 Jahre lang ungeschlagen waren. Helmut Rahn schoss das Tor, das ein Land aufrichtete.',
+  '1954: Oesterreich wird Dritter — Platz drei nach 7:5 gegen die Schweiz im Viertelfinale, dem torreichsten WM-Spiel der Geschichte.',
+  // — Legendaere Spieler —
+  '1958: Just Fontaine erzielt 13 Tore in einer einzigen WM — bis heute Rekord. Er spielte mit zu engen Schuhen, weil seine kaputt gingen.',
+  '1958: Pele wird WM-Sieger mit 17 Jahren. Bricht nach dem Finaltor in Traenen aus.',
+  '1962: Brasilien wird Weltmeister, obwohl Pele verletzt ausfaellt — Garrincha uebernimmt im Alleingang.',
+  '1966: Geoff Hurst trifft im Finale fuer England — sein 2:2 zum 3:2 nach Verlaengerung ("Wembley-Tor") wird bis heute diskutiert. Ball drueber oder nicht?',
+  '1970: Italien 4:3 gegen Deutschland im Halbfinale — "Jahrhundertspiel". Beckenbauer spielte die Verlaengerung mit ausgekugelter Schulter.',
+  '1970: Brasilien (Pele + Jairzinho + Tostao) gewinnt seine dritte WM und darf den Jules-Rimet-Pokal behalten. 1983 wurde dieser dann gestohlen.',
+  '1974: Cruyff zeigt erstmals den nach ihm benannten "Cruyff-Turn" vs. Schweden. Der Verteidiger steht heute noch.',
+  // — Cordoba (Oesterreich-Klassiker mehrfach) —
+  '21. Juni 1978, Cordoba: Hans Krankl macht in der 88. Minute das 3:2 gegen Deutschland. Edi Finger wird narrisch. Erster Sieg gegen DE seit 47 Jahren.',
+  '1978: Krankl wird Torschuetzenkoenig der WM (6 Tore). Spielt anschliessend bei Barcelona neben Cruyff — und kehrt nach Hause: "I wü hoam."',
+  'Cordoba 1978: Der ORF-Kommentar "I werd narrisch" lief in Endlosschleife — Edi Finger sen. wurde zur Stimme einer Generation.',
+  // — Skandale —
+  '1982: "Nichtangriffspakt von Gijon" — Deutschland und Oesterreich einigten sich auf ein 1:0, das beide weiterbrachte. Algerien war schockiert raus. Seitdem werden letzte Gruppenspiele zeitgleich angepfiffen.',
+  '1986: Maradona schiesst gegen England binnen 4 Minuten zwei Tore — die "Hand Gottes" und das "Tor des Jahrhunderts" (Solo durch 6 Mann). Der Schiri hat das Handspiel nie gesehen.',
+  '1986: Jose Batista (Uruguay) sieht nach 56 Sekunden Rot vs. Schottland — schnellster Platzverweis der WM-Geschichte.',
+  // — 90er Drama —
+  '1990: Andreas Brehme verwandelt den Finalelfer gegen Argentinien — auf dem Weg zum Punkt ass er ein Stueckchen Brot. Sein Glueckstalisman.',
+  '1990: Kamerun erreicht als erste afrikanische Mannschaft das Viertelfinale. Roger Milla tanzt nach jedem Tor an der Eckfahne.',
+  '1994: Roger Milla schiesst mit 42 Jahren ein Tor — aeltester Torschuetze der WM-Geschichte.',
+  '1994: Andres Escobar (Kolumbien) schiesst ein Eigentor gegen die USA — 6 Tage spaeter wird er in Medellin erschossen. Sein letzter Satz im Stadion: "Das Leben geht weiter."',
 ];
 
-const INTROS_PRE = [
-  '⏰ Countdown zur ersten Wette',
-  '🍻 Bald geht\'s los — Zeit für die Tipps',
-  '🎯 Aufgepasst: Vorbereitung läuft',
-  '🚀 Letzte Chance vor dem Anpfiff',
+const FAKTEN_NEU = [
+  // — 1998 —
+  '1998: Ronaldo bricht Stunden vor dem Finale zusammen ("Krampfanfall"). Brasilien spielt trotzdem — Frankreich gewinnt 3:0. Bis heute Verschwoerungstheorien.',
+  '1998: Oesterreichs letzte WM vor 2026 — drei Spiele, drei Unentschieden, raus. Das 2:2 gegen Chile mit Polster-Tor war der einzige Lichtblick.',
+  // — 2002 —
+  '2002: Hakan Sukur (Tuerkei) erzielt nach 10,8 Sekunden gegen Suedkorea das schnellste WM-Tor aller Zeiten.',
+  '2002: Suedkorea erreicht als erster Asiat das Halbfinale — nach umstrittenen Schiri-Entscheidungen gegen Italien und Spanien.',
+  '2002: Senegal schlaegt Titelverteidiger Frankreich 1:0 im Eroeffnungsspiel. Frankreich scheidet ohne ein einziges Tor in der Vorrunde aus.',
+  '2002: Oliver Kahn wird zum besten Spieler der WM gewaehlt — als einziger Torhueter aller Zeiten.',
+  // — 2006 —
+  '2006: Zinedine Zidane verpasst Materazzi im Finale einen Kopfstoss in die Brust und sieht Rot. Letztes Spiel seiner Karriere. Italien gewinnt im Elfmeterschiessen.',
+  '2006: "Sommermaerchen" in Deutschland — keine zwischenfaelle, perfekte Stimmung, drittes Platz fuer das Gastgeberland.',
+  // — 2010 —
+  '2010: Krake Paul aus Oberhausen tippt 8 von 8 Spielen richtig — inklusive Deutschlands Halbfinal-Niederlage gegen Spanien.',
+  '2010: Erste WM in Afrika (Suedafrika). Die Vuvuzelas waren so laut, dass FIFA die Lautstaerke in TV-Uebertragungen reduzieren musste.',
+  '2010: Andres Iniesta erzielt das Finaltor fuer Spanien in der 116. Minute gegen Niederlande — Spaniens erster WM-Titel.',
+  // — 2014 —
+  '8. Juli 2014: Mineiraco — Deutschland 7:1 gegen Brasilien im Halbfinale. Hoechste Niederlage Brasiliens jemals. 1:0 nach 11 Minuten, 5:0 nach 29 Minuten.',
+  '2014: Mario Goetze schiesst Deutschland zum Titel — Einwechslung in der 88. Minute, Tor in der 113. Joachim Loew vor dem Einwechseln: "Zeig der Welt, dass du besser bist als Messi."',
+  '2014: Tim Howard (USA) haelt 16 Schuesse gegen Belgien — Rekord seit 1966. USA verlor trotzdem 1:2.',
+  // — 2018 —
+  '2018: Erste WM mit VAR. Russland mit den dunkelsten Wetten als Gastgeber — und wird ueberraschend Viertelfinalist.',
+  '2018: Kroatien (4 Mio. Einwohner) erreicht erstmals das Finale. Luka Modric wird Weltfussballer, obwohl Kroatien verliert.',
+  '2018: Deutschland scheidet als Titelverteidiger in der Vorrunde aus — letzter Platz hinter Schweden, Mexiko und Suedkorea. "Korea raus, Deutschland zuhause." Zwei WMs hintereinander.',
+  // — 2022 (verstaerkt) —
+  '2022: Erste Winter-WM. Erste WM in einem arabischen Land. Spiele um 22:00 Uhr Doha-Zeit wegen 35 Grad Hitze tagsueber.',
+  '2022: Argentinien verliert das Eroeffnungsspiel 1:2 gegen Saudi-Arabien — eine der groessten Sensationen aller Zeiten. 36 Spiele in Folge ungeschlagen, beendet von einem 117. der Weltrangliste.',
+  '2022: Marokko erreicht als erstes afrikanisches Team das WM-Halbfinale — schlaegt Belgien, Spanien und Portugal auf dem Weg. Coach Walid Regragui: "Wir sind das Rocky der WM."',
+  '2022: Japan schlaegt im Gruppenspiel sowohl Deutschland als auch Spanien — und scheidet trotzdem als Gruppensieger erst im Achtelfinale aus.',
+  '2022: WM-Finale Argentinien 3:3 Frankreich nach 120 Minuten — meistgesehenes Spiel der WM-Geschichte. Mbappe macht einen Hat-Trick im Finale (erster seit Hurst 1966) und verliert trotzdem.',
+  '2022: Messi gewinnt mit 35 Jahren seine erste WM — in seinem 5. Anlauf. Aelteste WM-Finaltorschuetze aller Zeiten.',
+  '2022: Cristiano Ronaldo trifft als erster Spieler bei FUENF verschiedenen WMs (2006, 2010, 2014, 2018, 2022).',
+  '2022: Argentiniens Torhueter Emi Martinez gewinnt Goldenen Handschuh — und sorgt mit zweideutigen Pokalfeiern weltweit fuer Schlagzeilen.',
 ];
 
-function pickIntro(pool: string[], todayKey: string): string {
-  // Hash aus dem todayKey-String → konstanter Index pro Tag
+function pickFakt(todayKey: string): string {
+  // Tages-Hash, abwechselnd ALT/NEU nach Tag-Paritaet (Wiener Kalendertag).
   let h = 0;
   for (const c of todayKey) h = (h * 31 + c.charCodeAt(0)) | 0;
+  const dayOfMonth = parseInt(todayKey.slice(8), 10) || 0;
+  const pool = dayOfMonth % 2 === 0 ? FAKTEN_ALT : FAKTEN_NEU;
   return pool[Math.abs(h) % pool.length];
 }
 
@@ -239,11 +294,14 @@ async function buildSummary(): Promise<string> {
     timeZone: VIENNA_TZ, day: '2-digit', month: '2-digit', year: 'numeric',
   }).format(new Date(now));
   const lines: string[] = [];
+  const fakt = pickFakt(todayKey);
 
   // ─── A) Pre-Tournament-Modus ───────────────────────────────────────────
   if (!inTournament) {
-    lines.push(`🍺 *KRÜGERL-PROPHETEN — Auf in die WM!*`);
-    lines.push(`_${pickIntro(INTROS_PRE, todayKey)}_  ·  ${dateStr}`);
+    lines.push('🍺 *Willkommen, liebe Krügerl-Propheten!*');
+    lines.push('Bald geht\'s endlich los — vorab wie immer ein WM-Fakt zum Glänzen am nächsten Stammtisch:');
+    lines.push('');
+    lines.push(`💡 _${fakt}_`);
     lines.push('');
 
     // Countdown bis erstes Spiel
@@ -294,21 +352,24 @@ async function buildSummary(): Promise<string> {
   }
 
   // ─── B) Turnier-Modus (Standard-Daily) ─────────────────────────────────
-  lines.push(`🍺 *KRÜGERL-PROPHETEN — Tagesspiegel ${dateStr}*`);
-  lines.push(`_${pickIntro(INTROS_TOURNAMENT, todayKey)}_`);
+  lines.push('🍺 *Willkommen zurück, liebe Krügerl-Propheten!*');
+  lines.push('Auch heute warten wieder spannende Spiele auf uns — davor aber wie immer ein WM-Fakt zum Glänzen am nächsten Stammtisch:');
+  lines.push('');
+  lines.push(`💡 _${fakt}_`);
   lines.push('');
 
-  if (sieger || pech) {
+  const hasRueckblick = !!(sieger || pech || ranked.length > 0);
+  if (hasRueckblick) {
+    lines.push(`📊 *Rückblick auf den letzten Spieltag (${dateStr}):*`);
     if (sieger) lines.push(`🏆 Tagessieger: *${sieger.name}* (+${fmtTKN(sieger.gain)} TKN)`);
     if (pech)   lines.push(`💀 Pechvogel:   *${pech.name}* (${fmtTKN(pech.gain)} TKN)`);
-    lines.push('');
-  }
-
-  if (ranked.length > 0) {
-    lines.push('📊 Top 3 Gesamt:');
-    ranked.forEach((p, i) => {
-      lines.push(`   ${i + 1}. ${p.name} — ${fmtTKN(p.total)} TKN`);
-    });
+    if (ranked.length > 0) {
+      lines.push('');
+      lines.push('🏅 Top 3 Gesamt:');
+      ranked.forEach((p, i) => {
+        lines.push(`   ${i + 1}. ${p.name} — ${fmtTKN(p.total)} TKN`);
+      });
+    }
     lines.push('');
   }
 
