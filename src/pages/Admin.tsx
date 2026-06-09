@@ -1989,16 +1989,16 @@ export default function Admin() {
               <button
                 onClick={async () => {
                   const { added } = await seedShopFirstItems();
-                  setShopMsg(added > 0 ? `✓ ${added} Items angelegt (Schwechi & Co).` : '✓ Items aktualisiert (Freischaltung aus Spielplan).');
+                  setShopMsg(added > 0 ? `✓ ${added} neue Items angelegt.` : '✓ Alle Items aus dem Katalog sind bereits vorhanden.');
                   setTimeout(() => setShopMsg(''), 4000);
                 }}
                 className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">
-                🍺 Erste Items anlegen
+                🍺 Neue Hand-Items
               </button>
               <button
                 onClick={async () => {
                   const { added } = await seedShopTorsoItems();
-                  setShopMsg(added > 0 ? `✓ ${added} Trikot-Items angelegt (ASV, Kapitän Zrće, Ferko).` : '✓ Trikot-Items aktualisiert (Freischaltung Spieltag 1/2).');
+                  setShopMsg(added > 0 ? `✓ ${added} neue Trikot-Items angelegt.` : '✓ Alle Trikot-Items aus dem Katalog sind bereits vorhanden.');
                   setTimeout(() => setShopMsg(''), 4000);
                 }}
                 className="p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors">

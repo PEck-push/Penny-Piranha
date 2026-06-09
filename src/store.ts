@@ -1023,10 +1023,10 @@ export const useStore = create<AppState>()((set, get) => {
       return { added };
     },
 
-    // ── Shop: erste echte Item-Charge anlegen/aktualisieren (Schwechi, …) ───
-    // Upsert: neue Items werden angelegt, bereits vorhandene bekommen die
-    // aktuellen Freischalt-/Stock-Felder (unlockRule, unlockLabel, available,
-    // stock, price …) gemerged — die bereits verkaufte Stückzahl bleibt erhalten.
+    // ── Shop: erste echte Item-Charge anlegen (Schwechi, …) ──────────────────
+    // Additive: NUR neue Items werden angelegt. Bereits existierende Items
+    // bleiben UNANGETASTET (Preis, Beschreibung, unlockRule, sold etc. —
+    // alles vom Admin editierte ueberlebt).
     seedShopFirstItems: async () => {
       if (!db) return { added: 0 };
       const existing = new Map(get().shopItems.map(i => [i.id, i]));
@@ -1034,26 +1034,22 @@ export const useStore = create<AppState>()((set, get) => {
       let added = 0;
       try {
         for (const it of SHOP_FIRST_ITEMS) {
-          const prev = existing.get(it.id);
-          if (!prev) {
-            await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
-            added++;
-          } else {
-            // sold nicht überschreiben — nur Definition aktualisieren.
-            const { sold: _seed, ...defWithoutSold } = it;
-            await updateDoc(doc(db, 'shopItems', it.id), defWithoutSold as any);
-          }
+          if (existing.has(it.id)) continue; // existierendes Item nicht ueberschreiben
+          await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
+          added++;
         }
-        await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
       } catch (err) {
         console.error('[Store] seedShopFirstItems Fehler:', err);
       }
       return { added };
     },
 
-    // ── Shop: Trikot-Items anlegen/aktualisieren (asv_retro, kapitn_zrce, ferko) ──
-    // Gleiche Upsert-Logik wie seedShopFirstItems: neue Items werden gesetzt,
-    // bereits vorhandene bekommen die aktuelle Definition gemerged (sold bleibt).
+    // ── Shop: Trikot-Items anlegen (asv_retro, kapitn_zrce, ferko) ───────────
+    // Gleiche additive Logik: neue Items werden gesetzt, bereits vorhandene
+    // bleiben unangetastet.
     seedShopTorsoItems: async () => {
       if (!db) return { added: 0 };
       const existing = new Map(get().shopItems.map(i => [i.id, i]));
@@ -1061,16 +1057,13 @@ export const useStore = create<AppState>()((set, get) => {
       let added = 0;
       try {
         for (const it of SHOP_TORSO_ITEMS) {
-          const prev = existing.get(it.id);
-          if (!prev) {
-            await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
-            added++;
-          } else {
-            const { sold: _seed, ...defWithoutSold } = it;
-            await updateDoc(doc(db, 'shopItems', it.id), defWithoutSold as any);
-          }
+          if (existing.has(it.id)) continue; // existierendes Item nicht ueberschreiben
+          await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
+          added++;
         }
-        await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
       } catch (err) {
         console.error('[Store] seedShopTorsoItems Fehler:', err);
       }
