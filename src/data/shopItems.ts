@@ -164,6 +164,7 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     description: 'Achtung! Wie im echten Leben nicht kompatibel mit jedermann.',
     slot: 'hand',
     icon: '💪',
+    imagePath: '/shop/oberarme.webp',
     price: 60,
     available: true,
     availableFrom: Date.UTC(2026, 5, 10, 10, 0, 0),
