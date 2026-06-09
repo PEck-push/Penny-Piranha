@@ -83,6 +83,12 @@ function StepDots({ current, total }: { current: number; total: number }) {
   );
 }
 
+// ─── Anmeldeschluss ────────────────────────────────────────────────────────────
+// Hard-Cutoff fuer neue Registrierungen: 10.06.2026 00:00 Wiener Zeit (CEST).
+// CEST = UTC+2 im Sommer → 09.06.2026 22:00 UTC.
+// Wer NACH diesem Zeitpunkt den Einladungscode eingibt, kommt nicht weiter.
+const REGISTRATION_DEADLINE_MS = Date.UTC(2026, 5, 9, 22, 0, 0); // 9. Juni 2026, 22:00 UTC
+
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function Register() {
   const navigate = useNavigate();
@@ -121,6 +127,13 @@ export default function Register() {
     setError(null);
     setLoading(true);
     try {
+      // Hard-Cutoff: nach Anmeldeschluss generell keine neuen Spieler mehr.
+      // Pruefung VOR dem Firestore-Read, damit Late-Comers nicht erst Code
+      // raten muessen, um "geschlossen" zu sehen.
+      if (Date.now() >= REGISTRATION_DEADLINE_MS) {
+        setError('Anmeldeschluss war am 10.06.2026 — nachträgliche Anmeldungen sind nicht mehr möglich. Bitte direkt beim Admin melden.');
+        return;
+      }
       const snap = await getDoc(doc(db, 'appState', 'global'));
       const code = snap.data()?.inviteCode as string | undefined;
       if (!code) {
@@ -166,6 +179,12 @@ export default function Register() {
   // ── Step 5: Create account in Firebase ──────────────────────────────────────
   const handleConfirm = async () => {
     setError(null);
+    // Zweite Anmeldeschluss-Pruefung: falls jemand im Registrier-Flow steckt,
+    // waehrend der Cutoff vorbei zieht, hier blockieren.
+    if (Date.now() >= REGISTRATION_DEADLINE_MS) {
+      setError('Anmeldeschluss war am 10.06.2026 — nachträgliche Anmeldungen sind nicht mehr möglich. Bitte direkt beim Admin melden.');
+      return;
+    }
     setLoading(true);
     try {
       // Falls der Auth-Account noch existiert (z.B. nach einem Reset, der nur
