@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import type { ScheduleMatch } from '../store';
 import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
@@ -203,6 +203,103 @@ export default function Admin() {
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
   const bets = useStore(s => s.bets);
+  // Token-Historie (Audit-UI): laeuft Read-Only, fetcht autoDeductions + feed
+  // gezielt fuer einen Spieler on-demand. bets kommen aus dem Store (live).
+  const [auditPlayerId, setAuditPlayerId] = useState<string>('');
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditEvents, setAuditEvents] = useState<Array<{
+    ts: number; kind: string; icon: string; label: string; delta: number | null; source: string;
+  }>>([]);
+  const [auditError, setAuditError] = useState<string>('');
+
+  const loadAudit = async (playerId: string) => {
+    if (!playerId || !db) return;
+    setAuditLoading(true);
+    setAuditError('');
+    setAuditEvents([]);
+    try {
+      const events: typeof auditEvents = [];
+
+      // 1) Bets dieses Spielers (aus live store — kein extra fetch noetig)
+      for (const b of bets.filter(b => b.playerId === playerId)) {
+        const mk = markets.find(m => m.id === b.marketId);
+        const isFree = mk?.marketSubtype === 'jackpot' || (mk as any)?.noStake;
+        events.push({
+          ts: (b as any).timestamp ?? 0,
+          kind: 'bet',
+          icon: '🎯',
+          label: `Tipp: „${b.optionLabel}" auf ${mk?.question ?? b.marketId}`,
+          delta: isFree ? 0 : -(b.amount ?? 0),
+          source: 'bets',
+        });
+        // Wenn der Markt aufgeloest ist und der Spieler einen payout hatte,
+        // taucht das ueber feed (jackpot_distribution / market_resolved) auf.
+      }
+
+      // 2) Auto-Abzuege fuer diesen Spieler
+      const adSnap = await getDocs(query(
+        collection(db, 'autoDeductions'),
+        where('playerId', '==', playerId),
+      ));
+      for (const d of adSnap.docs) {
+        const data = d.data() as any;
+        const ts = typeof data.ts?.toMillis === 'function' ? data.ts.toMillis() : (data.ts ?? 0);
+        const mk = markets.find(m => m.id === data.marketId);
+        events.push({
+          ts,
+          kind: 'auto_deduct',
+          icon: '⚠️',
+          label: `Auto-Abzug (nicht getippt): ${mk?.question ?? data.marketId}`,
+          delta: -(data.amount ?? 0),
+          source: 'autoDeductions',
+        });
+      }
+
+      // 3) Feed-Events mit playerId fuer diesen Spieler. Limit 200 reicht
+      //    fuer ein Turnier; bei Bedarf erhoehen.
+      const feedSnap = await getDocs(query(
+        collection(db, 'feed'),
+        where('playerId', '==', playerId),
+      ));
+      for (const d of feedSnap.docs) {
+        const data = d.data() as any;
+        const ts = typeof data.ts?.toMillis === 'function' ? data.ts.toMillis() : (data.ts ?? 0);
+        const t = String(data.type ?? '');
+        // creditsChange ist im Feed teilweise gespeichert (z.B. shop_purchase: -cost)
+        const delta = typeof data.creditsChange === 'number' ? data.creditsChange : null;
+        const map: Record<string, { icon: string; label: string }> = {
+          bet_placed:           { icon: '🎯', label: data.text ?? 'Wette platziert' },
+          market_resolved:      { icon: '✅', label: data.text ?? 'Markt aufgelöst' },
+          jackpot_distribution: { icon: '💰', label: data.text ?? 'Jackpot-Auszahlung' },
+          buyback:              { icon: '🔄', label: data.text ?? 'Buyback' },
+          shop_purchase:        { icon: '🛍️', label: data.text ?? 'Shop-Kauf' },
+          underdog_win:         { icon: '💪', label: data.text ?? 'Underdog-Bonus' },
+          streak_on_fire:       { icon: '🔥', label: data.text ?? 'Streak: On Fire' },
+          streak_damn_hot:      { icon: '🔥🔥', label: data.text ?? 'Streak: Damn Hot' },
+          phase_winner:         { icon: '👑', label: data.text ?? 'Phasensieger' },
+          badge_unlocked:       { icon: '🏅', label: data.text ?? 'Badge freigeschaltet' },
+        };
+        const meta = map[t] ?? { icon: '📋', label: data.text ?? t };
+        events.push({
+          ts,
+          kind: t,
+          icon: meta.icon,
+          label: meta.label,
+          delta,
+          source: 'feed',
+        });
+      }
+
+      // Chronologisch absteigend (neueste oben)
+      events.sort((a, b) => b.ts - a.ts);
+      setAuditEvents(events);
+    } catch (err: any) {
+      setAuditError(err?.message ?? 'Fehler beim Laden der Historie.');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   const whatsappGroupLink = useStore(s => s.whatsappGroupLink ?? '');
   const setWhatsappGroupLink = useStore(s => s.setWhatsappGroupLink);
   const navigate = useNavigate();
@@ -2490,6 +2587,76 @@ export default function Admin() {
               </div>
             </div>
           )}
+
+          {/* ── TOKEN-HISTORIE ────────────────────────────────────────────────
+              Read-Only Audit-Trail pro Spieler: zeigt chronologisch alle
+              Events, die seinen Token-Stand beeinflusst haben (Wetten, Auto-
+              Abzuege, Markt-Aufloesungen, Shop-Kaeufe, Buyback). Hilfreich
+              wenn ein Token-Stand unerwartet aussieht. */}
+          <div className="bg-card border border-blue2/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[16px]">🔍</span>
+              <div className="text-[11px] font-black text-blue2 tracking-[0.15em] uppercase">Token-Historie</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3">
+              Chronologische Übersicht aller Token-Bewegungen eines Spielers — aus Wetten, Auto-Abzügen,
+              Markt-Auflösungen, Shop-Käufen und Buyback. Read-Only, keine Änderungen am Datenstand.
+            </div>
+            <div className="flex flex-col gap-2 mb-3">
+              <select value={auditPlayerId}
+                onChange={e => { setAuditPlayerId(e.target.value); if (e.target.value) loadAudit(e.target.value); }}
+                className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-blue2/60">
+                <option value="">Spieler wählen…</option>
+                {players.filter(p => !p.isTestPlayer).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')).map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {p.tokens ?? 0} TKN
+                  </option>
+                ))}
+              </select>
+              {auditPlayerId && (
+                <button onClick={() => loadAudit(auditPlayerId)} disabled={auditLoading}
+                  className="text-[11px] font-black text-blue2 border border-blue2/30 bg-blue/10 rounded-lg px-3 py-1.5 hover:bg-blue/20 transition-colors disabled:opacity-40">
+                  {auditLoading ? 'Lädt…' : '🔄 Neu laden'}
+                </button>
+              )}
+            </div>
+
+            {auditError && (
+              <div className="bg-red/10 border border-red/30 rounded-xl px-3 py-2 text-[11px] font-bold text-red mb-3">{auditError}</div>
+            )}
+
+            {auditPlayerId && !auditLoading && auditEvents.length === 0 && !auditError && (
+              <div className="text-[12px] text-muted text-center py-4">Keine Events für diesen Spieler gefunden.</div>
+            )}
+
+            {auditEvents.length > 0 && (
+              <div className="flex flex-col gap-1.5 max-h-[400px] overflow-y-auto no-scrollbar">
+                <div className="text-[10px] text-muted/70 mb-1">{auditEvents.length} Events · neueste zuerst</div>
+                {auditEvents.map((ev, i) => {
+                  const dateStr = ev.ts > 0
+                    ? new Intl.DateTimeFormat('de-AT', {
+                        timeZone: 'Europe/Vienna', day: '2-digit', month: '2-digit',
+                        hour: '2-digit', minute: '2-digit',
+                      }).format(new Date(ev.ts))
+                    : '—';
+                  const deltaColor = ev.delta == null ? 'text-muted' : ev.delta > 0 ? 'text-green' : ev.delta < 0 ? 'text-red' : 'text-muted';
+                  const deltaStr = ev.delta == null ? '?' : ev.delta > 0 ? `+${ev.delta}` : `${ev.delta}`;
+                  return (
+                    <div key={i} className="flex items-start gap-2 py-1.5 px-2 bg-input/50 rounded-lg">
+                      <span className="text-[14px] shrink-0">{ev.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] text-white truncate">{ev.label}</div>
+                        <div className="text-[9px] text-muted font-mono">{dateStr} · {ev.source}</div>
+                      </div>
+                      <span className={clsx('font-mono text-[12px] font-bold shrink-0', deltaColor)}>
+                        {deltaStr}{ev.delta != null ? ' TKN' : ''}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           </>}
 
