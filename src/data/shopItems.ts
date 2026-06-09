@@ -157,6 +157,21 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     sold: 0,
     sortOrder: 40,
   },
+  {
+    // Freischaltung am 10. Juni 2026, 12:00 Wiener Zeit (= 10:00 UTC im Sommer).
+    id: 'nicos_astln',
+    label: "Nicos Astln",
+    description: 'Achtung! Wie im echten Leben nicht kompatibel mit jedermann.',
+    slot: 'hand',
+    icon: '💪',
+    price: 60,
+    available: true,
+    availableFrom: Date.UTC(2026, 5, 10, 10, 0, 0),
+    unlockLabel: 'Ab 10.06. 12:00 Uhr',
+    stock: 10,
+    sold: 0,
+    sortOrder: 50,
+  },
 ];
 
 // ── Trikot-Charge (Torsos) ────────────────────────────────────────────────────
