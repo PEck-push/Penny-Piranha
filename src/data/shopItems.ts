@@ -169,9 +169,10 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     slot: 'hand',
     icon: '💪',
     imagePath: '/shop/oberarme.webp',
-    // Asset hat Content nicht zentriert — eigene Transform-Anpassung statt
-    // Slot-Default. Negativ-X schiebt nach links, Negativ-Y nach oben.
-    imageTransform: 'scale(1.7) translate(-22%, -8%)',
+    // Asset hat Content nicht zentriert: die Oberarme sitzen unterhalb der
+    // Bildmitte und leicht rechts. Diese Transform rückt den sichtbaren Inhalt
+    // in die Karten-Mitte (Negativ-X = links, Negativ-Y = oben).
+    imageTransform: 'scale(1.7) translate(-5%, -16%)',
     price: 60,
     available: true,
     availableFrom: Date.UTC(2026, 5, 10, 10, 0, 0),
