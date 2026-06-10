@@ -39,6 +39,9 @@ export default async (req: Request, _ctx: Context) => {
   const betRef = db.collection('bets').doc(betId);
   const playerRef = db.collection('players').doc(uid);
   const marketRef = db.collection('markets').doc(marketId);
+  // Revisionssicheres Audit-Log jeder Änderung (eigene Collection, read-only
+  // im Admin-Audit). Ref vorab anlegen, damit der Write in die Transaktion passt.
+  const changeRef = db.collection('betChanges').doc();
   const now = Date.now();
 
   try {
@@ -97,6 +100,22 @@ export default async (req: Request, _ctx: Context) => {
         optionLabel: newOptionLabel,
         amount: newAmount,
         timestamp: now,
+      });
+
+      // Audit-Log der Änderung — rein additiv, beeinflusst Token-/Pool-Logik
+      // nicht. Hält Vorher/Nachher + Token-Delta fest, damit Wett-Änderungen im
+      // Admin-Audit nachvollziehbar sind (Debugging früherer Fehlbuchungen).
+      tx.set(changeRef, {
+        playerId: uid,
+        marketId,
+        ts: now,
+        oldOptionId,
+        oldOptionLabel: String(old.optionLabel ?? ''),
+        oldAmount,
+        newOptionId,
+        newOptionLabel,
+        newAmount,
+        tokenDelta,
       });
     });
 

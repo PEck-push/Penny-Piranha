@@ -209,7 +209,7 @@ export default function Admin() {
   const [auditPlayerId, setAuditPlayerId] = useState<string>('');
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditEvents, setAuditEvents] = useState<Array<{
-    ts: number; kind: string; icon: string; label: string; delta: number | null; source: string;
+    ts: number; kind: string; icon: string; label: string; delta: number | null; source: string; detail?: string;
   }>>([]);
   const [auditError, setAuditError] = useState<string>('');
 
@@ -230,6 +230,7 @@ export default function Admin() {
           kind: 'bet',
           icon: '🎯',
           label: `Tipp: „${b.optionLabel}" auf ${mk?.question ?? b.marketId}`,
+          detail: isFree ? 'Gratis-Tipp (kein Einsatz)' : 'Aktueller Stand der Wette',
           delta: isFree ? 0 : -(b.amount ?? 0),
           source: 'bets',
         });
@@ -288,6 +289,38 @@ export default function Admin() {
           label: meta.label,
           delta,
           source: 'feed',
+        });
+      }
+
+      // 4) Wett-Änderungen (betChanges): revisionssicheres Log jeder Tipp-/
+      //    Einsatz-Änderung. Zeigt Vorher→Nachher + Token-Delta der Änderung,
+      //    damit frühere Fehlbuchungen beim Ändern von Wetten nachvollziehbar
+      //    sind. Der zugehörige „🎯 Tipp"-Eintrag oben spiegelt den AKTUELLEN
+      //    Stand wider — diese Einträge zeigen die Schritte dorthin.
+      const bcSnap = await getDocs(query(
+        collection(db, 'betChanges'),
+        where('playerId', '==', playerId),
+      ));
+      for (const d of bcSnap.docs) {
+        const data = d.data() as any;
+        const ts = typeof data.ts?.toMillis === 'function' ? data.ts.toMillis() : (data.ts ?? 0);
+        const mk = markets.find(m => m.id === data.marketId);
+        const oldA = Number(data.oldAmount ?? 0);
+        const newA = Number(data.newAmount ?? 0);
+        const optChanged = String(data.oldOptionId ?? '') !== String(data.newOptionId ?? '');
+        const amtChanged = oldA !== newA;
+        const parts: string[] = [];
+        if (optChanged) parts.push(`Option: „${data.oldOptionLabel ?? '?'}" → „${data.newOptionLabel ?? '?'}"`);
+        if (amtChanged) parts.push(`Einsatz: ${oldA} → ${newA} TKN`);
+        const tokenDelta = typeof data.tokenDelta === 'number' ? data.tokenDelta : (oldA - newA);
+        events.push({
+          ts,
+          kind: 'bet_change',
+          icon: '✏️',
+          label: `Wette geändert: ${mk?.question ?? data.marketId}`,
+          detail: parts.length ? parts.join(' · ') : 'Ohne inhaltliche Änderung',
+          delta: tokenDelta,
+          source: 'betChanges',
         });
       }
 
@@ -2600,8 +2633,8 @@ export default function Admin() {
               <div className="text-[11px] font-black text-blue2 tracking-[0.15em] uppercase">Token-Historie</div>
             </div>
             <div className="text-[10px] text-muted mb-3">
-              Chronologische Übersicht aller Token-Bewegungen eines Spielers — aus Wetten, Auto-Abzügen,
-              Markt-Auflösungen, Shop-Käufen und Buyback. Read-Only, keine Änderungen am Datenstand.
+              Chronologische Übersicht aller Token-Bewegungen eines Spielers — aus Wetten, Wett-Änderungen,
+              Auto-Abzügen, Markt-Auflösungen, Shop-Käufen und Buyback. Read-Only, keine Änderungen am Datenstand.
             </div>
             <div className="flex flex-col gap-2 mb-3">
               <select value={auditPlayerId}
@@ -2647,6 +2680,7 @@ export default function Admin() {
                       <span className="text-[14px] shrink-0">{ev.icon}</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] text-white truncate">{ev.label}</div>
+                        {ev.detail && <div className="text-[10px] text-blue2/80 leading-snug">{ev.detail}</div>}
                         <div className="text-[9px] text-muted font-mono">{dateStr} · {ev.source}</div>
                       </div>
                       <span className={clsx('font-mono text-[12px] font-bold shrink-0', deltaColor)}>
