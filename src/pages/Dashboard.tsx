@@ -67,7 +67,35 @@ function PoolBar({ market }: { market: Market }) {
   );
 }
 
-// ── Tipp-Verteilung (anonymes Gruppenbild: wie viele tippten worauf) ──────────────
+// ── Verteilungs-Säulendiagramm ────────────────────────────────────────────────
+// Je Option eine Säule (Höhe ∝ größtem Wert). Ersetzt den früheren dünnen
+// Stapelbalken, der bei vielen Optionen mit wiederholten Farben unleserlich war.
+function DistroChart({ items }: { items: { label: string; value: number; valueText: string; colorIndex: number }[] }) {
+  const total = items.reduce((s, it) => s + it.value, 0) || 1;
+  const maxVal = Math.max(...items.map(it => it.value), 1);
+  return (
+    <div className="flex items-end gap-1.5">
+      {items.map((it, i) => {
+        const pct = Math.round((it.value / total) * 100);
+        const barH = it.value > 0 ? Math.max(8, Math.round((it.value / maxVal) * 56)) : 3;
+        const color = OPT_HEX[it.colorIndex % OPT_HEX.length];
+        return (
+          <div key={i} className="flex-1 min-w-0 flex flex-col items-center gap-1">
+            <span className="font-mono text-[10px] font-bold leading-none" style={{ color: it.value > 0 ? color : '#5A6A8A' }}>{pct}%</span>
+            <div className="w-full flex items-end justify-center" style={{ height: '56px' }}>
+              <div className="w-full rounded-t-md transition-all duration-500"
+                style={{ height: `${barH}px`, backgroundColor: it.value > 0 ? color : 'rgba(255,255,255,0.08)' }} />
+            </div>
+            <span className="text-[10px] font-black text-white leading-tight text-center w-full truncate" title={it.label}>{it.label}</span>
+            <span className="text-[9px] text-muted font-bold leading-none truncate max-w-full">{it.valueText}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
 function TipDistribution({ market, bets, accent }: { market: Market; bets: { marketId: string; optionId: string; optionLabel?: string }[]; accent: string }) {
   // Multiple-Choice: nach Kombination (optionLabel) gruppieren statt je Einzeloption.
   const rows = market.multiSelect
@@ -1214,49 +1242,20 @@ export default function Dashboard() {
                       const marketBets = bets.filter(b => b.marketId === selectedMarket.id);
                       const counts = selectedMarket.options.map(opt =>
                         marketBets.filter(b => b.optionId === opt.id).length);
-                      const total = counts.reduce((s, n) => s + n, 0) || 1;
                       return (
                         <>
                           <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Tipper-Verteilung</div>
                           {marketBets.length === 0 ? (
                             <div className="text-[12px] text-muted text-center py-1">Noch keine Tipps abgegeben — sei der/die Erste!</div>
                           ) : (
-                            <>
-                              <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
-                                {selectedMarket.options.map((opt, i) => (
-                                  counts[i] > 0 ? (
-                                    <div key={opt.id} className="h-full transition-all duration-500" style={{ width: `${(counts[i] / total) * 100}%`, backgroundColor: OPT_HEX[i] }} />
-                                  ) : null
-                                ))}
-                              </div>
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between">
-                                {selectedMarket.options.map((opt, i) => (
-                                  <div key={opt.id} className="flex flex-col gap-0.5">
-                                    <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{counts[i]}× Tipper</span>
-                                    <span className="text-[10px] text-muted font-bold">{opt.label} — {Math.round((counts[i] / total) * 100)}%</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </>
+                            <DistroChart items={selectedMarket.options.map((opt, i) => ({ label: opt.label, value: counts[i], valueText: `${counts[i]}×`, colorIndex: i }))} />
                           )}
                         </>
                       );
                     })() : (
                       <>
                         <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5">Pool-Verteilung</div>
-                        <div className="h-3 rounded-full overflow-hidden flex mb-2.5">
-                          {selectedMarket.options.map((opt, i) => (
-                            <div key={opt.id} className="h-full transition-all duration-500" style={{ width: `${(opt.pool / (getMarketTotal(selectedMarket)||1))*100}%`, backgroundColor: OPT_HEX[i] }} />
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between">
-                          {selectedMarket.options.map((opt, i) => (
-                            <div key={opt.id} className="flex flex-col gap-0.5">
-                              <span className={clsx('font-mono text-[13px] font-bold', OPT_TEXT[i])}>{opt.pool} TKN</span>
-                              <span className="text-[10px] text-muted font-bold">{opt.label} — {Math.round((opt.pool/(getMarketTotal(selectedMarket)||1))*100)}%</span>
-                            </div>
-                          ))}
-                        </div>
+                        <DistroChart items={selectedMarket.options.map((opt, i) => ({ label: opt.label, value: opt.pool, valueText: `${opt.pool} TKN`, colorIndex: i }))} />
                       </>
                     )}
                   </div>
