@@ -170,8 +170,8 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     icon: '💪',
     imagePath: '/shop/oberarme.webp',
     // Asset hat Content nicht zentriert — eigene Transform-Anpassung statt
-    // Slot-Default. Negative translateX schiebt nach links.
-    imageTransform: 'scale(1.7) translateX(-15%)',
+    // Slot-Default. Negativ-X schiebt nach links, Negativ-Y nach oben.
+    imageTransform: 'scale(1.7) translate(-22%, -8%)',
     price: 60,
     available: true,
     availableFrom: Date.UTC(2026, 5, 10, 10, 0, 0),
