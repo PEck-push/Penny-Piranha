@@ -221,7 +221,7 @@ export default function Shop() {
                       tryingOn ? 'bg-yellow/10 border-yellow/40' : 'bg-white/3 border-white/5 hover:border-white/20')}>
                     <img src={shopItemImagePath(item)} alt={item.label}
                       onError={() => markImgFailed(item.id)}
-                      style={{ transform: item.slot === 'hand' ? 'scale(1.7) translateX(15%)' : 'scale(1.35)', transformOrigin: 'center' }}
+                      style={{ transform: item.imageTransform ?? (item.slot === 'hand' ? 'scale(1.7) translateX(15%)' : 'scale(1.35)'), transformOrigin: 'center' }}
                       className={clsx('absolute inset-0 w-full h-full object-contain', (soldOut || locked) && 'opacity-50 grayscale')} />
                     {/* Emoji nur als Fallback, falls die Grafik (noch) fehlt */}
                     {imgFailed.has(item.id) && (
@@ -304,7 +304,7 @@ export default function Shop() {
             <div className="relative w-28 h-28 mb-2 flex items-center justify-center overflow-hidden">
               <img src={shopItemImagePath(confirmItem)} alt={confirmItem.label}
                 onError={() => markImgFailed(confirmItem.id)}
-                style={{ transform: confirmItem.slot === 'hand' ? 'scale(1.7) translateX(15%)' : 'scale(1.35)', transformOrigin: 'center' }}
+                style={{ transform: confirmItem.imageTransform ?? (confirmItem.slot === 'hand' ? 'scale(1.7) translateX(15%)' : 'scale(1.35)'), transformOrigin: 'center' }}
                 className="absolute inset-0 w-full h-full object-contain" />
               {imgFailed.has(confirmItem.id) && <span className="text-[56px]">{confirmItem.icon}</span>}
             </div>

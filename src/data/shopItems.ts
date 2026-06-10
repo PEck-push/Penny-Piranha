@@ -35,6 +35,10 @@ export interface ShopItem {
   sold?: number;           // Bereits verkaufte Stück (atomar in der Kauf-Tx erhöht)
   phase?: string;          // Optionaler Phasen-Tag (z.B. 'gruppenphase', 'achtelfinale')
   sortOrder?: number;      // Sortierung im Shop (kleinere Werte zuerst)
+  // Optionale Override-Transformation fuer die Vorschau-Karte im Shop. Sonst
+  // gilt der Slot-Default (Hand: scale(1.7) translateX(15%), Rest: scale(1.35)).
+  // Nuetzlich wenn der Content im Asset nicht zentriert liegt.
+  imageTransform?: string;
   createdAt: number;
 }
 
@@ -165,6 +169,9 @@ export const SHOP_FIRST_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     slot: 'hand',
     icon: '💪',
     imagePath: '/shop/oberarme.webp',
+    // Asset hat Content nicht zentriert — eigene Transform-Anpassung statt
+    // Slot-Default. Negative translateX schiebt nach links.
+    imageTransform: 'scale(1.7) translateX(-15%)',
     price: 60,
     available: true,
     availableFrom: Date.UTC(2026, 5, 10, 10, 0, 0),

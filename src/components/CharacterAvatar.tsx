@@ -1,4 +1,5 @@
 import { useStore, type Player, type Bet, type Market } from '../store';
+import { shopItemImagePath } from '../data/shopItems';
 
 interface Props {
   player: Player;
@@ -103,7 +104,14 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
   const isDailyWinner = !!dailyWinnerId && player.id === dailyWinnerId;
 
   const overlay = 'absolute inset-0 w-full h-full object-contain pointer-events-none';
-  const shopSrc = (id: string) => `/shop/${id}.webp`;
+  // Shop-Items koennen einen abweichenden imagePath haben (z. B. wenn die
+  // Asset-Datei anders heisst als die Item-ID — siehe nicos_astln →
+  // oberarme.webp). Wir holen den Pfad aus dem live shopItems-State.
+  const shopItems = useStore(s => s.shopItems);
+  const shopSrc = (id: string) => {
+    const it = shopItems.find(s => s.id === id);
+    return it ? shopItemImagePath(it) : `/shop/${id}.webp`;
+  };
 
   return (
     <div className={`relative ${DIM[size]} ${className}`}>
