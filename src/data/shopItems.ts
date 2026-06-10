@@ -331,3 +331,33 @@ export const isShopItemListed = (item: ShopItem, owned = false, now = Date.now()
 
 export const shopItemImagePath = (item: Pick<ShopItem, 'id' | 'imagePath'>): string =>
   item.imagePath ?? `/shop/${item.id}.webp`;
+
+// ── Bild-Positionierung aus dem Code-Katalog (per ID) ─────────────────────────
+// imagePath und imageTransform sind reine Asset-Belange (Grafiken in
+// /public/shop, Transform vom Entwickler getunt) und werden NICHT vom Admin
+// verwaltet. Der Firestore-Katalog friert diese Werte aber beim Seeding ein,
+// sodass spätere Code-Anpassungen sonst nie in der App ankämen (genau der Fall
+// bei „Nicos Astln": Bild-Dateiname ≠ ID, Transform ließ sich nicht justieren).
+// Deshalb ist der Code hier Single Source of Truth für die Bild-Position: die
+// Felder werden beim Laden über jedes Firestore-Item gelegt (siehe services/db).
+// Bewusst NICHT enthalten: icon/label/preis/… — die darf der Admin pflegen.
+const SHOP_IMAGE_BY_ID: Record<string, Pick<ShopItem, 'imagePath' | 'imageTransform'>> =
+  Object.fromEntries(
+    [...SHOP_EXAMPLE_ITEMS, ...SHOP_FIRST_ITEMS, ...SHOP_TORSO_ITEMS].map(i => [
+      i.id,
+      { imagePath: i.imagePath, imageTransform: i.imageTransform },
+    ]),
+  );
+
+// Legt Bild-Pfad und -Transform aus dem Code über ein aus Firestore geladenes
+// Item. Nur im Code gesetzte Werte überschreiben; dynamische/Admin-Felder
+// (Preis, Bestand, Verfügbarkeit, Label, Icon …) bleiben unangetastet. Items
+// ohne Code-Eintrag (z. B. rein im Admin angelegt) bleiben unverändert.
+export const withShopPresentation = (item: ShopItem): ShopItem => {
+  const pres = SHOP_IMAGE_BY_ID[item.id];
+  if (!pres) return item;
+  const merged: ShopItem = { ...item };
+  if (pres.imagePath !== undefined)      merged.imagePath = pres.imagePath;
+  if (pres.imageTransform !== undefined) merged.imageTransform = pres.imageTransform;
+  return merged;
+};
