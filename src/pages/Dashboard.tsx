@@ -1297,10 +1297,14 @@ export default function Dashboard() {
                     const myBet = bets.find(b => b.marketId === selectedMarket.id && b.playerId === me.id);
                     const isChanging = changingBetMarket === selectedMarket.id;
                     const budget = me.tokens + (isChanging ? (myBet?.amount ?? 0) : 0);
-                    const sliderMin = selectedMarket.minBet ?? 1;
-                    const sliderMax = Math.max(sliderMin, selectedMarket.maxBet && selectedMarket.maxBet > 0
+                    // Obergrenze ist IMMER hart aufs verfügbare Budget gedeckelt —
+                    // der Einsatz darf nie das Vorhandene übersteigen.
+                    const sliderMax = selectedMarket.maxBet && selectedMarket.maxBet > 0
                       ? Math.min(selectedMarket.maxBet, budget)
-                      : Math.min(500, budget));
+                      : Math.min(500, budget);
+                    // Mindesteinsatz nie über dem Max (sonst eingefrorener Regler bei
+                    // zu wenig Guthaben) — statt das Max anzuheben, ziehen wir das Min herunter.
+                    const sliderMin = Math.min(selectedMarket.minBet ?? 1, sliderMax);
                     const sliderVal = Math.min(Math.max(betAmount, sliderMin), sliderMax);
                     return (
                     <div className="p-4 px-5 border-b border-border shrink-0">
