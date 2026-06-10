@@ -4,6 +4,7 @@ import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import { flag, deName, isAustriaTeam, toCEST } from '../utils/teams';
 import CharacterAvatar from './CharacterAvatar';
+import CoinIcon from './CoinIcon';
 
 type WmMatch = ScheduleMatch;
 
@@ -225,7 +226,7 @@ export default function SpielplanTab() {
           <div className="mt-2.5 pt-2 border-t border-border/60 flex items-center justify-between">
             <span className="text-[10px] text-muted">Mein Tipp</span>
             <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-0.5">
-              🪙 {myBet.amount} → {myBet.optionLabel}
+              <CoinIcon size={11} /> {myBet.amount} → {myBet.optionLabel}
             </span>
           </div>
         )}

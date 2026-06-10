@@ -13,6 +13,7 @@ import RevealScreen from '../components/RevealScreen';
 import FeedWidget from '../components/FeedWidget';
 import { JACKPOT_BLOCK_LABELS } from '../data/specialBets';
 import { flag, deName, toCEST } from '../utils/teams';
+import CoinIcon from '../components/CoinIcon';
 
 const OPT_HEX    = ['#E6B43C','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
@@ -143,7 +144,7 @@ function HotTakeCard({ m, onClick, myBet }: { m: Market; onClick: () => void; my
           {expired
             ? <span className="text-[11px] text-red/60 font-black">Keine Wetten mehr möglich</span>
             : myBet
-              ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+              ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1 inline-flex items-center gap-1"><CoinIcon size={11} /> {myBet.amount} auf {myBet.optionLabel}</span>
               : <span className="text-[11px] text-muted">Noch kein Einsatz</span>
           }
         </div>
@@ -178,7 +179,7 @@ function ComboCard({ m, onClick, myBet }: { m: Market; onClick: () => void; myBe
       <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
         <span className="text-[12px] text-muted">Pool: <b className="text-white">{getMarketTotal(m)} TKN</b></span>
         {myBet
-          ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+          ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1 inline-flex items-center gap-1"><CoinIcon size={11} /> {myBet.amount} auf {myBet.optionLabel}</span>
           : <span className="text-[11px] text-purple2 font-black">Einsatz möglich → {m.multiplier}×</span>
         }
       </div>
@@ -370,7 +371,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <span className="text-[12px] text-muted">Pool: <b className="text-white">{total} TKN</b></span>
           {myBet
-            ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+            ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1 inline-flex items-center gap-1"><CoinIcon size={11} /> {myBet.amount} auf {myBet.optionLabel}</span>
             : <span className="text-[11px] text-muted">Tippen →</span>}
         </div>
       </div>
@@ -456,8 +457,8 @@ export default function Dashboard() {
                         </div>
                         {myBet && (
                           <div className="mt-1.5 ml-6">
-                            <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">
-                              🪙 {myBet.amount} auf {myBet.optionLabel}
+                            <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1 inline-flex items-center gap-1">
+                              <CoinIcon size={11} /> {myBet.amount} auf {myBet.optionLabel}
                             </span>
                           </div>
                         )}
@@ -647,7 +648,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-muted">Pool: <b className="text-white">{getMarketTotal(m)} TKN</b></span>
               {myBet
-                ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+                ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1 inline-flex items-center gap-1"><CoinIcon size={11} /> {myBet.amount} auf {myBet.optionLabel}</span>
                 : <span className="text-[11px] text-muted">Noch kein Einsatz</span>}
             </div>
           </div>
@@ -678,8 +679,8 @@ export default function Dashboard() {
                     <div className="w-8 h-8 rounded-lg bg-input border border-border flex items-center justify-center text-[12px] text-muted font-mono">+{count}</div>
                   </div>
                   {participated && (
-                    <span className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1">
-                      {m.isOpenQuestion ? '✓ Geantwortet' : `🪙 ${myBet?.amount} auf ${myBet?.optionLabel}`}
+                    <span className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1 inline-flex items-center gap-1">
+                      {m.isOpenQuestion ? '✓ Geantwortet' : <><CoinIcon size={11} /> {myBet?.amount} auf {myBet?.optionLabel}</>}
                     </span>
                   )}
                 </div>
@@ -857,7 +858,7 @@ export default function Dashboard() {
               <div className="bg-gradient-to-br from-yellow to-orange text-bg font-mono text-[11px] font-bold rounded-lg px-2.5 py-1">#1</div>
             </div>
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 backdrop-blur-md">
-              <span className="font-mono text-[18px] font-bold text-yellow">🪙 {top ? playerTotal(top) : 0}</span>
+              <span className="font-mono text-[18px] font-bold text-yellow inline-flex items-center gap-1.5"><CoinIcon size={18} /> {top ? playerTotal(top) : 0}</span>
               <span className="text-[12px] text-yellow/60 font-bold">TOKEN</span>
             </div>
           </div>
@@ -1021,14 +1022,14 @@ export default function Dashboard() {
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Konto</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[14px]">🪙</span>
+                  <CoinIcon size={14} />
                   <span className="font-mono text-[16px] font-bold text-green">{me.tokens + bets.filter(b => b.playerId === me.id && (() => { const ms = markets.find(m => m.id === b.marketId)?.status; return ms === 'open' || ms === 'locked'; })()).reduce((s,b)=>s+b.amount,0)}</span>
                 </div>
               </div>
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Frei</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[14px]">🪙</span>
+                  <CoinIcon size={14} />
                   <span className="font-mono text-[16px] font-bold text-white">{me.tokens}</span>
                 </div>
               </div>

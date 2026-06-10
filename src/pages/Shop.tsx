@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store';
+import CoinIcon from '../components/CoinIcon';
 import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemListed, isShopItemSoldOut, shopItemStockLeft, shopItemImagePath, shopUnlockAt, type ShopSlot } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 
@@ -143,7 +144,7 @@ export default function Shop() {
           <span className="text-[17px] font-black text-white">Shop</span>
         </div>
         <div className="ml-auto flex items-center gap-1 bg-yellow/10 border border-yellow/25 rounded-full px-3 py-1.5">
-          <span className="text-[13px]">🪙</span>
+          <CoinIcon size={13} />
           <span className="font-mono text-[12px] font-bold text-yellow">{me.tokens}</span>
         </div>
       </div>
@@ -285,7 +286,7 @@ export default function Shop() {
                           ? 'bg-yellow/15 border-yellow/40 text-yellow hover:bg-yellow/25'
                           : 'bg-white/5 border-white/10 text-muted/50 cursor-not-allowed',
                       )}>
-                      🪙 {item.price} {canAfford ? 'Kaufen' : 'Zu teuer'}
+                      <CoinIcon size={12} /> {item.price} {canAfford ? 'Kaufen' : 'Zu teuer'}
                     </button>
                   )}
                 </div>
@@ -312,7 +313,7 @@ export default function Shop() {
             <div className="text-[11px] text-muted mb-4">{confirmItem.description}</div>
             <div className="bg-yellow/10 border border-yellow/25 rounded-xl px-4 py-2 mb-4">
               <span className="text-[11px] text-muted">Preis</span>
-              <div className="text-[18px] font-black text-yellow">🪙 {confirmItem.price}</div>
+              <div className="text-[18px] font-black text-yellow flex items-center gap-1.5"><CoinIcon size={18} /> {confirmItem.price}</div>
             </div>
             <div className="text-[10px] text-muted mb-4">
               Nach dem Kauf bleibt das Item dauerhaft in deinem Inventar — auch bei Charakter-Reset.

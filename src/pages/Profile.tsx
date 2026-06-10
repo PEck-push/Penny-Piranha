@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
+import CoinIcon from '../components/CoinIcon';
 import { auth } from '../firebase';
 import {
   updatePassword,
@@ -154,7 +155,7 @@ export default function Profile() {
           <div className="grid grid-cols-3 gap-2">
             <div className="flex flex-col items-center bg-white/3 rounded-xl p-3 border border-white/8">
               <span className="text-[9px] font-bold text-muted uppercase tracking-wider mb-1">Frei</span>
-              <span className="text-[18px]">🪙</span>
+              <CoinIcon size={20} />
               <span className="font-mono text-[15px] font-black text-green mt-0.5">{me.tokens}</span>
             </div>
             <div className="flex flex-col items-center bg-white/3 rounded-xl p-3 border border-white/8">

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore, MarketOption, buildSelectionKey } from '../store';
 import { getTotalWealth } from '../utils/credits';
+import CoinIcon from '../components/CoinIcon';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
@@ -2116,7 +2117,7 @@ export default function Admin() {
                       </div>
                       {/* Preis bearbeiten */}
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[11px]">🪙</span>
+                        <CoinIcon size={11} />
                         <input
                           type="number"
                           value={priceEdit[it.id] ?? String(it.price)}
@@ -2236,7 +2237,7 @@ export default function Admin() {
               className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-blue2 placeholder:text-muted mb-3" />
             <input type="number" value={giveAmount} onChange={e => setGiveAmount(e.target.value)}
               className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-blue2 mb-3" />
-            <button onClick={handleGiveTokens} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px">🪙 Tokens vergeben</button>
+            <button onClick={handleGiveTokens} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px inline-flex items-center justify-center gap-2"><CoinIcon size={14} /> Tokens vergeben</button>
           </div>
 
           {/* ── ADMIN-ROLLEN ────────────────────────────────────── */}
@@ -2301,7 +2302,7 @@ export default function Admin() {
               <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
                 <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Community Jackpot</div>
                 <div className="text-center py-2">
-                  <div className="font-mono text-[40px] font-bold text-yellow drop-shadow-[0_0_30px_rgba(255,212,71,0.4)]">🪙 {totalAvailable}</div>
+                  <div className="font-mono text-[40px] font-bold text-yellow drop-shadow-[0_0_30px_rgba(255,212,71,0.4)] flex items-center justify-center gap-3"><CoinIcon size={36} /> {totalAvailable}</div>
                   <div className="text-[11px] text-muted mt-1">Gesamt verfügbar für Spieler</div>
                 </div>
                 <div className="mt-2 flex gap-2">
@@ -2901,7 +2902,7 @@ export default function Admin() {
       {pendingJackpot !== null && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm px-5">
           <div className="bg-card border border-border rounded-[24px] p-6 w-full max-w-[320px] flex flex-col items-center text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
-            <div className="w-16 h-16 rounded-full bg-yellow/10 border border-yellow/25 flex items-center justify-center text-[28px] mb-4">🪙</div>
+            <div className="w-16 h-16 rounded-full bg-yellow/10 border border-yellow/25 flex items-center justify-center mb-4"><CoinIcon size={32} /></div>
             <div className="text-[20px] font-black text-white mb-2">Hausbank setzen</div>
             <div className="text-[13px] text-muted mb-2 leading-relaxed">
               Angesparten Jackpot von <b className="text-white">{jackpot} TKN</b> auf{' '}
