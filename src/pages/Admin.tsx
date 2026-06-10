@@ -297,31 +297,37 @@ export default function Admin() {
       //    damit frühere Fehlbuchungen beim Ändern von Wetten nachvollziehbar
       //    sind. Der zugehörige „🎯 Tipp"-Eintrag oben spiegelt den AKTUELLEN
       //    Stand wider — diese Einträge zeigen die Schritte dorthin.
-      const bcSnap = await getDocs(query(
-        collection(db, 'betChanges'),
-        where('playerId', '==', playerId),
-      ));
-      for (const d of bcSnap.docs) {
-        const data = d.data() as any;
-        const ts = typeof data.ts?.toMillis === 'function' ? data.ts.toMillis() : (data.ts ?? 0);
-        const mk = markets.find(m => m.id === data.marketId);
-        const oldA = Number(data.oldAmount ?? 0);
-        const newA = Number(data.newAmount ?? 0);
-        const optChanged = String(data.oldOptionId ?? '') !== String(data.newOptionId ?? '');
-        const amtChanged = oldA !== newA;
-        const parts: string[] = [];
-        if (optChanged) parts.push(`Option: „${data.oldOptionLabel ?? '?'}" → „${data.newOptionLabel ?? '?'}"`);
-        if (amtChanged) parts.push(`Einsatz: ${oldA} → ${newA} TKN`);
-        const tokenDelta = typeof data.tokenDelta === 'number' ? data.tokenDelta : (oldA - newA);
-        events.push({
-          ts,
-          kind: 'bet_change',
-          icon: '✏️',
-          label: `Wette geändert: ${mk?.question ?? data.marketId}`,
-          detail: parts.length ? parts.join(' · ') : 'Ohne inhaltliche Änderung',
-          delta: tokenDelta,
-          source: 'betChanges',
-        });
+      //    Eigener try/catch: schlägt diese Quelle fehl (z. B. fehlende Rule auf
+      //    Altbestand), bleibt die restliche Historie trotzdem nutzbar.
+      try {
+        const bcSnap = await getDocs(query(
+          collection(db, 'betChanges'),
+          where('playerId', '==', playerId),
+        ));
+        for (const d of bcSnap.docs) {
+          const data = d.data() as any;
+          const ts = typeof data.ts?.toMillis === 'function' ? data.ts.toMillis() : (data.ts ?? 0);
+          const mk = markets.find(m => m.id === data.marketId);
+          const oldA = Number(data.oldAmount ?? 0);
+          const newA = Number(data.newAmount ?? 0);
+          const optChanged = String(data.oldOptionId ?? '') !== String(data.newOptionId ?? '');
+          const amtChanged = oldA !== newA;
+          const parts: string[] = [];
+          if (optChanged) parts.push(`Option: „${data.oldOptionLabel ?? '?'}" → „${data.newOptionLabel ?? '?'}"`);
+          if (amtChanged) parts.push(`Einsatz: ${oldA} → ${newA} TKN`);
+          const tokenDelta = typeof data.tokenDelta === 'number' ? data.tokenDelta : (oldA - newA);
+          events.push({
+            ts,
+            kind: 'bet_change',
+            icon: '✏️',
+            label: `Wette geändert: ${mk?.question ?? data.marketId}`,
+            detail: parts.length ? parts.join(' · ') : 'Ohne inhaltliche Änderung',
+            delta: tokenDelta,
+            source: 'betChanges',
+          });
+        }
+      } catch (bcErr) {
+        console.warn('[Audit] betChanges nicht lesbar:', bcErr);
       }
 
       // Chronologisch absteigend (neueste oben)
