@@ -1,8 +1,32 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { useStore, Market, getMarketTotal } from '../store';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Target, Trophy, Lock } from 'lucide-react';
+
+// ── Coin ────────────────────────────────────────────────────────────────────────
+// Inline-SVG statt 🪙-Emoji: Apple rendert das Coin-Emoji als silbergraue Münze,
+// Android als goldene. Dieses SVG sieht auf allen Plattformen (inkl. iOS-PWA)
+// identisch golden aus.
+function Coin({ size = 14, className }: { size?: number; className?: string }) {
+  const id = useId();
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"
+      className={clsx('inline-block shrink-0 align-[-0.15em]', className)}>
+      <defs>
+        <radialGradient id={id} cx="38%" cy="32%" r="80%">
+          <stop offset="0%" stopColor="#FFF7C2" />
+          <stop offset="40%" stopColor="#FFD447" />
+          <stop offset="100%" stopColor="#E08A00" />
+        </radialGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11" fill="#A85D00" />
+      <circle cx="12" cy="12" r="9.5" fill={`url(#${id})`} />
+      <circle cx="12" cy="12" r="6.8" fill="none" stroke="#B86E00" strokeWidth="1.1" opacity="0.5" />
+      <ellipse cx="9" cy="8" rx="2.6" ry="1.6" fill="#FFFFFF" opacity="0.45" transform="rotate(-30 9 8)" />
+    </svg>
+  );
+}
 
 const OPT_HEX    = ['#00D68F','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
 const OPT_TEXT   = ['text-green','text-red','text-blue2','text-yellow','text-purple2'];
@@ -80,7 +104,7 @@ function HotTakeCard({ m, onClick, myBet }: { m: Market; onClick: () => void; my
           {expired
             ? <span className="text-[11px] text-red/60 font-black">Keine Wetten mehr möglich</span>
             : myBet
-              ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+              ? <span className="inline-flex items-center gap-1 text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1"><Coin size={11} /> {myBet.amount} auf {myBet.optionLabel}</span>
               : <span className="text-[11px] text-muted">Noch kein Einsatz</span>
           }
         </div>
@@ -115,7 +139,7 @@ function ComboCard({ m, onClick, myBet }: { m: Market; onClick: () => void; myBe
       <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
         <span className="text-[12px] text-muted">Pool: <b className="text-white">{getMarketTotal(m)} TKN</b></span>
         {myBet
-          ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+          ? <span className="inline-flex items-center gap-1 text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1"><Coin size={11} /> {myBet.amount} auf {myBet.optionLabel}</span>
           : <span className="text-[11px] text-purple2 font-black">Einsatz möglich → {m.multiplier}×</span>
         }
       </div>
@@ -247,7 +271,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-muted">Pool: <b className="text-white">{getMarketTotal(m)} TKN</b></span>
               {myBet
-                ? <span className="text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1">🪙 {myBet.amount} auf {myBet.optionLabel}</span>
+                ? <span className="inline-flex items-center gap-1 text-[11px] font-black text-yellow bg-yellow/10 border border-yellow/20 rounded-lg px-2 py-1"><Coin size={11} /> {myBet.amount} auf {myBet.optionLabel}</span>
                 : <span className="text-[11px] text-muted">Noch kein Einsatz</span>}
             </div>
           </div>
@@ -278,8 +302,8 @@ export default function Dashboard() {
                     <div className="w-8 h-8 rounded-lg bg-input border border-border flex items-center justify-center text-[12px] text-muted font-mono">+{count}</div>
                   </div>
                   {participated && (
-                    <span className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1">
-                      {m.isOpenQuestion ? '✓ Geantwortet' : `🪙 ${myBet?.amount} auf ${myBet?.optionLabel}`}
+                    <span className="inline-flex items-center gap-1 text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1">
+                      {m.isOpenQuestion ? '✓ Geantwortet' : <><Coin size={11} /> {myBet?.amount} auf {myBet?.optionLabel}</>}
                     </span>
                   )}
                 </div>
@@ -388,7 +412,7 @@ export default function Dashboard() {
               <div className="bg-gradient-to-br from-yellow to-orange text-bg font-mono text-[11px] font-bold rounded-lg px-2.5 py-1">#1</div>
             </div>
             <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 backdrop-blur-md">
-              <span className="font-mono text-[18px] font-bold text-yellow">🪙 {top?.tokens}</span>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[18px] font-bold text-yellow"><Coin size={18} /> {top?.tokens}</span>
               <span className="text-[12px] text-yellow/60 font-bold">TOKEN</span>
             </div>
           </div>
@@ -478,14 +502,14 @@ export default function Dashboard() {
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Konto</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[14px]">🪙</span>
+                  <Coin size={16} />
                   <span className="font-mono text-[16px] font-bold text-white">{me.tokens + bets.filter(b => b.playerId === me.id && markets.find(m => m.id === b.marketId)?.status === 'open').reduce((s,b)=>s+b.amount,0)}</span>
                 </div>
               </div>
               <div className="flex flex-col items-center bg-white/5 border border-white/10 rounded-xl px-4 py-2 backdrop-blur-md">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider mb-0.5">Frei</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[14px]">🪙</span>
+                  <Coin size={16} />
                   <span className="font-mono text-[16px] font-bold text-green">{me.tokens}</span>
                 </div>
               </div>
