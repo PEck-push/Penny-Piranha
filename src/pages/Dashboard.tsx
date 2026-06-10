@@ -1288,21 +1288,34 @@ export default function Dashboard() {
                   </div>
 
                   {/* Slider — nur bei stake-basierten Wetten, NICHT bei Jackpot/gratis */}
-                  {!selectedExpired && !isJackpotTip && (
+                  {!selectedExpired && !isJackpotTip && (() => {
+                    // Beim Ändern einer Wette wird der bestehende Einsatz zurückerstattet —
+                    // das verfügbare Budget ist daher freie Token + bisheriger Einsatz.
+                    // Ohne das blieb der Slider bei wenig Guthaben hängen (Max < bisheriger
+                    // Tipp). Math.max(min, …) verhindert zusätzlich einen eingefrorenen
+                    // Regler, falls das Budget unter dem Mindesteinsatz liegt.
+                    const myBet = bets.find(b => b.marketId === selectedMarket.id && b.playerId === me.id);
+                    const isChanging = changingBetMarket === selectedMarket.id;
+                    const budget = me.tokens + (isChanging ? (myBet?.amount ?? 0) : 0);
+                    const sliderMin = selectedMarket.minBet ?? 1;
+                    const sliderMax = Math.max(sliderMin, selectedMarket.maxBet && selectedMarket.maxBet > 0
+                      ? Math.min(selectedMarket.maxBet, budget)
+                      : Math.min(500, budget));
+                    const sliderVal = Math.min(Math.max(betAmount, sliderMin), sliderMax);
+                    return (
                     <div className="p-4 px-5 border-b border-border shrink-0">
                       <div className="flex justify-between mb-2.5">
                         <span className="text-[11px] font-black text-muted tracking-[0.1em] uppercase">Dein Einsatz</span>
                         <span className="font-mono text-[18px] font-bold text-yellow">{betAmount} TOKEN</span>
                       </div>
                       <input type="range"
-                        min={selectedMarket.minBet ?? 1}
-                        max={selectedMarket.maxBet && selectedMarket.maxBet > 0
-                          ? Math.min(selectedMarket.maxBet, me.tokens)
-                          : Math.min(500, me.tokens)}
-                        value={Math.min(betAmount, me.tokens)} onChange={e => setBetAmount(parseInt(e.target.value))}
+                        min={sliderMin}
+                        max={sliderMax}
+                        value={sliderVal} onChange={e => setBetAmount(parseInt(e.target.value))}
                         className="w-full h-1.5 bg-input rounded-full appearance-none outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-blue [&::-webkit-slider-thumb]:to-purple [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg" />
                     </div>
-                  )}
+                    );
+                  })()}
                   {/* Gratis-Hinweis bei Jackpot-Sonderrunden */}
                   {!selectedExpired && isJackpotTip && (
                     <div className="px-5 py-3 border-b border-border shrink-0 text-center">
