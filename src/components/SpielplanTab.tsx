@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { clsx } from 'clsx';
 import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
+import { calcMarketPayoutPreview } from '../utils/credits';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import { flag, deName, isAustriaTeam, toCEST } from '../utils/teams';
 import CharacterAvatar from './CharacterAvatar';
@@ -33,7 +34,6 @@ export default function SpielplanTab() {
   const bets        = useStore(s => s.bets);
   const players     = useStore(s => s.players);
   const currentUser = useStore(s => s.currentUser);
-  const jackpot     = useStore(s => s.jackpot);
   const placeBet    = useStore(s => s.placeBet);
   const changeBet   = useStore(s => s.changeBet);
   const liveSchedule = useStore(s => s.schedule);
@@ -589,9 +589,15 @@ export default function SpielplanTab() {
                 {/* Bet buttons (fix unten — immer sichtbar) */}
                 <div className="p-4 pb-5 grid grid-cols-3 gap-2 shrink-0">
                   {selectedMarket.options.map((opt, i) => {
-                    const simOpt   = opt.pool + betAmount;
-                    const simTotal = selectedTotal + betAmount + jackpot;
-                    const payout   = simOpt === 0 ? 0 : Math.floor((betAmount / simOpt) * simTotal);
+                    // Zentrale Vorschau-Mathe (utils/credits) — identisch mit dem
+                    // Wetten-Tab und der Server-Auszahlung. Beim Ändern wird die
+                    // bestehende Wette aus den Pools herausgerechnet.
+                    const payout = calcMarketPayoutPreview(
+                      selectedMarket, opt.id, betAmount,
+                      isChangingBet && selectedMyBet
+                        ? { optionId: selectedMyBet.optionId, amount: selectedMyBet.amount }
+                        : undefined,
+                    );
                     return (
                       <button
                         key={opt.id}
