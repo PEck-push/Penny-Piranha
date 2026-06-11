@@ -742,12 +742,15 @@ export default function Dashboard() {
       ].filter((k): k is number => typeof k === 'number');
       return ks.length ? Math.min(...ks) : undefined;
     })();
-    // Annahmeschluss eines Marktes: WM-Matches/sonstige über kickoffAt bzw.
-    // expiresAt. Gratis-/Jackpot-Runden tragen keine eigene Schlusszeit — sie
-    // schließen alle mit Anpfiff des ersten WM-Spiels. Märkte ohne ermittelbare
-    // Schlusszeit landen ganz unten.
+    // Annahmeschluss eines Marktes (für die Sortierung):
+    //  1. expliziter betCloseAt (vom Admin gesetzt) hat Vorrang
+    //  2. WM-Matches/sonstige über kickoffAt bzw. expiresAt
+    //  3. Gratis-/Jackpot-Runden ohne eigene Schlusszeit fallen auf den Anpfiff
+    //     des ersten WM-Spiels zurück (sie schließen faktisch dann)
+    // Märkte ohne ermittelbare Schlusszeit landen ganz unten.
     const closeTime = (m?: Market) => {
       if (!m) return Infinity;
+      if (typeof m.betCloseAt === 'number') return m.betCloseAt;
       if (m.marketSubtype === 'jackpot' || m.noStake) return firstWmKickoff ?? Infinity;
       return m.kickoffAt ?? m.expiresAt ?? Infinity;
     };
