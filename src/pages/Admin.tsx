@@ -168,6 +168,8 @@ export default function Admin() {
   const [simScoreB, setSimScoreB] = useState('');
   const [simStatus, setSimStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [simMsg, setSimMsg] = useState('');
+  // Entwurfswerte (YYYY-MM-DDTHH:mm) der Annahmeschluss-Eingaben je Markt.
+  const [betCloseDraft, setBetCloseDraft] = useState<Record<string, string>>({});
 
   const markets = useStore(s => s.markets);
   const answers = useStore(s => s.answers);
@@ -177,6 +179,7 @@ export default function Admin() {
   const lockMarket = useStore(s => s.lockMarket);
   const pauseMarket = useStore(s => s.pauseMarket);
   const reopenMarket = useStore(s => s.reopenMarket);
+  const setMarketBetClose = useStore(s => s.setMarketBetClose);
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
@@ -204,6 +207,33 @@ export default function Admin() {
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
   const bets = useStore(s => s.bets);
+
+  // Annahmeschluss-Helfer: ms <-> datetime-local-String (lokale Zeitzone).
+  const toLocalInput = (ms?: number) => {
+    if (!ms) return '';
+    const d = new Date(ms);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const parseLocalInput = (s: string): number | null => {
+    if (!s) return null;
+    const ms = new Date(s).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+  // Anpfiff des ersten WM-Spiels (frühester kickoffAt aus Spielplan + Märkten).
+  const firstWmKickoff = (() => {
+    const ks = [
+      ...liveSchedule.map(s => s.kickoffAt),
+      ...markets.map(m => m.kickoffAt),
+    ].filter((k): k is number => typeof k === 'number');
+    return ks.length ? Math.min(...ks) : undefined;
+  })();
+  // Bulk: alle offenen/gesperrten Gratis-Wetten auf den ersten WM-Anpfiff setzen.
+  const applyFirstKickoffToFreeBets = () => {
+    if (!firstWmKickoff) return;
+    const targets = markets.filter(m => m.noStake && (m.status === 'open' || m.status === 'locked'));
+    targets.forEach(m => setMarketBetClose(m.id, firstWmKickoff));
+  };
   // Token-Historie (Audit-UI): laeuft Read-Only, fetcht autoDeductions + feed
   // gezielt fuer einen Spieler on-demand. bets kommen aus dem Store (live).
   const [auditPlayerId, setAuditPlayerId] = useState<string>('');
@@ -1590,10 +1620,25 @@ export default function Admin() {
           {/* ── MANAGE MARKETS ──────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">Märkte verwalten</div>
-            <div className="text-[10px] text-muted mb-3.5 leading-relaxed">
+            <div className="text-[10px] text-muted mb-3 leading-relaxed">
               <b className="text-yellow">🔒 Sperren:</b> Wettannahme stoppt, Markt bleibt für Spieler sichtbar. ·{' '}
               <b className="text-blue2">⏸ Pause:</b> Markt wird für Spieler ausgeblendet (Einsätze bleiben). ·{' '}
-              <b className="text-green">🔓 Öffnen:</b> macht Sperre/Pause rückgängig.
+              <b className="text-green">🔓 Öffnen:</b> macht Sperre/Pause rückgängig (entfernt auch einen gesetzten Annahmeschluss).
+            </div>
+            {/* Annahmeschluss-Automatik für Gratis-/Jackpot-Wetten */}
+            <div className="bg-input/60 border border-white/5 rounded-xl p-3 mb-3.5">
+              <div className="text-[10px] text-muted leading-relaxed mb-2">
+                <b className="text-white">⏰ Annahmeschluss (Gratis-Wetten):</b> Pro Gratis-Wette unten Datum &amp; Uhrzeit einstellbar.
+                Bei Erreichen sperrt der Cron-Tick (alle 15 Min) die Wette automatisch — ohne Token-Abzug. Wetten ohne
+                gesetzten Schluss schließen <b>nicht</b> automatisch.
+              </div>
+              <button
+                onClick={applyFirstKickoffToFreeBets}
+                disabled={!firstWmKickoff}
+                className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans text-green border-green/35 hover:bg-green/10 disabled:opacity-40 disabled:cursor-not-allowed">
+                ⏱ Alle Gratis-Wetten → 1. WM-Anpfiff
+                {firstWmKickoff ? ` (${toLocalInput(firstWmKickoff).replace('T', ' · ')})` : ' (kein Spielplan)'}
+              </button>
             </div>
             {markets.filter(m => m.status !== 'resolved').map(m => (
               <div key={m.id} className="bg-input rounded-xl p-3 mb-2">
@@ -1628,6 +1673,28 @@ export default function Admin() {
                       : <button onClick={() => setPendingClose({ marketId: m.id, question: m.question })} className="text-[10px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans whitespace-nowrap text-red border-red/35 hover:bg-red/10">✕ SCHLIESSEN</button>
                   )}
                 </div>
+                {/* Annahmeschluss (nur Gratis-/Jackpot-Wetten) */}
+                {m.noStake && (m.status === 'open' || m.status === 'locked' || m.status === 'paused') && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2.5 border-t border-white/5">
+                    <span className="text-[10px] font-black text-muted">⏰ Annahmeschluss:</span>
+                    <input
+                      type="datetime-local"
+                      value={betCloseDraft[m.id] ?? toLocalInput(m.betCloseAt)}
+                      onChange={e => setBetCloseDraft(d => ({ ...d, [m.id]: e.target.value }))}
+                      className="text-[10px] bg-input border border-white/10 rounded-lg px-2 py-1.5 text-white font-sans" />
+                    <button
+                      onClick={() => { const ms = parseLocalInput(betCloseDraft[m.id] ?? toLocalInput(m.betCloseAt)); if (ms != null) setMarketBetClose(m.id, ms); }}
+                      className="text-[10px] font-black rounded-lg px-2.5 py-1.5 border cursor-pointer bg-transparent font-sans text-green border-green/35 hover:bg-green/10">✓ Setzen</button>
+                    {typeof m.betCloseAt === 'number' && (
+                      <button
+                        onClick={() => { setMarketBetClose(m.id, null); setBetCloseDraft(d => { const n = { ...d }; delete n[m.id]; return n; }); }}
+                        className="text-[10px] font-black rounded-lg px-2.5 py-1.5 border cursor-pointer bg-transparent font-sans text-muted border-muted/35 hover:bg-white/5">✕ Entfernen</button>
+                    )}
+                    {typeof m.betCloseAt === 'number' && (
+                      <span className="text-[9px] text-green/80 font-bold w-full">aktiv ab {toLocalInput(m.betCloseAt).replace('T', ' · ')} Uhr → sperrt automatisch</span>
+                    )}
+                  </div>
+                )}
                 {(m.status === 'open' || m.status === 'locked') && (
                 <div className="flex flex-wrap gap-x-1.5 gap-y-2 mt-2.5 pt-2.5 border-t border-white/5">
                   {m.isOpenQuestion ? (

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useStore, Market, getMarketTotal, buildSelectionKey } from '../store';
+import { useStore, Market, Bet, getMarketTotal, buildSelectionKey } from '../store';
 import { calcLivePayout, getTotalWealth } from '../utils/credits';
 import { ACCESSORY_BY_ID } from '../data/accessories';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -234,6 +234,7 @@ export default function Dashboard() {
   const currentUser = useStore(s => s.currentUser);
   const players = useStore(s => s.players);
   const markets = useStore(s => s.markets);
+  const schedule = useStore(s => s.schedule);
   const bets = useStore(s => s.bets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
@@ -733,11 +734,38 @@ export default function Dashboard() {
 
   // ─── MY BETS TAB ───────────────────────────────────────────────────────────
   const renderMyBets = () => {
+    // Anpfiff des ersten WM-Spiels (frühester kickoffAt aus Spielplan + Märkten).
+    const firstWmKickoff = (() => {
+      const ks = [
+        ...schedule.map(s => s.kickoffAt),
+        ...markets.map(m => m.kickoffAt),
+      ].filter((k): k is number => typeof k === 'number');
+      return ks.length ? Math.min(...ks) : undefined;
+    })();
+    // Annahmeschluss eines Marktes (für die Sortierung):
+    //  1. expliziter betCloseAt (vom Admin gesetzt) hat Vorrang
+    //  2. WM-Matches/sonstige über kickoffAt bzw. expiresAt
+    //  3. Gratis-/Jackpot-Runden ohne eigene Schlusszeit fallen auf den Anpfiff
+    //     des ersten WM-Spiels zurück (sie schließen faktisch dann)
+    // Märkte ohne ermittelbare Schlusszeit landen ganz unten.
+    const closeTime = (m?: Market) => {
+      if (!m) return Infinity;
+      if (typeof m.betCloseAt === 'number') return m.betCloseAt;
+      if (m.marketSubtype === 'jackpot' || m.noStake) return firstWmKickoff ?? Infinity;
+      return m.kickoffAt ?? m.expiresAt ?? Infinity;
+    };
+    const byCloseTime = (a: Bet, b: Bet) =>
+      closeTime(markets.find(m => m.id === a.marketId)) - closeTime(markets.find(m => m.id === b.marketId));
+
     const myBets = bets.filter(b => b.playerId === me.id);
-    const active = myBets.filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'open' || m.status === 'locked'); });
+    const active = myBets
+      .filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'open' || m.status === 'locked'); })
+      .sort(byCloseTime);
     const resolved = myBets.filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'resolved' || m.status === 'cancelled'); });
     const myBetMarketIds = new Set(myBets.map(b => b.marketId));
-    const untipped = markets.filter(m => m.status === 'open' && !myBetMarketIds.has(m.id));
+    const untipped = markets
+      .filter(m => m.status === 'open' && !myBetMarketIds.has(m.id))
+      .sort((a, b) => closeTime(a) - closeTime(b));
     const goToMarket = (m: Market) => {
       openMarketModal(m);
     };

@@ -98,6 +98,38 @@ export default async (req: Request) => {
     }
   }
 
+  // ── 1b. LOCK markets with an explicit betting deadline (betCloseAt) ─────────
+  // Märkte mit gesetztem Annahmeschluss (v.a. Gratis-/Jackpot-Wetten ohne
+  // eigenen Anpfiff) werden gesperrt, sobald betCloseAt erreicht ist — OHNE
+  // Auto-Abzug, da diese Wetten i.d.R. einsatzfrei sind. Einzelfeld-Range-Query
+  // (kein Composite-Index nötig); der Status-Check läuft anschließend in JS.
+  // Märkte ohne betCloseAt tauchen hier gar nicht auf und bleiben unberührt —
+  // so schließen neu angelegte Wetten nicht ungewollt automatisch.
+  const deadlineSnap = await db
+    .collection('markets')
+    .where('betCloseAt', '<=', now)
+    .get();
+
+  for (const marketDoc of deadlineSnap.docs) {
+    const market = marketDoc.data() as any;
+    if (market.status !== 'open') continue;
+
+    const lockedPoolSnapshot: Record<string, number> = {};
+    (market.options ?? []).forEach((o: any) => { lockedPoolSnapshot[o.id] = o.pool ?? 0; });
+
+    // Atomar als gesperrt beanspruchen (verhindert Doppel-Lock bei überlappenden Ticks).
+    await db.runTransaction(async tx => {
+      const s = await tx.get(marketDoc.ref);
+      const m = s.data() as any;
+      if (!m || m.status !== 'open') return;
+      tx.update(marketDoc.ref, {
+        status: 'locked',
+        lockedPoolSnapshot,
+        lockedAt: FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   // ── 2. LOCK markets at kickoff + auto-deductions ───────────────────────────
   const openSnap = await db
     .collection('markets')

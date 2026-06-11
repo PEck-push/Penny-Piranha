@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
 import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export type FeedEventType =
@@ -146,6 +146,12 @@ export interface Market {
   teamA?: string;
   teamB?: string;
   kickoffAt?: number;          // UTC ms — wann Markt automatisch sperrt
+  // Expliziter Annahmeschluss (UTC ms), v.a. für Gratis-/Jackpot-Wetten ohne
+  // eigenen Anpfiff. Ist er gesetzt und erreicht, sperrt der Cron-Tick den Markt
+  // automatisch (ohne Token-Abzug). Fehlt das Feld, schließt der Markt NICHT
+  // automatisch — so bleiben neu angelegte Wetten unberührt. Über reopenMarket
+  // (manuelles Öffnen) wird betCloseAt wieder entfernt.
+  betCloseAt?: number;
   groupLabel?: string;
   minBet?: number;
   maxBet?: number;             // 0 = All-in (Finale)
@@ -312,6 +318,8 @@ interface AppState {
   lockMarket: (marketId: string) => void;
   pauseMarket: (marketId: string) => Promise<void>;
   reopenMarket: (marketId: string) => Promise<void>;
+  // Annahmeschluss (UTC ms) setzen oder mit null entfernen.
+  setMarketBetClose: (marketId: string, betCloseAt: number | null) => Promise<void>;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
@@ -724,15 +732,34 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     // Wieder öffnen: pausierten oder gesperrten Markt zurück auf 'open' setzen.
+    // Ein evtl. gesetzter Annahmeschluss (betCloseAt) wird dabei entfernt, damit
+    // der Cron-Tick den Markt nicht sofort wieder sperrt — manuelles Öffnen ist
+    // also das Sicherheitsventil gegen einen fehlerhaften Auto-Schluss.
     reopenMarket: async (marketId) => {
       const m = get().markets.find(mk => mk.id === marketId);
       if (!m || (m.status !== 'paused' && m.status !== 'locked')) return;
-      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, status: 'open' } : mk) }));
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, status: 'open', betCloseAt: undefined } : mk) }));
       if (db) {
         try {
-          await updateDoc(doc(db, 'markets', marketId), { status: 'open' });
+          await updateDoc(doc(db, 'markets', marketId), { status: 'open', betCloseAt: deleteField() });
         } catch (err) {
           console.error('[Store] reopenMarket Fehler:', err);
+        }
+      }
+    },
+
+    // Annahmeschluss eines Marktes setzen (UTC ms) oder mit null entfernen. Bei
+    // gesetztem Wert sperrt der Cron-Tick den Markt automatisch, sobald er
+    // erreicht ist (ohne Token-Abzug) — gedacht v.a. für Gratis-/Jackpot-Wetten.
+    setMarketBetClose: async (marketId, betCloseAt) => {
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, betCloseAt: betCloseAt ?? undefined } : mk) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), {
+            betCloseAt: betCloseAt == null ? deleteField() : betCloseAt,
+          });
+        } catch (err) {
+          console.error('[Store] setMarketBetClose Fehler:', err);
         }
       }
     },
