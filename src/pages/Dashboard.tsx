@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useStore, Market, getMarketTotal, buildSelectionKey } from '../store';
+import { useStore, Market, Bet, getMarketTotal, buildSelectionKey } from '../store';
 import { calcLivePayout, getTotalWealth } from '../utils/credits';
 import { ACCESSORY_BY_ID } from '../data/accessories';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -733,11 +733,21 @@ export default function Dashboard() {
 
   // ─── MY BETS TAB ───────────────────────────────────────────────────────────
   const renderMyBets = () => {
+    // Annahmeschluss eines Marktes: kickoffAt (WM-Matches) bzw. expiresAt
+    // (Hot-Takes & sonstige). Märkte ohne Schlusszeit landen ganz unten.
+    const closeTime = (m?: Market) => m?.kickoffAt ?? m?.expiresAt ?? Infinity;
+    const byCloseTime = (a: Bet, b: Bet) =>
+      closeTime(markets.find(m => m.id === a.marketId)) - closeTime(markets.find(m => m.id === b.marketId));
+
     const myBets = bets.filter(b => b.playerId === me.id);
-    const active = myBets.filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'open' || m.status === 'locked'); });
+    const active = myBets
+      .filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'open' || m.status === 'locked'); })
+      .sort(byCloseTime);
     const resolved = myBets.filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'resolved' || m.status === 'cancelled'); });
     const myBetMarketIds = new Set(myBets.map(b => b.marketId));
-    const untipped = markets.filter(m => m.status === 'open' && !myBetMarketIds.has(m.id));
+    const untipped = markets
+      .filter(m => m.status === 'open' && !myBetMarketIds.has(m.id))
+      .sort((a, b) => closeTime(a) - closeTime(b));
     const goToMarket = (m: Market) => {
       openMarketModal(m);
     };
