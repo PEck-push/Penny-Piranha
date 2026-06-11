@@ -28,7 +28,7 @@ export const HEADS: string[] = [
   'ASV-1000 TT', 'ASV-Angel', 'ASV-Bombi', 'ASV-Bruder Nik', 'ASV-Coach', 'ASV-Dejo',
   'ASV-Franzi', 'ASV-Herwig', 'ASV-Launga', 'ASV-Lizzaran', 'ASV-Michi', 'ASV-Ottl',
   'ASV-Presidente', 'ASV-Samba', 'ASV-Saschi', 'ASV-Vicepresidente', 'ASV-Werni', 'ASV-Zobo',
-  'Albert', 'Alf', 'Andrea', 'Diego', 'Edgar', 'Falco', 'Fraunz', 'Gianni Money', 'Gigi',
+  'Albert', 'Alf', 'Andrea', 'Diego', 'Edgar', 'Falco', 'Francesco', 'Fraunz', 'Gianni Money', 'Gigi',
   'Konfetti', 'Lemmy', 'Oli', 'Pele', 'Peppi Skandaloso', 'Roberto', 'Ronaldinho', 'Ronaldo',
   'Ruud', 'Salt', 'Schneckerl', 'Sigi', 'Toni', 'Tsubasa', 'Woiferl', 'Zauner', 'Zinedine',
 ];
