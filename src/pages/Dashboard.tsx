@@ -234,6 +234,7 @@ export default function Dashboard() {
   const currentUser = useStore(s => s.currentUser);
   const players = useStore(s => s.players);
   const markets = useStore(s => s.markets);
+  const schedule = useStore(s => s.schedule);
   const bets = useStore(s => s.bets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
@@ -733,9 +734,23 @@ export default function Dashboard() {
 
   // ─── MY BETS TAB ───────────────────────────────────────────────────────────
   const renderMyBets = () => {
-    // Annahmeschluss eines Marktes: kickoffAt (WM-Matches) bzw. expiresAt
-    // (Hot-Takes & sonstige). Märkte ohne Schlusszeit landen ganz unten.
-    const closeTime = (m?: Market) => m?.kickoffAt ?? m?.expiresAt ?? Infinity;
+    // Anpfiff des ersten WM-Spiels (frühester kickoffAt aus Spielplan + Märkten).
+    const firstWmKickoff = (() => {
+      const ks = [
+        ...schedule.map(s => s.kickoffAt),
+        ...markets.map(m => m.kickoffAt),
+      ].filter((k): k is number => typeof k === 'number');
+      return ks.length ? Math.min(...ks) : undefined;
+    })();
+    // Annahmeschluss eines Marktes: WM-Matches/sonstige über kickoffAt bzw.
+    // expiresAt. Gratis-/Jackpot-Runden tragen keine eigene Schlusszeit — sie
+    // schließen alle mit Anpfiff des ersten WM-Spiels. Märkte ohne ermittelbare
+    // Schlusszeit landen ganz unten.
+    const closeTime = (m?: Market) => {
+      if (!m) return Infinity;
+      if (m.marketSubtype === 'jackpot' || m.noStake) return firstWmKickoff ?? Infinity;
+      return m.kickoffAt ?? m.expiresAt ?? Infinity;
+    };
     const byCloseTime = (a: Bet, b: Bet) =>
       closeTime(markets.find(m => m.id === a.marketId)) - closeTime(markets.find(m => m.id === b.marketId));
 
