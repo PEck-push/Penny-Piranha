@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore, Market, Bet, getMarketTotal, buildSelectionKey } from '../store';
-import { calcLivePayout, getTotalWealth } from '../utils/credits';
+import { calcMarketPayoutPreview as calcPayout, calcWinnerPayout, getTotalWealth } from '../utils/credits';
 import { ACCESSORY_BY_ID } from '../data/accessories';
 import CharacterAvatar from '../components/CharacterAvatar';
 import OnboardingTour from '../components/OnboardingTour';
@@ -22,30 +22,11 @@ const OPT_BORDER = ['border-green/35','border-red/35','border-blue2/35','border-
 const OPT_HOVER  = ['hover:bg-green/15','hover:bg-red/15','hover:bg-blue/15','hover:bg-yellow/15','hover:bg-purple/15'];
 const OPT_SHADOW = ['shadow-[0_8px_32px_rgba(230,180,60,0.35)]','shadow-[0_8px_32px_rgba(255,61,90,0.35)]','shadow-[0_8px_32px_rgba(59,110,255,0.35)]','shadow-[0_8px_32px_rgba(255,212,71,0.35)]','shadow-[0_8px_32px_rgba(139,61,255,0.35)]'];
 
-// Auszahlungs-Vorschau — delegiert an utils/credits.calcLivePayout, damit eine
-// einzige Math-Quelle im Repo gilt (Math.round, Seed-Berücksichtigung, Mindest-
-// garantie + 2). Drei Aufrufszenarien:
+// Auszahlungs-Vorschau: zentrale Mathe in utils/credits.calcMarketPayoutPreview
+// (hier als calcPayout importiert). Drei Aufrufszenarien:
 //   1. Neue Wette anlegen           → existingBet=undefined
 //   2. Bestehende Wette anzeigen    → existingBet = die Wette selbst
 //   3. Wette ändern (Vorschau)      → existingBet = alte Wette
-function calcPayout(
-  market: Market,
-  optionId: string,
-  betAmt: number,
-  existingBet?: { optionId: string; amount: number },
-): number {
-  const opt = market.options.find(o => o.id === optionId);
-  if (!opt) return 0;
-  if (market.type === 'combo') return betAmt * (market.multiplier ?? 3);
-  // calcLivePayout addiert intern stake auf beide Pools. Bereinigte Start-Werte:
-  let optStart = opt.pool;
-  let totalStart = getMarketTotal(market);
-  if (existingBet) {
-    totalStart -= existingBet.amount;
-    if (existingBet.optionId === optionId) optStart -= existingBet.amount;
-  }
-  return calcLivePayout(betAmt, optStart, totalStart, market.initialSeedCredits ?? 0);
-}
 
 function PoolBar({ market }: { market: Market }) {
   const total = getMarketTotal(market) || 1;
@@ -842,10 +823,12 @@ export default function Dashboard() {
           const isRollover = m.status === 'resolved' && m.resolutionType === 'rollover';
           let resultText = '', resultClass = '', resultAmt = '';
           // Fallback-Berechnung nur für Alt-Bets ohne payout-Feld (vor Resolve-Persistenz).
+          // Gleiche Mathe wie der Server-Resolve: Seed im Topf + Mindestgarantie (+2).
           const fallback = (() => {
             if (m.type === 'combo') return b.amount * (m.multiplier ?? 3);
             const wOpt = m.options.find(o => o.id === b.optionId);
-            return wOpt && wOpt.pool > 0 ? Math.round((b.amount / wOpt.pool) * getMarketTotal(m)) : 0;
+            if (!wOpt || wOpt.pool <= 0) return 0;
+            return calcWinnerPayout(b.amount, wOpt.pool, getMarketTotal(m) + (m.initialSeedCredits ?? 0));
           })();
           const realPayout = b.payout ?? fallback;
           if (isStorno) { resultText = 'STORNO'; resultClass = 'text-muted'; resultAmt = isJackpot ? '' : `+${b.payout ?? b.amount} TKN`; }
