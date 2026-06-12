@@ -25,6 +25,17 @@ function viennaDayKey(ms: number): string {
   }).format(new Date(ms));
 }
 
+// US-Spieltag (YYYY-MM-DD) am amerikanischen Kalendertag (America/Los_Angeles —
+// westlichste Venue-Zone, identisch zur Resolve-/Badge-Logik). Ein „Spieltag" =
+// alle WM-Spiele desselben US-Tages; in Europa fällt ein Abendspiel sonst schon
+// auf den nächsten Kalendertag und würde die Runde fälschlich aufteilen.
+const US_TZ = 'America/Los_Angeles';
+function usDayKey(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: US_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ms));
+}
+
 // Wiener Uhrzeit (HH:MM) aus UTC-Timestamp.
 function viennaTime(ms: number): string {
   return new Intl.DateTimeFormat('de-AT', {
@@ -52,10 +63,13 @@ interface Bet {
   playerId: string;
   marketId: string;
   amount: number;
+  payout?: number;
 }
 interface Market {
   id: string;
   status: 'open' | 'locked' | 'resolved' | 'cancelled' | 'paused';
+  marketSubtype?: string;
+  kickoffAt?: number;
 }
 interface ScheduleEntry {
   matchId: string;
@@ -267,12 +281,30 @@ async function buildSummary(): Promise<string> {
   const anyResolved = markets.some((m: any) => m.status === 'resolved');
   const inTournament = anyResolved || (earliestKickoff != null && earliestKickoff <= now);
 
-  // 2. Tagessieger / Pechvogel — nur im Turnier-Modus relevant
+  // 2. Tagessieger / Pechvogel — Netto-Bilanz des aktuellen US-Spieltags,
+  // on-the-fly aus den payout-Feldern der Bets berechnet (payout − Einsatz),
+  // identisch zur In-App-Badge-Logik. Bewusst NICHT aus einem gespeicherten
+  // Tagesfeld: dailyNetGain nullt der Reveal-Screen beim Ansehen, ein matchday-
+  // Feld kann je nach Reset-/Schreib-Timing veraltet sein. Spieltag = alle
+  // aufgelösten WM-Spiele desselben US-Tages (Tag des zuletzt angepfiffenen).
+  const resolvedWm = markets.filter(
+    (m: any) => m.marketSubtype === 'wm-match' && m.status === 'resolved' && typeof m.kickoffAt === 'number',
+  );
+  const matchdayNet: Record<string, number> = {};
+  if (resolvedWm.length > 0) {
+    const latest = Math.max(...resolvedWm.map((m: any) => m.kickoffAt as number));
+    const key = usDayKey(latest);
+    const ids = new Set(
+      resolvedWm.filter((m: any) => usDayKey(m.kickoffAt as number) === key).map((m: any) => m.id),
+    );
+    for (const b of bets) {
+      if (ids.has(b.marketId)) {
+        matchdayNet[b.playerId] = (matchdayNet[b.playerId] ?? 0) + ((b.payout ?? 0) - (b.amount ?? 0));
+      }
+    }
+  }
   const withGain = players
-    // matchdayNetGain (Spieltag-Bilanz) statt dailyNetGain: Letzteres nullt der
-    // Reveal-Screen beim Ansehen — wer die App abends öffnet, fehlte sonst in
-    // der Morgen-Zusammenfassung.
-    .map(p => ({ name: p.name ?? '—', gain: p.matchdayNetGain ?? 0 }))
+    .map(p => ({ name: p.name ?? '—', gain: Math.round(matchdayNet[p.id] ?? 0) }))
     .filter(p => p.gain !== 0);
   const sieger = withGain.filter(p => p.gain > 0).sort((a, b) => b.gain - a.gain)[0] ?? null;
   const pech   = withGain.filter(p => p.gain < 0).sort((a, b) => a.gain - b.gain)[0] ?? null;
@@ -295,13 +327,18 @@ async function buildSummary(): Promise<string> {
     .sort((a, b) => b.total - a.total)
     .slice(0, 3);
 
-  // 4. Heutige Matches (Wiener Kalendertag) — sortiert nach Anpfiff
+  // 4. Heutige Matches — gruppiert nach US-Spieltag (amerikanischer Kalendertag),
+  // NICHT nach Wiener Tag: ein Spieltag läuft in den USA über einen Tag, in
+  // Europa aber oft über zwei (z. B. 21:00 + 03:00 Folgetag). „Heute" meint die
+  // ganze US-Runde; die Anzeige der Uhrzeiten bleibt Wiener Ortszeit.
+  const todayUsKey = usDayKey(now);
+  const tomorrowUsKey = usDayKey(now + 24 * 60 * 60 * 1000);
   const todayMatches = schedule
-    .filter(m => viennaDayKey(m.kickoffAt) === todayKey)
+    .filter(m => usDayKey(m.kickoffAt) === todayUsKey)
     .filter(m => m.kickoffAt > now - 60 * 60 * 1000)
     .sort((a, b) => a.kickoffAt - b.kickoffAt);
   const tomorrowMatches = schedule
-    .filter(m => viennaDayKey(m.kickoffAt) === tomorrowKey)
+    .filter(m => usDayKey(m.kickoffAt) === tomorrowUsKey)
     .sort((a, b) => a.kickoffAt - b.kickoffAt);
 
   // 5. Shop-Drops — heute + Vorschau morgen
