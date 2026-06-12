@@ -324,6 +324,9 @@ interface AppState {
   // Bestehende WM-Märkte ohne footballDataOrgId nachträglich mit der API-ID aus
   // dem Spielplan verknüpfen (Voraussetzung für die automatische Auflösung).
   linkWmMarketsToApi: () => Promise<{ linked: number; unmatched: number }>;
+  // Tagesgewinn (dailyNetGain) aller Spieler aus den aufgelösten Ergebnissen des
+  // aktuellen US-Spieltags neu berechnen — repariert einen falschen Tagessieger.
+  recomputeDailyGains: () => Promise<{ day: string | null; updated: number }>;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
@@ -801,6 +804,51 @@ export const useStore = create<AppState>()((set, get) => {
         }
       }
       return { linked: updates.length, unmatched };
+    },
+
+    // Repariert den Tagessieger: berechnet dailyNetGain aller Spieler aus den
+    // bereits aufgelösten WM-Spielen des AKTUELLEN US-Spieltags neu (Anker
+    // America/Los_Angeles — identisch zur Server-Logik in resolve.ts). Quelle
+    // sind die persistierten payout-Felder der Bets (payout − Einsatz). Nötig,
+    // weil ein Spieltag, der in Europa über zwei Kalendertage lief, den Reset
+    // fälschlich mitten im Spieltag auslöste und Tageswerte gelöscht hat.
+    recomputeDailyGains: async () => {
+      const { markets, bets, players } = get();
+      const usDayKey = (ms: number) => new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(ms));
+      const resolvedWm = markets.filter(
+        m => m.marketSubtype === 'wm-match' && m.status === 'resolved' && typeof m.kickoffAt === 'number',
+      );
+      if (resolvedWm.length === 0) return { day: null, updated: 0 };
+      // Aktueller US-Spieltag = US-Tag des zuletzt angepfiffenen aufgelösten Spiels.
+      const latest = Math.max(...resolvedWm.map(m => m.kickoffAt as number));
+      const targetKey = usDayKey(latest);
+      const todayIds = new Set(
+        resolvedWm.filter(m => usDayKey(m.kickoffAt as number) === targetKey).map(m => m.id),
+      );
+      // Tages-Netto je Spieler aus den Bets dieser Spiele (payout − Einsatz).
+      const gain: Record<string, number> = {};
+      for (const b of bets) {
+        if (!todayIds.has(b.marketId)) continue;
+        gain[b.playerId] = (gain[b.playerId] ?? 0) + ((b.payout ?? 0) - (b.amount ?? 0));
+      }
+      // Alle Spieler schreiben (auch 0 — überschreibt Altwerte). Nur bei Differenz.
+      let updated = 0;
+      for (const p of players) {
+        const net = Math.round(gain[p.id] ?? 0);
+        if ((p.dailyNetGain ?? 0) === net) continue;
+        set(s => ({ players: s.players.map(pl => pl.id === p.id ? { ...pl, dailyNetGain: net } : pl) }));
+        if (db) {
+          try {
+            await updateDoc(doc(db, 'players', p.id), { dailyNetGain: net });
+            updated++;
+          } catch (err) {
+            console.error('[Store] recomputeDailyGains Fehler:', err);
+          }
+        }
+      }
+      return { day: targetKey, updated };
     },
 
     giveTokens: async (playerId, amount) => {
