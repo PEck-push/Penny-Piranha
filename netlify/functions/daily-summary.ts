@@ -507,9 +507,24 @@ async function sendToTelegram(text: string): Promise<{ ok: boolean; error?: stri
   return { ok: true };
 }
 
-export default async (_req: Request) => {
+export default async (req: Request) => {
+  // ?dry=1 (oder ?preview=1) → nur den Text zurückgeben, NICHT an Telegram
+  // senden. Dient zum gefahrlosen Gegenprüfen vor dem echten Versand an die
+  // Gruppe. Der reguläre Cron (08:00 UTC) ruft ohne Parameter auf → sendet.
+  let dry = false;
+  try {
+    const u = new URL(req.url);
+    dry = u.searchParams.has('dry') || u.searchParams.has('preview');
+  } catch { /* kein gültiges URL-Objekt (z. B. Scheduled-Invocation) → senden */ }
+
   try {
     const text = await buildSummary();
+    if (dry) {
+      return new Response(text, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
     const result = await sendToTelegram(text);
     if (!result.ok) {
       console.error('[daily-summary]', result.error);
