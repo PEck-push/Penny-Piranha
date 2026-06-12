@@ -1,8 +1,11 @@
 import type { Config } from '@netlify/functions';
 import { getDb } from './_lib/firebaseAdmin';
+// Englische API-Teamnamen → deutsche Anzeigenamen (gemeinsame Quelle mit der App,
+// damit Spielplan im App-Tab und in der Summary identisch deutsch sind).
+import { deName } from '../../src/utils/teams';
 
 // Tagessummary: Lauft taeglich um 08:00 UTC = 10:00 CEST. Generiert einen
-// kompakten Text mit Tagessieger/Pechvogel, Top 3 Gesamt, heutigen Matches
+// kompakten Text mit Tagessieger/Oaschkoatn, Top 3 Gesamt, heutigen Matches
 // und Shop-Drops; schickt ihn per Telegram-Bot an die hinterlegte Chat-ID.
 // Vorlage zum Weiterleiten in die WhatsApp-Gruppe.
 //
@@ -281,7 +284,7 @@ async function buildSummary(): Promise<string> {
   const anyResolved = markets.some((m: any) => m.status === 'resolved');
   const inTournament = anyResolved || (earliestKickoff != null && earliestKickoff <= now);
 
-  // 2. Tagessieger / Pechvogel — Netto-Bilanz des aktuellen US-Spieltags,
+  // 2. Tagessieger / Oaschkoatn — Netto-Bilanz des aktuellen US-Spieltags,
   // on-the-fly aus den payout-Feldern der Bets berechnet (payout − Einsatz),
   // identisch zur In-App-Badge-Logik. Bewusst NICHT aus einem gespeicherten
   // Tagesfeld: dailyNetGain nullt der Reveal-Screen beim Ansehen, ein matchday-
@@ -391,7 +394,7 @@ async function buildSummary(): Promise<string> {
       const first = schedule.find(s => s.kickoffAt === earliestKickoff)!;
       const when = naturalCountdown(now, earliestKickoff);
       lines.push(`⏰ Erstes Spiel ${when}:`);
-      lines.push(`   *${first.teamA} vs. ${first.teamB}*`);
+      lines.push(`   *${deName(first.teamA)} vs. ${deName(first.teamB)}*`);
       lines.push('');
     }
 
@@ -410,7 +413,7 @@ async function buildSummary(): Promise<string> {
     if (tomorrowMatches.length > 0) {
       lines.push('⚽ *Morgen am Start:*');
       for (const m of tomorrowMatches.slice(0, 8)) {
-        lines.push(`   ${viennaTime(m.kickoffAt)}  ${m.teamA} vs. ${m.teamB}`);
+        lines.push(`   ${viennaTime(m.kickoffAt)}  ${deName(m.teamA)} vs. ${deName(m.teamB)}`);
       }
       lines.push('');
     }
@@ -439,7 +442,7 @@ async function buildSummary(): Promise<string> {
   if (hasRueckblick) {
     lines.push(`📊 *Rückblick auf den letzten Spieltag (${dateStr}):*`);
     if (sieger) lines.push(`🏆 Tagessieger: *${sieger.name}* (+${fmtTKN(sieger.gain)} TKN)`);
-    if (pech)   lines.push(`💀 Pechvogel:   *${pech.name}* (${fmtTKN(pech.gain)} TKN)`);
+    if (pech)   lines.push(`💩 Oaschkoatn:  *${pech.name}* (${fmtTKN(pech.gain)} TKN)`);
     if (ranked.length > 0) {
       lines.push('');
       lines.push('🏅 Top 3 Gesamt:');
@@ -453,13 +456,13 @@ async function buildSummary(): Promise<string> {
   if (todayMatches.length > 0) {
     lines.push('⚽ Heute auf dem Plan:');
     for (const m of todayMatches) {
-      lines.push(`   ${viennaTime(m.kickoffAt)}  ${m.teamA} vs. ${m.teamB}`);
+      lines.push(`   ${viennaTime(m.kickoffAt)}  ${deName(m.teamA)} vs. ${deName(m.teamB)}`);
     }
     lines.push('');
   } else if (tomorrowMatches.length > 0) {
     lines.push('⚽ Morgen:');
     for (const m of tomorrowMatches.slice(0, 6)) {
-      lines.push(`   ${viennaTime(m.kickoffAt)}  ${m.teamA} vs. ${m.teamB}`);
+      lines.push(`   ${viennaTime(m.kickoffAt)}  ${deName(m.teamA)} vs. ${deName(m.teamB)}`);
     }
     lines.push('');
   }
