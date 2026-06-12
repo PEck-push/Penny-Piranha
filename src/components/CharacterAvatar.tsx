@@ -36,12 +36,25 @@ function memoLeaderId(players: Player[], bets: Bet[], markets: Market[]): string
   leaderCache = { players, bets, markets, id };
   return id;
 }
-let dailyCache: { players: Player[]; id: string } | null = null;
-function memoDailyWinnerId(players: Player[]): string {
-  if (dailyCache && dailyCache.players === players) return dailyCache.id;
-  const id = computeDailyWinnerId(players);
-  dailyCache = { players, id };
+let dailyCache: { players: Player[]; bets: Bet[]; markets: Market[]; id: string } | null = null;
+function memoDailyWinnerId(players: Player[], bets: Bet[], markets: Market[]): string {
+  if (
+    dailyCache
+    && dailyCache.players === players
+    && dailyCache.bets === bets
+    && dailyCache.markets === markets
+  ) return dailyCache.id;
+  const id = computeDailyWinnerId(players, bets, markets);
+  dailyCache = { players, bets, markets, id };
   return id;
+}
+
+// US-Spieltag-Schlüssel (America/Los_Angeles) — identisch zur Server-Logik, damit
+// alle Spiele eines amerikanischen Kalendertags zusammengehören.
+function usDayKey(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ms));
 }
 
 function computeLeaderId(players: Player[], bets: Bet[], markets: Market[]): string {
@@ -61,15 +74,30 @@ function computeLeaderId(players: Player[], bets: Bet[], markets: Market[]): str
   return bestId;
 }
 
-function computeDailyWinnerId(players: Player[]): string {
+function computeDailyWinnerId(players: Player[], bets: Bet[], markets: Market[]): string {
+  // Tagessieger = höchster Netto-Gewinn am AKTUELLEN US-Spieltag, on-the-fly aus
+  // den persistierten payout-Feldern der Bets berechnet (payout − Einsatz).
+  // Bewusst KEIN gespeichertes Tagesfeld: dailyNetGain nullt der Reveal-Screen
+  // beim Ansehen, und ein separates matchday-Feld kann je nach Reset-/Schreib-
+  // Timing veralten. Die Live-Berechnung ist immer korrekt und deckungsgleich
+  // mit der Morgen-Summary.
+  const resolvedWm = markets.filter(
+    m => m.marketSubtype === 'wm-match' && m.status === 'resolved' && typeof m.kickoffAt === 'number',
+  );
+  if (resolvedWm.length === 0) return '';
+  const latest = Math.max(...resolvedWm.map(m => m.kickoffAt as number));
+  const key = usDayKey(latest);
+  const ids = new Set(
+    resolvedWm.filter(m => usDayKey(m.kickoffAt as number) === key).map(m => m.id),
+  );
+  const net: Record<string, number> = {};
+  for (const b of bets) {
+    if (ids.has(b.marketId)) net[b.playerId] = (net[b.playerId] ?? 0) + ((b.payout ?? 0) - (b.amount ?? 0));
+  }
   let bestId = '';
   let best = 0; // nur ein Tagessieger, wenn jemand echten Tagesgewinn (>0) hat
   for (const p of players) {
-    // matchdayNetGain = Spieltag-Bilanz (wird nur beim US-Spieltagwechsel
-    // genullt). Bewusst NICHT dailyNetGain: das nullt der Reveal-Screen beim
-    // Ansehen pro Spieler — der Orden würde sonst wandern, sobald der eigent-
-    // liche Sieger sein Reveal wegtippt.
-    const g = p.matchdayNetGain ?? 0;
+    const g = net[p.id] ?? 0;
     if (g > best) { best = g; bestId = p.id; }
   }
   return bestId;
@@ -103,7 +131,7 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
   // Berechnung läuft via Modul-Memo nur einmal pro neuem Store-Snapshot — egal
   // wie viele Avatare gleichzeitig im Tree sind.
   const leaderId = useStore(s => memoLeaderId(s.players, s.bets, s.markets));
-  const dailyWinnerId = useStore(s => memoDailyWinnerId(s.players));
+  const dailyWinnerId = useStore(s => memoDailyWinnerId(s.players, s.bets, s.markets));
   const isLeader = !!leaderId && player.id === leaderId;
   const isDailyWinner = !!dailyWinnerId && player.id === dailyWinnerId;
 
