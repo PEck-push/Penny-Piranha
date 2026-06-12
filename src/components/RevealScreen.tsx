@@ -42,6 +42,15 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
   const [closing, setClosing] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const doneRef = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hasPlayedRef = useRef(false);
+
+  // Videoauswahl: bei ±0 → draw.mp4 (mit Fallback auf win.mp4, falls noch
+  // nicht hochgeladen); Gewinn → win, Verlust → loss.
+  const videoSrc = isDraw
+    ? (drawFallback ? WIN_VIDEO : DRAW_VIDEO)
+    : isWin ? WIN_VIDEO : LOSS_VIDEO;
+  const tone: 'win' | 'loss' | 'draw' = isDraw ? 'draw' : isWin ? 'win' : 'loss';
 
   const finish = async () => {
     if (doneRef.current) return;
@@ -72,6 +81,18 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     return () => clearTimeout(t);
   }, []);
 
+  // iOS/Safari: Inline-Autoplay läuft nur, wenn `muted` als DOM-PROPERTY gesetzt
+  // ist — das React-Attribut allein reicht nicht (bekannter Bug). Daher hier
+  // imperativ setzen und play() aktiv anstoßen. Schlägt es fehl (z. B. iOS-
+  // Stromsparmodus blockt Autoplay generell), startet der erste Tap das Video
+  // (siehe handleOverlayClick), statt den Screen sofort zu schließen.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = true;
+    v.play().catch(() => { /* Autoplay blockiert → Tap startet (handleOverlayClick) */ });
+  }, [videoSrc]);
+
   // Emoji-Platzhalter (kein Video → kein onEnded): Zahl zeigen, dann schließen.
   useEffect(() => {
     if (!videoFailed) return;
@@ -81,16 +102,22 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoFailed]);
 
-  // Videoauswahl: bei ±0 → draw.mp4 (mit Fallback auf win.mp4, falls noch
-  // nicht hochgeladen); Gewinn → win, Verlust → loss.
-  const videoSrc = isDraw
-    ? (drawFallback ? WIN_VIDEO : DRAW_VIDEO)
-    : isWin ? WIN_VIDEO : LOSS_VIDEO;
-  const tone: 'win' | 'loss' | 'draw' = isDraw ? 'draw' : isWin ? 'win' : 'loss';
+  // Overlay-Tap: Lief das Video noch nie (Autoplay blockiert, z. B. iOS-
+  // Stromsparmodus)? Dann startet der erste Tap das Video, statt den Screen zu
+  // schließen. Sobald es einmal lief, schließt jeder Tap wie gewohnt.
+  const handleOverlayClick = () => {
+    const v = videoRef.current;
+    if (v && !hasPlayedRef.current && v.paused && !videoFailed) {
+      v.muted = true;
+      v.play().catch(() => setVideoFailed(true));
+      return;
+    }
+    finish();
+  };
 
   return (
     <div
-      onClick={finish}
+      onClick={handleOverlayClick}
       className={clsx(
         'fixed inset-0 z-[100] bg-[#02040C] cursor-pointer transition-opacity overflow-hidden',
         closing ? 'opacity-0' : 'opacity-100',
@@ -112,10 +139,13 @@ export default function RevealScreen({ marketIds, onDone }: RevealScreenProps) {
         </div>
       ) : (
         <video
+          ref={videoRef}
           src={videoSrc}
           autoPlay
           muted
           playsInline
+          preload="auto"
+          onPlay={() => { hasPlayedRef.current = true; }}
           onEnded={() => { setShowNumber(true); closeNow(); }}
           onError={() => {
             // ±0 ohne draw.mp4 → einmalig auf win.mp4 zurückfallen, statt sofort Emoji.
