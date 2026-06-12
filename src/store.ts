@@ -108,7 +108,14 @@ export interface Player {
   // Counter für Badges
   austriaSpecialCorrect?: number;
   underdogCorrect?: number;
+  // Bilanz seit dem letzten angesehenen Reveal (wird beim Wegtippen des
+  // Reveal-Videos pro Spieler genullt) — NUR für den Reveal-Screen.
   dailyNetGain?: number;
+  // Bilanz des aktuellen US-Spieltags (wird NUR beim Spieltagwechsel server-
+  // seitig genullt) — Grundlage für den Tagessieger-Orden + 08:00-Summary.
+  // Getrennt von dailyNetGain, damit das Ansehen des Reveals den Orden nicht
+  // zerstört.
+  matchdayNetGain?: number;
   // Reveal-Queue für nächtliche Ergebnisse
   unseenResolutions?: string[];
   // Test-Spieler (erfundene Mitspieler, nur im Testmodus) — beim Reset gelöscht
@@ -806,12 +813,12 @@ export const useStore = create<AppState>()((set, get) => {
       return { linked: updates.length, unmatched };
     },
 
-    // Repariert den Tagessieger: berechnet dailyNetGain aller Spieler aus den
-    // bereits aufgelösten WM-Spielen des AKTUELLEN US-Spieltags neu (Anker
-    // America/Los_Angeles — identisch zur Server-Logik in resolve.ts). Quelle
-    // sind die persistierten payout-Felder der Bets (payout − Einsatz). Nötig,
-    // weil ein Spieltag, der in Europa über zwei Kalendertage lief, den Reset
-    // fälschlich mitten im Spieltag auslöste und Tageswerte gelöscht hat.
+    // Repariert den Tagessieger: berechnet matchdayNetGain (Spieltag-Bilanz,
+    // Grundlage des Ordens) aller Spieler aus den bereits aufgelösten WM-Spielen
+    // des AKTUELLEN US-Spieltags neu (Anker America/Los_Angeles — identisch zur
+    // Server-Logik in resolve.ts). Quelle sind die persistierten payout-Felder
+    // der Bets (payout − Einsatz). dailyNetGain (Reveal-Bilanz) wird bewusst
+    // NICHT angefasst — das Feld gehört dem Reveal-Screen.
     recomputeDailyGains: async () => {
       const { markets, bets, players } = get();
       const usDayKey = (ms: number) => new Intl.DateTimeFormat('en-CA', {
@@ -837,11 +844,11 @@ export const useStore = create<AppState>()((set, get) => {
       let updated = 0;
       for (const p of players) {
         const net = Math.round(gain[p.id] ?? 0);
-        if ((p.dailyNetGain ?? 0) === net) continue;
-        set(s => ({ players: s.players.map(pl => pl.id === p.id ? { ...pl, dailyNetGain: net } : pl) }));
+        if ((p.matchdayNetGain ?? 0) === net) continue;
+        set(s => ({ players: s.players.map(pl => pl.id === p.id ? { ...pl, matchdayNetGain: net } : pl) }));
         if (db) {
           try {
-            await updateDoc(doc(db, 'players', p.id), { dailyNetGain: net });
+            await updateDoc(doc(db, 'players', p.id), { matchdayNetGain: net });
             updated++;
           } catch (err) {
             console.error('[Store] recomputeDailyGains Fehler:', err);

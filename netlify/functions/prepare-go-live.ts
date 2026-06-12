@@ -65,6 +65,7 @@ export default async (req: Request, _ctx: Context) => {
           austriaSpecialCorrect: 0,
           underdogCorrect: 0,
           dailyNetGain: 0,
+          matchdayNetGain: 0,
           unseenResolutions: [],
           unlockedOverlays: [],
           activeAccessoryId: null,

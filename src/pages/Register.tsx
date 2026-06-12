@@ -265,6 +265,7 @@ export default function Register() {
         underdogCorrect: 0,
         austriaSpecialCorrect: 0,
         dailyNetGain: 0,
+        matchdayNetGain: 0,
         unseenResolutions: [],
         unlockedOverlays: [],
         activeAccessoryId: null,
