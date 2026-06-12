@@ -44,6 +44,7 @@ interface Player {
   name?: string;
   tokens?: number;
   dailyNetGain?: number;
+  matchdayNetGain?: number;
   isTestPlayer?: boolean;
   isAdmin?: boolean;
 }
@@ -268,7 +269,10 @@ async function buildSummary(): Promise<string> {
 
   // 2. Tagessieger / Pechvogel — nur im Turnier-Modus relevant
   const withGain = players
-    .map(p => ({ name: p.name ?? '—', gain: p.dailyNetGain ?? 0 }))
+    // matchdayNetGain (Spieltag-Bilanz) statt dailyNetGain: Letzteres nullt der
+    // Reveal-Screen beim Ansehen — wer die App abends öffnet, fehlte sonst in
+    // der Morgen-Zusammenfassung.
+    .map(p => ({ name: p.name ?? '—', gain: p.matchdayNetGain ?? 0 }))
     .filter(p => p.gain !== 0);
   const sieger = withGain.filter(p => p.gain > 0).sort((a, b) => b.gain - a.gain)[0] ?? null;
   const pech   = withGain.filter(p => p.gain < 0).sort((a, b) => a.gain - b.gain)[0] ?? null;

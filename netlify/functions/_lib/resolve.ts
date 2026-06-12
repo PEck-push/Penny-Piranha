@@ -123,13 +123,14 @@ export async function resolveMarketAdmin(
   const isMultiWinner = winningSet.length > 1;
 
   try {
-    // ── Spieltag-Wechsel: Tagesbilanz (dailyNetGain) nur an Tagen mit echten
-    // Spielen zurücksetzen — NICHT an spielfreien Tagen. Schlüssel = Anpfiff-
-    // Datum am amerikanischen Tag des aufgelösten WM-Spiels. Beim ersten Spiel
-    // eines neuen Spieltags wird per CAS-Transaction die Bilanz aller Spieler
-    // genullt, bevor die Ergebnisse dieses Spieltags verbucht werden. So bleiben
-    // alle Spiele eines US-Kalendertags in derselben Tageswertung, und zwischen
-    // den Spieltagen bleibt der letzte Spieltagssieger gekrönt.
+    // ── Spieltag-Wechsel: Spieltag-Bilanz (matchdayNetGain, Tagessieger-Orden)
+    // nur an Tagen mit echten Spielen zurücksetzen — NICHT an spielfreien Tagen.
+    // Schlüssel = Anpfiff-Datum am amerikanischen Tag des aufgelösten WM-Spiels.
+    // Beim ersten Spiel eines neuen Spieltags wird per CAS-Transaction die
+    // Spieltag-Bilanz aller Spieler genullt, bevor die Ergebnisse dieses Spiel-
+    // tags verbucht werden. So bleiben alle Spiele eines US-Kalendertags in der-
+    // selben Tageswertung, und zwischen den Spieltagen bleibt der letzte Spiel-
+    // tagssieger gekrönt. dailyNetGain (Reveal-Bilanz) bleibt hier unberührt.
     if (market.marketSubtype === 'wm-match' && typeof market.kickoffAt === 'number') {
       const matchdayKey = americanMatchdayKey(market.kickoffAt);
       const isNewMatchday = await db.runTransaction(async tx => {
@@ -144,7 +145,11 @@ export async function resolveMarketAdmin(
         let rb = db.batch();
         let rn = 0;
         for (const d of playersSnap.docs) {
-          rb.update(d.ref, { dailyNetGain: 0 });
+          // Nur die Spieltag-Bilanz (Orden) nullen. dailyNetGain gehört dem
+          // Reveal-Screen ("seit zuletzt gesehen") und wird dort pro Spieler
+          // beim Ansehen genullt — hier nicht anfassen, sonst verliert ein
+          // Spieler, der die App tagelang nicht öffnet, seine Reveal-Bilanz.
+          rb.update(d.ref, { matchdayNetGain: 0 });
           if (++rn >= 400) { await rb.commit(); rb = db.batch(); rn = 0; }
         }
         if (rn > 0) await rb.commit();
@@ -191,6 +196,7 @@ export async function resolveMarketAdmin(
         batch.update(db.collection('players').doc(String(b.playerId)), {
           tokens: FieldValue.increment(each),
           dailyNetGain: FieldValue.increment(each),
+          matchdayNetGain: FieldValue.increment(each),
           unseenResolutions: FieldValue.arrayUnion(marketId),
         });
       }
@@ -237,6 +243,7 @@ export async function resolveMarketAdmin(
           batch.update(playerRef, {
             tokens: FieldValue.increment(payout),
             dailyNetGain: FieldValue.increment(payout - (b.amount || 0)),
+            matchdayNetGain: FieldValue.increment(payout - (b.amount || 0)),
             unseenResolutions: FieldValue.arrayUnion(marketId),
           });
         } else {
@@ -244,6 +251,7 @@ export async function resolveMarketAdmin(
           betPayouts.set(b.id, 0);
           batch.update(playerRef, {
             dailyNetGain: FieldValue.increment(-(b.amount || 0)),
+            matchdayNetGain: FieldValue.increment(-(b.amount || 0)),
             unseenResolutions: FieldValue.arrayUnion(marketId),
           });
         }
@@ -384,6 +392,7 @@ export async function resolveMarketAdmin(
         tokens: FieldValue.increment(basePayout),
         unseenResolutions: FieldValue.arrayUnion(marketId),
         dailyNetGain: FieldValue.increment(basePayout - (myBet?.amount ?? 0)),
+        matchdayNetGain: FieldValue.increment(basePayout - (myBet?.amount ?? 0)),
       };
 
       if (isRealResult) {

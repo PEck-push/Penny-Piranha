@@ -65,7 +65,11 @@ function computeDailyWinnerId(players: Player[]): string {
   let bestId = '';
   let best = 0; // nur ein Tagessieger, wenn jemand echten Tagesgewinn (>0) hat
   for (const p of players) {
-    const g = p.dailyNetGain ?? 0;
+    // matchdayNetGain = Spieltag-Bilanz (wird nur beim US-Spieltagwechsel
+    // genullt). Bewusst NICHT dailyNetGain: das nullt der Reveal-Screen beim
+    // Ansehen pro Spieler — der Orden würde sonst wandern, sobald der eigent-
+    // liche Sieger sein Reveal wegtippt.
+    const g = p.matchdayNetGain ?? 0;
     if (g > best) { best = g; bestId = p.id; }
   }
   return bestId;
