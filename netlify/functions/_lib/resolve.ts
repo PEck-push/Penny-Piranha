@@ -19,11 +19,15 @@ const UNDERDOG_THRESHOLD = 0.15;
 const UNDERDOG_BONUS = 0.1;
 const round = (n: number) => Math.round(n);
 
-// Spieltag-Schlüssel = Anpfiff-Datum in Europe/Vienna (YYYY-MM-DD). Dient nur als
-// stabile Kennung eines Spieltags; spielfreie Tage erzeugen nie einen neuen Key.
-function viennaDateKey(ms: number): string {
+// Spieltag-Schlüssel = Anpfiff-Datum am AMERIKANISCHEN Tag (YYYY-MM-DD). Die WM
+// 2026 wird in USA/Kanada/Mexiko gespielt; ein Spieltag entspricht dem dortigen
+// Kalendertag. Anker = US-Pazifik (America/Los_Angeles), die westlichste Venue-
+// Zone — so bleibt selbst das späteste Westküsten-Abendspiel am selben Tagesdatum
+// (in Europa fällt so ein Spiel oft schon auf den Folgetag). Spielfreie Tage
+// erzeugen nie einen neuen Key. Dient nur als stabile Kennung eines Spieltags.
+function americanMatchdayKey(ms: number): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date(ms));
 }
 
@@ -121,12 +125,13 @@ export async function resolveMarketAdmin(
   try {
     // ── Spieltag-Wechsel: Tagesbilanz (dailyNetGain) nur an Tagen mit echten
     // Spielen zurücksetzen — NICHT an spielfreien Tagen. Schlüssel = Anpfiff-
-    // Datum (Europe/Vienna) des aufgelösten WM-Spiels. Beim ersten Spiel eines
-    // neuen Spieltags wird per CAS-Transaction die Bilanz aller Spieler genullt,
-    // bevor die Ergebnisse dieses Spieltags verbucht werden. So bleibt zwischen
-    // den Spieltagen der letzte Spieltagssieger gekrönt.
+    // Datum am amerikanischen Tag des aufgelösten WM-Spiels. Beim ersten Spiel
+    // eines neuen Spieltags wird per CAS-Transaction die Bilanz aller Spieler
+    // genullt, bevor die Ergebnisse dieses Spieltags verbucht werden. So bleiben
+    // alle Spiele eines US-Kalendertags in derselben Tageswertung, und zwischen
+    // den Spieltagen bleibt der letzte Spieltagssieger gekrönt.
     if (market.marketSubtype === 'wm-match' && typeof market.kickoffAt === 'number') {
-      const matchdayKey = viennaDateKey(market.kickoffAt);
+      const matchdayKey = americanMatchdayKey(market.kickoffAt);
       const isNewMatchday = await db.runTransaction(async tx => {
         const s = await tx.get(appRef);
         const cur = (s.data() as any)?.currentMatchday ?? '';

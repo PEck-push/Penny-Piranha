@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -12,5 +12,12 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Offline-Persistenz: IndexedDB-Cache. Beim App-Start/Reload kommt der erste
+// Snapshot aus dem lokalen Cache (kostenlos), nur Änderungen seit dem letzten
+// Sync werden abgerechnet — spart die teuren Voll-Neuladungen. Live-Listener
+// (onSnapshot) bleiben unverändert aktiv: Echtzeit-Updates kommen wie bisher.
+// persistentMultipleTabManager: mehrere offene Tabs teilen sich den Cache sauber.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
 export const auth = getAuth(app);
