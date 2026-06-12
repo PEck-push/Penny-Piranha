@@ -180,6 +180,7 @@ export default function Admin() {
   const pauseMarket = useStore(s => s.pauseMarket);
   const reopenMarket = useStore(s => s.reopenMarket);
   const setMarketBetClose = useStore(s => s.setMarketBetClose);
+  const linkWmMarketsToApi = useStore(s => s.linkWmMarketsToApi);
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
@@ -600,6 +601,9 @@ export default function Admin() {
       isOpenQuestion: false,
       marketSubtype: 'wm-match' as const,
       matchId: match.matchId,
+      // API-Spiel-ID mitkopieren — sonst kann auto-resolve den Markt nicht dem
+      // football-data.org-Ergebnis zuordnen und löst ihn nie automatisch auf.
+      footballDataOrgId: match.footballDataOrgId ?? null,
       teamA: a,
       teamB: b,
       kickoffAt: match.kickoffAt,
@@ -634,6 +638,24 @@ export default function Admin() {
     );
     setTimeout(() => setBulkMsg(''), 4000);
   };
+
+  // Bestehende WM-Märkte (ohne API-ID) mit dem Spielplan verknüpfen, damit
+  // auto-resolve sie automatisch auflösen kann.
+  const [linkMsg, setLinkMsg] = useState('');
+  const handleLinkWmMarkets = async () => {
+    setLinkMsg('Verknüpfe…');
+    const { linked, unmatched } = await linkWmMarketsToApi();
+    setLinkMsg(
+      linked === 0 && unmatched === 0
+        ? 'Alle WM-Märkte sind bereits verknüpft.'
+        : `${linked} Märkte verknüpft${unmatched > 0 ? `, ${unmatched} ohne Spielplan-Treffer` : ''}. Auto-Auflösung läuft beim nächsten Tick (≤15 Min).`,
+    );
+    setTimeout(() => setLinkMsg(''), 8000);
+  };
+  // Anzahl WM-Märkte, denen die API-ID noch fehlt (für Button-Hinweis).
+  const unlinkedWmCount = markets.filter(
+    m => m.marketSubtype === 'wm-match' && typeof m.footballDataOrgId !== 'number',
+  ).length;
 
   // Echte WM-2026-Gruppenspiele: Phase = Gruppenphase UND FIFA-Matchday 1/2/3
   // UND ein Gruppenlabel mit Buchstabe A–L. Damit fallen Fremd-Wettbewerbs-
@@ -1272,6 +1294,21 @@ export default function Admin() {
                 lade den Spielplan danach neu.
               </div>
             )}
+
+            {/* API-Verknüpfung nachrüsten (für vor dem Fix geöffnete Märkte) */}
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <button
+                onClick={handleLinkWmMarkets}
+                className="w-full p-3 border rounded-xl bg-transparent border-green/40 text-green font-sans text-[13px] font-black cursor-pointer hover:bg-green/10 transition-all">
+                🔗 WM-Märkte mit API-IDs verknüpfen{unlinkedWmCount > 0 ? ` (${unlinkedWmCount} offen)` : ''}
+              </button>
+              <div className="mt-2 text-[10px] text-muted leading-snug">
+                Hängt die football-data.org-Spiel-ID aus dem Spielplan an WM-Märkte, denen sie fehlt
+                (z. B. via Massenfreigabe geöffnet). <b>Nötig, damit Spiele automatisch aufgelöst werden</b> und
+                Ergebnis + Tabelle im Spielplan erscheinen.
+              </div>
+              {linkMsg && <div className="mt-2 text-[11px] font-bold text-green">{linkMsg}</div>}
+            </div>
           </div>
 
           </>}
