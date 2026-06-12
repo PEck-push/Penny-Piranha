@@ -181,6 +181,7 @@ export default function Admin() {
   const reopenMarket = useStore(s => s.reopenMarket);
   const setMarketBetClose = useStore(s => s.setMarketBetClose);
   const linkWmMarketsToApi = useStore(s => s.linkWmMarketsToApi);
+  const recomputeDailyGains = useStore(s => s.recomputeDailyGains);
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
@@ -651,6 +652,20 @@ export default function Admin() {
         : `${linked} Märkte verknüpft${unmatched > 0 ? `, ${unmatched} ohne Spielplan-Treffer` : ''}. Auto-Auflösung läuft beim nächsten Tick (≤15 Min).`,
     );
     setTimeout(() => setLinkMsg(''), 8000);
+  };
+
+  // Tagessieger reparieren: dailyNetGain aus den Ergebnissen des aktuellen
+  // US-Spieltags neu berechnen.
+  const [recomputeMsg, setRecomputeMsg] = useState('');
+  const handleRecomputeDaily = async () => {
+    setRecomputeMsg('Berechne…');
+    const { day, updated } = await recomputeDailyGains();
+    setRecomputeMsg(
+      day == null
+        ? 'Noch keine aufgelösten WM-Spiele vorhanden.'
+        : `Tagesgewinn für ${day} (US) neu berechnet — ${updated} Spieler aktualisiert.`,
+    );
+    setTimeout(() => setRecomputeMsg(''), 8000);
   };
   // Anzahl WM-Märkte, denen die API-ID noch fehlt (für Button-Hinweis).
   const unlinkedWmCount = markets.filter(
@@ -1308,6 +1323,19 @@ export default function Admin() {
                 Ergebnis + Tabelle im Spielplan erscheinen.
               </div>
               {linkMsg && <div className="mt-2 text-[11px] font-bold text-green">{linkMsg}</div>}
+
+              {/* Tagessieger reparieren */}
+              <button
+                onClick={handleRecomputeDaily}
+                className="mt-3 w-full p-3 border rounded-xl bg-transparent border-yellow/40 text-yellow font-sans text-[13px] font-black cursor-pointer hover:bg-yellow/10 transition-all">
+                🏅 Tagessieger neu berechnen
+              </button>
+              <div className="mt-2 text-[10px] text-muted leading-snug">
+                Setzt den Tagesgewinn aller Spieler aus den aufgelösten Ergebnissen des
+                <b> aktuellen US-Spieltags</b> neu. Nutzen, falls der Tagessieger-Orden falsch sitzt
+                (z. B. weil ein Spieltag über zwei europäische Kalendertage lief). Rein kosmetisch — Tokens bleiben unberührt.
+              </div>
+              {recomputeMsg && <div className="mt-2 text-[11px] font-bold text-yellow">{recomputeMsg}</div>}
             </div>
           </div>
 
