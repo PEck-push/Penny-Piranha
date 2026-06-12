@@ -143,6 +143,7 @@ export interface Market {
   // ── WM 2026 Felder ────────────────────────────────────────────────────────────
   marketSubtype?: 'wm-match' | 'spezialwette' | 'milestone' | 'club-special' | 'jackpot';
   matchId?: string;            // verknüpft mit WmMatch.matchId aus wm2026Schedule.ts
+  footballDataOrgId?: number;  // API-Spiel-ID (football-data.org) für auto-resolve
   teamA?: string;
   teamB?: string;
   kickoffAt?: number;          // UTC ms — wann Markt automatisch sperrt
@@ -320,6 +321,9 @@ interface AppState {
   reopenMarket: (marketId: string) => Promise<void>;
   // Annahmeschluss (UTC ms) setzen oder mit null entfernen.
   setMarketBetClose: (marketId: string, betCloseAt: number | null) => Promise<void>;
+  // Bestehende WM-Märkte ohne footballDataOrgId nachträglich mit der API-ID aus
+  // dem Spielplan verknüpfen (Voraussetzung für die automatische Auflösung).
+  linkWmMarketsToApi: () => Promise<{ linked: number; unmatched: number }>;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
@@ -762,6 +766,41 @@ export const useStore = create<AppState>()((set, get) => {
           console.error('[Store] setMarketBetClose Fehler:', err);
         }
       }
+    },
+
+    // Nachträgliches Verknüpfen: WM-Märkte, die ohne footballDataOrgId angelegt
+    // wurden (z. B. via Admin-Massenfreigabe vor dem Fix), bekommen die API-ID aus
+    // dem passenden Spielplan-Eintrag (gematcht über matchId). Erst danach kann
+    // auto-resolve sie dem Ergebnis zuordnen und automatisch auflösen.
+    linkWmMarketsToApi: async () => {
+      const { markets, schedule } = get();
+      const fdoByMatchId = new Map<string, number>();
+      schedule.forEach(s => {
+        if (typeof s.footballDataOrgId === 'number') fdoByMatchId.set(s.matchId, s.footballDataOrgId);
+      });
+      const updates: { id: string; fdoId: number }[] = [];
+      let unmatched = 0;
+      for (const m of markets) {
+        if (m.marketSubtype !== 'wm-match') continue;
+        if (typeof m.footballDataOrgId === 'number') continue; // bereits verknüpft
+        const fdoId = m.matchId ? fdoByMatchId.get(m.matchId) : undefined;
+        if (typeof fdoId === 'number') updates.push({ id: m.id, fdoId });
+        else unmatched++;
+      }
+      if (updates.length > 0) {
+        const byId = new Map(updates.map(u => [u.id, u.fdoId]));
+        set(s => ({ markets: s.markets.map(m => byId.has(m.id) ? { ...m, footballDataOrgId: byId.get(m.id) } : m) }));
+        if (db) {
+          for (const u of updates) {
+            try {
+              await updateDoc(doc(db, 'markets', u.id), { footballDataOrgId: u.fdoId });
+            } catch (err) {
+              console.error('[Store] linkWmMarketsToApi Fehler:', err);
+            }
+          }
+        }
+      }
+      return { linked: updates.length, unmatched };
     },
 
     giveTokens: async (playerId, amount) => {
