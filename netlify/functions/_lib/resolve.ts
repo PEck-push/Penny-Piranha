@@ -145,11 +145,10 @@ export async function resolveMarketAdmin(
         let rb = db.batch();
         let rn = 0;
         for (const d of playersSnap.docs) {
-          // Nur die Spieltag-Bilanz (Orden) nullen. dailyNetGain gehört dem
-          // Reveal-Screen ("seit zuletzt gesehen") und wird dort pro Spieler
-          // beim Ansehen genullt — hier nicht anfassen, sonst verliert ein
-          // Spieler, der die App tagelang nicht öffnet, seine Reveal-Bilanz.
-          rb.update(d.ref, { matchdayNetGain: 0 });
+          // Spieltag-Wechsel: matchdayNetGain nullen UND das temporäre
+          // Underdog-Badge entfernen (gilt nur bis zum nächsten Spieltag).
+          // dailyNetGain gehört dem Reveal-Screen und bleibt hier unberührt.
+          rb.update(d.ref, { matchdayNetGain: 0, underdogBadge: false });
           if (++rn >= 400) { await rb.commit(); rb = db.batch(); rn = 0; }
         }
         if (rn > 0) await rb.commit();
@@ -423,7 +422,11 @@ export async function resolveMarketAdmin(
         upd.currentStreak = newStreak;
         upd.streakLevel = level;
         upd.bestStreak = Math.max(p.bestStreak ?? 0, newStreak);
-        if (correct && isUnderdog) upd.underdogCorrect = FieldValue.increment(1);
+        if (correct && isUnderdog) {
+          upd.underdogCorrect = FieldValue.increment(1);
+          // Temporäres Underdog-Badge automatisch aktivieren (bis nächster Spieltag).
+          upd.underdogBadge = true;
+        }
 
         // Accessoires automatisch freischalten (rein kosmetisch, nicht auto-getragen).
         const accessoryAdds: string[] = [];
@@ -432,8 +435,10 @@ export async function resolveMarketAdmin(
 
         const allOverlayAdds = [...overlayAdds, ...accessoryAdds];
         if (allOverlayAdds.length > 0) upd.unlockedOverlays = FieldValue.arrayUnion(...allOverlayAdds);
-        // activeBadgeId nur aus den Badge-Overlays (nicht aus Accessoires) setzen.
-        if (overlayAdds.length > 0) upd.activeBadgeId = overlayAdds[overlayAdds.length - 1];
+        // Badge dynamisch nach AKTUELLEM Streak setzen: on_fire (4–6), damn_hot
+        // (7+) oder weg (level 'none' → bei falschem Tipp / Streak < 4). So ist
+        // man nur on_fire bis damn_hot ODER bis zum nächsten falschen Tipp.
+        upd.activeBadgeId = level === 'none' ? null : level;
       }
 
       batch.update(ps.ref, upd);
