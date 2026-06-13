@@ -191,6 +191,12 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
         <img src={`/overlays/accessories/${acc.hand}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-30`} />
       )}
+      {/* z-33: Underdog-Orden — temporäres Auto-Badge (bis zum nächsten Spieltag),
+          unabhängig vom getragenen Hand-Accessoire. */}
+      {player.underdogBadge && (
+        <img src="/overlays/accessories/underdog_medal.webp" alt="" onError={hideOnError}
+          className={`${overlay} z-[33]`} />
+      )}
       {/* z-38: Shop-Kopf */}
       {shop.head && (
         <img src={shopSrc(shop.head)} alt="" onError={hideOnError} className={`${overlay} z-[38]`} />

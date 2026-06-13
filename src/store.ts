@@ -108,6 +108,9 @@ export interface Player {
   // Counter für Badges
   austriaSpecialCorrect?: number;
   underdogCorrect?: number;
+  // Temporäres Underdog-Badge: wird bei einem Außenseiter-Sieg automatisch
+  // gesetzt und beim nächsten Spieltag wieder entfernt (wie der Tagessieger).
+  underdogBadge?: boolean;
   // Bilanz seit dem letzten angesehenen Reveal (wird beim Wegtippen des
   // Reveal-Videos pro Spieler genullt) — NUR für den Reveal-Screen.
   dailyNetGain?: number;
