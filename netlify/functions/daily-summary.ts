@@ -216,8 +216,9 @@ function legacyPickFakt(dayKey: string): string {
 // datumsbasierten Auswahl für die bisherigen Turniertage. Wird nur genutzt,
 // solange in Firestore noch kein usedFacts steht.
 const SEED_USED_FACTS: string[] = Array.from(new Set([
+  // Umlautfreier Abgleich (vermeidet Encoding-Fallen): je genau 1 Treffer.
   ...[...FAKTEN_ALT, ...FAKTEN_NEU].filter(f =>
-    (f.includes('Saudi-Arabien') && f.includes('Eröffnungsspiel')) || f.includes('Cruyff-Turn')),
+    f.includes('Saudi-Arabien') || f.includes('Cruyff-Turn')),
   ...['2026-06-11', '2026-06-12', '2026-06-13'].map(legacyPickFakt),
 ]));
 
@@ -412,9 +413,15 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
     timeZone: VIENNA_TZ, day: '2-digit', month: '2-digit', year: 'numeric',
   }).format(new Date(now));
   const lines: string[] = [];
-  // Bereits verwendete Fakten (oder Seed, falls noch nie gespeichert).
+  // Bereits verwendete Fakten. Der Seed (schon versendete Fakten wie Katar /
+  // Cruyff-Turn) wird IMMER mit hineingenommen — auch wenn in Firestore bereits
+  // ein (evtl. unvollständiges) usedFacts steht. So können die gemeldeten Fakten
+  // garantiert nie wieder erscheinen.
   const storedUsed = (appSnap.data() as any)?.usedFacts;
-  const usedBefore: string[] = Array.isArray(storedUsed) ? storedUsed : SEED_USED_FACTS;
+  const usedBefore: string[] = Array.from(new Set([
+    ...SEED_USED_FACTS,
+    ...(Array.isArray(storedUsed) ? storedUsed : []),
+  ]));
   const { fakt, reset } = pickFakt(todayKey, usedBefore);
 
   // ─── A) Pre-Tournament-Modus ───────────────────────────────────────────
