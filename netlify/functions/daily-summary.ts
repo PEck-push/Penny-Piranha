@@ -200,13 +200,45 @@ const FAKTEN_NEU = [
   '2022: Argentiniens Torhüter Emi Martinez gewinnt Goldenen Handschuh — und sorgt mit zweideutigen Pokalfeiern weltweit für Schlagzeilen.',
 ];
 
-function pickFakt(todayKey: string): string {
-  // Tages-Hash, abwechselnd ALT/NEU nach Tag-Paritaet (Wiener Kalendertag).
+// Alte (datumsbasierte) Auswahl — nur zur Rekonstruktion bereits versendeter
+// Fakten als Seed. NICHT mehr für die echte Auswahl verwenden.
+function legacyPickFakt(dayKey: string): string {
   let h = 0;
-  for (const c of todayKey) h = (h * 31 + c.charCodeAt(0)) | 0;
-  const dayOfMonth = parseInt(todayKey.slice(8), 10) || 0;
+  for (const c of dayKey) h = (h * 31 + c.charCodeAt(0)) | 0;
+  const dayOfMonth = parseInt(dayKey.slice(8), 10) || 0;
   const pool = dayOfMonth % 2 === 0 ? FAKTEN_ALT : FAKTEN_NEU;
   return pool[Math.abs(h) % pool.length];
+}
+
+// Seed der schon versendeten Fakten (bevor das Used-Tracking existierte), damit
+// sie nicht erneut kommen: explizit die vom Nutzer gemeldeten (Katar/Saudi-
+// Argentinien-Eröffnungsspiel, Cruyff-Turn) + Rekonstruktion der alten
+// datumsbasierten Auswahl für die bisherigen Turniertage. Wird nur genutzt,
+// solange in Firestore noch kein usedFacts steht.
+const SEED_USED_FACTS: string[] = Array.from(new Set([
+  ...[...FAKTEN_ALT, ...FAKTEN_NEU].filter(f =>
+    (f.includes('Saudi-Arabien') && f.includes('Eröffnungsspiel')) || f.includes('Cruyff-Turn')),
+  ...['2026-06-11', '2026-06-12', '2026-06-13'].map(legacyPickFakt),
+]));
+
+// Wählt einen NOCH NICHT verwendeten WM-Fakt. Bevorzugt den Paritäts-Pool
+// (ALT an geraden, NEU an ungeraden Tagen) für die gewohnte Abwechslung, fällt
+// aber auf alle übrigen Fakten zurück. Erst wenn wirklich alle verbraucht sind,
+// beginnt der Zyklus von vorn (reset=true).
+function pickFakt(todayKey: string, usedFacts: string[]): { fakt: string; reset: boolean } {
+  let h = 0;
+  for (const c of todayKey) h = (h * 31 + c.charCodeAt(0)) | 0;
+  const idx = (arr: string[]) => arr[Math.abs(h) % arr.length];
+  const dayOfMonth = parseInt(todayKey.slice(8), 10) || 0;
+  const preferred = dayOfMonth % 2 === 0 ? FAKTEN_ALT : FAKTEN_NEU;
+  const all = [...FAKTEN_ALT, ...FAKTEN_NEU];
+  const used = new Set(usedFacts);
+
+  const fromPreferred = preferred.filter(f => !used.has(f));
+  if (fromPreferred.length > 0) return { fakt: idx(fromPreferred), reset: false };
+  const fromAll = all.filter(f => !used.has(f));
+  if (fromAll.length > 0) return { fakt: idx(fromAll), reset: false };
+  return { fakt: idx(preferred), reset: true }; // alle verbraucht → von vorn
 }
 
 // ── Natuerlicher Countdown ─────────────────────────────────────────────────
@@ -250,19 +282,20 @@ function naturalCountdown(fromMs: number, toMs: number): string {
   return `in ${days} Tagen — ${weekday} ${spaced} (${timeStr})`;
 }
 
-async function buildSummary(): Promise<string> {
+async function buildSummary(): Promise<{ text: string; fakt: string; reset: boolean; usedBefore: string[] }> {
   const db = getDb();
   const now = Date.now();
   const todayKey = viennaDayKey(now);
   const tomorrowKey = viennaDayKey(now + 24 * 60 * 60 * 1000);
 
   // 1. Spieler + Bets + Markets parallel lesen
-  const [playersSnap, betsSnap, marketsSnap, scheduleSnap, shopSnap] = await Promise.all([
+  const [playersSnap, betsSnap, marketsSnap, scheduleSnap, shopSnap, appSnap] = await Promise.all([
     db.collection('players').get(),
     db.collection('bets').get(),
     db.collection('markets').get(),
     db.collection('schedule').get(),
     db.collection('shopItems').get(),
+    db.collection('appState').doc('global').get(),
   ]);
 
   const players: Player[] = playersSnap.docs
@@ -379,7 +412,10 @@ async function buildSummary(): Promise<string> {
     timeZone: VIENNA_TZ, day: '2-digit', month: '2-digit', year: 'numeric',
   }).format(new Date(now));
   const lines: string[] = [];
-  const fakt = pickFakt(todayKey);
+  // Bereits verwendete Fakten (oder Seed, falls noch nie gespeichert).
+  const storedUsed = (appSnap.data() as any)?.usedFacts;
+  const usedBefore: string[] = Array.isArray(storedUsed) ? storedUsed : SEED_USED_FACTS;
+  const { fakt, reset } = pickFakt(todayKey, usedBefore);
 
   // ─── A) Pre-Tournament-Modus ───────────────────────────────────────────
   if (!inTournament) {
@@ -428,7 +464,7 @@ async function buildSummary(): Promise<string> {
     }
 
     lines.push('Tippen 👉 https://kruegerl-propheten.netlify.app');
-    return lines.join('\n');
+    return { text: lines.join('\n'), fakt, reset, usedBefore };
   }
 
   // ─── B) Turnier-Modus (Standard-Daily) ─────────────────────────────────
@@ -484,7 +520,7 @@ async function buildSummary(): Promise<string> {
   }
 
   lines.push('Jetzt tippen 👉 https://kruegerl-propheten.netlify.app');
-  return lines.join('\n');
+  return { text: lines.join('\n'), fakt, reset, usedBefore };
 }
 
 async function sendToTelegram(text: string): Promise<{ ok: boolean; error?: string }> {
@@ -521,7 +557,7 @@ export default async (req: Request) => {
   } catch { /* kein gültiges URL-Objekt (z. B. Scheduled-Invocation) → senden */ }
 
   try {
-    const text = await buildSummary();
+    const { text, fakt, reset, usedBefore } = await buildSummary();
     if (dry) {
       return new Response(text, {
         status: 200,
@@ -532,6 +568,16 @@ export default async (req: Request) => {
     if (!result.ok) {
       console.error('[daily-summary]', result.error);
       return new Response(JSON.stringify({ ok: false, error: result.error, preview: text }), { status: 500 });
+    }
+    // Erst NACH erfolgreichem Versand den Fakt als verwendet speichern, damit er
+    // nie wieder kommt. Bei reset (alle verbraucht) beginnt die Liste neu.
+    if (fakt) {
+      try {
+        const newUsed = reset ? [fakt] : Array.from(new Set([...usedBefore, fakt]));
+        await getDb().collection('appState').doc('global').set({ usedFacts: newUsed }, { merge: true });
+      } catch (e) {
+        console.error('[daily-summary] usedFacts speichern fehlgeschlagen:', e);
+      }
     }
     return new Response(JSON.stringify({ ok: true, length: text.length }), { status: 200 });
   } catch (err: any) {
