@@ -747,6 +747,16 @@ export default function Dashboard() {
     const untipped = markets
       .filter(m => m.status === 'open' && !myBetMarketIds.has(m.id))
       .sort((a, b) => closeTime(a) - closeTime(b));
+
+    // Gratis-/Jackpot-Tipps ans Ende des Tabs gruppieren — sie sind i.d.R. schon
+    // alle getippt; oben sollen die Spiele stehen. Daher Matches (oben) von
+    // Gratis-Runden (unten) trennen.
+    const isGratis = (m?: Market) => !!m && (m.marketSubtype === 'jackpot' || !!m.noStake);
+    const mkOf = (b: Bet) => markets.find(m => m.id === b.marketId);
+    const untippedMatches = untipped.filter(m => !isGratis(m));
+    const untippedFree    = untipped.filter(m => isGratis(m));
+    const activeMatches   = active.filter(b => !isGratis(mkOf(b)));
+    const activeFree      = active.filter(b => isGratis(mkOf(b)));
     const goToMarket = (m: Market) => {
       openMarketModal(m);
     };
@@ -756,11 +766,11 @@ export default function Dashboard() {
 
         <div className="flex items-center justify-between mb-2.5">
           <span className="text-[12px] font-black text-blue2 uppercase tracking-[0.1em]">🔔 Offen — noch nicht getippt</span>
-          {untipped.length > 0 && <span className="text-[12px] font-bold text-blue2">{untipped.length}</span>}
+          {untippedMatches.length > 0 && <span className="text-[12px] font-bold text-blue2">{untippedMatches.length}</span>}
         </div>
-        {untipped.length === 0 ? <div className="text-[12px] text-muted mb-6">Alles getippt — stark! 🎯</div> : (
+        {untippedMatches.length === 0 ? <div className="text-[12px] text-muted mb-6">Alles getippt — stark! 🎯</div> : (
           <div className="mb-6">
-            {untipped.map(m => {
+            {untippedMatches.map(m => {
               const isJackpot = m.marketSubtype === 'jackpot';
               const isWm = !!m.matchId;
               const icon = isJackpot ? '🎰' : isWm ? '⚽' : m.type === 'combo' ? '🔗' : m.marketSubtype === 'spezialwette' ? '🌟' : '▶';
@@ -782,7 +792,7 @@ export default function Dashboard() {
         )}
 
         <div className="text-[12px] font-black text-muted uppercase tracking-[0.1em] mb-2.5">Aktiv</div>
-        {active.length === 0 ? <div className="text-[12px] text-muted mb-6">Keine aktiven Wetten</div> : active.map(b => {
+        {activeMatches.length === 0 ? <div className="text-[12px] text-muted mb-6">Keine aktiven Wetten</div> : activeMatches.map(b => {
           const m = markets.find(m => m.id === b.marketId);
           if (!m) return null;
           const opt = m.options.find(o => o.id === b.optionId);
@@ -852,6 +862,42 @@ export default function Dashboard() {
             </div>
           );
         })}
+
+        {/* 🎰 Gratis-Tipps — ganz unten gruppiert; oben bleiben die Spiele. */}
+        {(untippedFree.length > 0 || activeFree.length > 0) && (
+          <>
+            <div className="text-[12px] font-black text-green uppercase tracking-[0.1em] mb-2.5 mt-6">🎰 Gratis-Tipps</div>
+            {untippedFree.map(m => (
+              <div key={m.id} onClick={() => goToMarket(m)}
+                className="bg-card border border-green/30 rounded-2xl p-3.5 mb-2 cursor-pointer transition-all hover:border-green/60 hover:-translate-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[14px] shrink-0">🎰</span>
+                  <span className="text-[13px] font-bold text-white flex-1 leading-tight">{m.question}</span>
+                  <span className="text-[10px] font-black text-green bg-green/10 border border-green/25 rounded-md px-2 py-0.5 shrink-0">gratis tippen →</span>
+                </div>
+              </div>
+            ))}
+            {activeFree.map(b => {
+              const m = markets.find(m => m.id === b.marketId);
+              if (!m) return null;
+              const opt = m.options.find(o => o.id === b.optionId);
+              const optIdx = m.options.findIndex(o => o.id === b.optionId);
+              return (
+                <div key={b.id} onClick={() => goToMarket(m)} className="bg-card border border-border rounded-2xl p-4 mb-2.5 cursor-pointer transition-all hover:border-green/40 hover:-translate-y-0.5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[14px]">🎰</span>
+                    <span className="text-[14px] font-bold text-white flex-1 leading-tight">{m.question}</span>
+                    <span className={clsx('text-[11px] font-black px-2 py-0.5 rounded-md', OPT_BG[optIdx], OPT_TEXT[optIdx])}>{opt?.label}</span>
+                  </div>
+                  <div className="text-[12px] text-muted flex justify-between">
+                    <span className="text-green font-bold">Gratis-Tipp</span>
+                    <span>Preistopf: <b className="text-yellow">{m.absorbsJackpotPot ? `${m.fixedPrize ?? 0} + Jackpot` : `${m.fixedPrize ?? 0}`} TKN</b></span>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     );
   };
