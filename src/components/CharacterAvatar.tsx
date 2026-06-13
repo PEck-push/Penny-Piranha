@@ -147,11 +147,17 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
 
   return (
     <div className={`relative ${DIM[size]} ${className}`}>
-      {/* z-0: Hintergrund-Badge */}
-      {player.activeBadgeId && (
-        <img src={`/overlays/badges/${player.activeBadgeId}.webp`} alt="" onError={hideOnError}
-          className={`${overlay} z-0`} />
-      )}
+      {/* z-0: Streak-Badge — direkt aus dem AKTUELLEN Streak abgeleitet (≥7
+          damn_hot, ≥4 on_fire, sonst keins). Bewusst NICHT aus activeBadgeId,
+          das veraltet sein kann. So passt das Badge immer zum echten Streak. */}
+      {(() => {
+        const cs = player.currentStreak ?? 0;
+        const sb = cs >= 7 ? 'damn_hot' : cs >= 4 ? 'on_fire' : null;
+        return sb ? (
+          <img src={`/overlays/badges/${sb}.webp`} alt="" onError={hideOnError}
+            className={`${overlay} z-0`} />
+        ) : null;
+      })()}
 
       {/* z-5: Shop-Hintergrund */}
       {shop.background && (
