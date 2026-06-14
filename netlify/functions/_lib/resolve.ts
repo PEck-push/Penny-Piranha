@@ -145,10 +145,10 @@ export async function resolveMarketAdmin(
         let rb = db.batch();
         let rn = 0;
         for (const d of playersSnap.docs) {
-          // Spieltag-Wechsel: matchdayNetGain nullen UND das temporäre
-          // Underdog-Badge entfernen (gilt nur bis zum nächsten Spieltag).
-          // dailyNetGain gehört dem Reveal-Screen und bleibt hier unberührt.
-          rb.update(d.ref, { matchdayNetGain: 0, underdogBadge: false });
+          // Spieltag-Wechsel: nur matchdayNetGain nullen. Das Underdog-Badge
+          // läuft jetzt zeitbasiert (24 h ab Sieg) und wird hier NICHT entfernt.
+          // dailyNetGain gehört dem Reveal-Screen und bleibt ebenfalls unberührt.
+          rb.update(d.ref, { matchdayNetGain: 0 });
           if (++rn >= 400) { await rb.commit(); rb = db.batch(); rn = 0; }
         }
         if (rn > 0) await rb.commit();
@@ -424,8 +424,8 @@ export async function resolveMarketAdmin(
         upd.bestStreak = Math.max(p.bestStreak ?? 0, newStreak);
         if (correct && isUnderdog) {
           upd.underdogCorrect = FieldValue.increment(1);
-          // Temporäres Underdog-Badge automatisch aktivieren (bis nächster Spieltag).
-          upd.underdogBadge = true;
+          // Underdog-Badge: Zeitstempel setzen → wird 24 h lang angezeigt.
+          upd.underdogBadgeAt = Date.now();
         }
 
         // Accessoires automatisch freischalten (rein kosmetisch, nicht auto-getragen).

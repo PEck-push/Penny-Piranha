@@ -197,9 +197,9 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
         <img src={`/overlays/accessories/${acc.hand}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-30`} />
       )}
-      {/* z-33: Underdog-Orden — temporäres Auto-Badge (bis zum nächsten Spieltag),
+      {/* z-33: Underdog-Orden — Auto-Badge für 24 h ab dem Außenseiter-Sieg,
           unabhängig vom getragenen Hand-Accessoire. */}
-      {player.underdogBadge && (
+      {!!player.underdogBadgeAt && (Date.now() - player.underdogBadgeAt) < 86_400_000 && (
         <img src="/overlays/accessories/underdog_medal.webp" alt="" onError={hideOnError}
           className={`${overlay} z-[33]`} />
       )}
