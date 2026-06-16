@@ -331,6 +331,8 @@ interface AppState {
   reopenMarket: (marketId: string) => Promise<void>;
   // Annahmeschluss (UTC ms) setzen oder mit null entfernen.
   setMarketBetClose: (marketId: string, betCloseAt: number | null) => Promise<void>;
+  // Preistopf (fixedPrize) einer Gratis-/Jackpot-Wette nachträglich setzen.
+  setFreeBetPrize: (marketId: string, fixedPrize: number) => Promise<void>;
   // Bestehende WM-Märkte ohne footballDataOrgId nachträglich mit der API-ID aus
   // dem Spielplan verknüpfen (Voraussetzung für die automatische Auflösung).
   linkWmMarketsToApi: () => Promise<{ linked: number; unmatched: number }>;
@@ -783,6 +785,21 @@ export const useStore = create<AppState>()((set, get) => {
           });
         } catch (err) {
           console.error('[Store] setMarketBetClose Fehler:', err);
+        }
+      }
+    },
+
+    // Preistopf (fixedPrize) einer Gratis-/Jackpot-Wette nachträglich ändern.
+    // Bei einsatzfreien Wetten ist das fair: niemand hat Token gesetzt, ein
+    // höherer Preis benachteiligt keinen. Nur bis zur Auflösung sinnvoll.
+    setFreeBetPrize: async (marketId, fixedPrize) => {
+      const prize = Math.max(0, Math.round(fixedPrize));
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, fixedPrize: prize } : mk) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), { fixedPrize: prize });
+        } catch (err) {
+          console.error('[Store] setFreeBetPrize Fehler:', err);
         }
       }
     },
