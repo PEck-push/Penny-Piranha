@@ -337,6 +337,9 @@ interface AppState {
   // Tagesgewinn (dailyNetGain) aller Spieler aus den aufgelösten Ergebnissen des
   // aktuellen US-Spieltags neu berechnen — repariert einen falschen Tagessieger.
   recomputeDailyGains: () => Promise<{ day: string | null; updated: number }>;
+  // Offene WM-Märkte ab dem 2. Spieltag auf die höheren Limits (min 20 /
+  // max 170 / Auto-Abzug 20) setzen.
+  applyMatchdayLimits: () => Promise<{ updated: number }>;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
@@ -862,6 +865,35 @@ export const useStore = create<AppState>()((set, get) => {
         }
       }
       return { day: targetKey, updated };
+    },
+
+    // Bestehende OFFENE WM-Märkte ab dem 2. Spieltag auf die höheren Limits
+    // setzen (min 20 / max 170 / Auto-Abzug 20). Der Spieltag kommt aus dem
+    // Spielplan (matchId → schedule.matchday). Nur offene Märkte: bei bereits
+    // gesperrten ist die Wettannahme zu und der Auto-Abzug schon gelaufen.
+    applyMatchdayLimits: async () => {
+      const { markets, schedule } = get();
+      const mdByMatchId = new Map<string, number | undefined>(
+        schedule.map(s => [s.matchId, s.matchday]),
+      );
+      let updated = 0;
+      for (const m of markets) {
+        if (m.marketSubtype !== 'wm-match' || m.status !== 'open') continue;
+        const md = m.matchId ? mdByMatchId.get(m.matchId) : undefined;
+        if (!md || md < 2) continue;
+        if (m.minBet === 20 && m.maxBet === 170 && m.autoDeductAmount === 20) continue; // schon gesetzt
+        set(s => ({ markets: s.markets.map(mk => mk.id === m.id
+          ? { ...mk, minBet: 20, maxBet: 170, autoDeductAmount: 20 } : mk) }));
+        if (db) {
+          try {
+            await updateDoc(doc(db, 'markets', m.id), { minBet: 20, maxBet: 170, autoDeductAmount: 20 });
+            updated++;
+          } catch (err) {
+            console.error('[Store] applyMatchdayLimits Fehler:', err);
+          }
+        }
+      }
+      return { updated };
     },
 
     giveTokens: async (playerId, amount) => {

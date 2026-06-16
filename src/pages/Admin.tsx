@@ -187,6 +187,7 @@ export default function Admin() {
   const setMarketBetClose = useStore(s => s.setMarketBetClose);
   const linkWmMarketsToApi = useStore(s => s.linkWmMarketsToApi);
   const recomputeDailyGains = useStore(s => s.recomputeDailyGains);
+  const applyMatchdayLimits = useStore(s => s.applyMatchdayLimits);
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
@@ -590,7 +591,7 @@ export default function Admin() {
   // aus der Phase (Plan §2), Teamnamen werden auf Deutsch übersetzt.
   const buildWmMarket = (match: ScheduleMatch) => {
     const phase = (match.phase as Phase) || 'gruppenphase';
-    const limits = getLimits(phase);
+    const limits = getLimits(phase, match.matchday);
     const a = deName(match.teamA);
     const b = deName(match.teamB);
     return {
@@ -672,6 +673,18 @@ export default function Admin() {
         : `Tagesgewinn für ${day} (US) neu berechnet — ${updated} Spieler aktualisiert.`,
     );
     setTimeout(() => setRecomputeMsg(''), 8000);
+  };
+  // Einsatzlimits ab Spieltag 2 (min 20 / max 170 / Abzug 20) auf offene Märkte.
+  const [mdLimitMsg, setMdLimitMsg] = useState('');
+  const handleApplyMatchdayLimits = async () => {
+    setMdLimitMsg('Setze Limits…');
+    const { updated } = await applyMatchdayLimits();
+    setMdLimitMsg(
+      updated === 0
+        ? 'Keine offenen Spieltag-2+-Märkte zum Aktualisieren gefunden (evtl. schon gesetzt).'
+        : `${updated} Märkte ab Spieltag 2 auf min 20 / max 170 / Abzug 20 gesetzt.`,
+    );
+    setTimeout(() => setMdLimitMsg(''), 8000);
   };
   // Anzahl WM-Märkte, denen die API-ID noch fehlt (für Button-Hinweis).
   const unlinkedWmCount = markets.filter(
@@ -1342,6 +1355,19 @@ export default function Admin() {
                 (z. B. weil ein Spieltag über zwei europäische Kalendertage lief). Rein kosmetisch — Tokens bleiben unberührt.
               </div>
               {recomputeMsg && <div className="mt-2 text-[11px] font-bold text-yellow">{recomputeMsg}</div>}
+
+              {/* Spieltag-2-Limits anwenden */}
+              <button
+                onClick={handleApplyMatchdayLimits}
+                className="mt-3 w-full p-3 border rounded-xl bg-transparent border-blue2/40 text-blue2 font-sans text-[13px] font-black cursor-pointer hover:bg-blue/10 transition-all">
+                ⬆️ Einsatzlimits ab Spieltag 2 anwenden (min 20 / max 170)
+              </button>
+              <div className="mt-2 text-[10px] text-muted leading-snug">
+                Setzt bei allen <b>offenen</b> WM-Märkten ab dem <b>2. Spieltag</b> die höheren Limits:
+                Mindesteinsatz <b>20</b>, Maximaleinsatz <b>170</b>, Auto-Abzug bei fehlender Wette <b>20</b>.
+                Neue Märkte ab Spieltag 2 bekommen diese Limits automatisch.
+              </div>
+              {mdLimitMsg && <div className="mt-2 text-[11px] font-bold text-blue2">{mdLimitMsg}</div>}
             </div>
           </div>
 

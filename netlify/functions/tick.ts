@@ -58,7 +58,11 @@ export default async (req: Request) => {
       if (marketByMatch.has(matchId)) continue;
       if (typeof match.kickoffAt !== 'number') continue;
 
-      const limits = PHASE_LIMITS[match.phase as string] ?? PHASE_LIMITS.gruppenphase;
+      // Gruppenphase: ab dem 2. Spieltag höhere Limits (min 20 / max 170 / Abzug 20).
+      const baseLimits = PHASE_LIMITS[match.phase as string] ?? PHASE_LIMITS.gruppenphase;
+      const limits = (match.phase ?? 'gruppenphase') === 'gruppenphase' && (match.matchday ?? 1) >= 2
+        ? { minBet: 20, maxBet: 170, autoDeduct: 20 }
+        : baseLimits;
       const marketRef = db.collection('markets').doc();
       await marketRef.set({
         question: `${match.teamA} vs. ${match.teamB}`,

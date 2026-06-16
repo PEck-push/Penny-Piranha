@@ -33,7 +33,15 @@ export const PHASE_LABELS: Record<Phase, string> = {
   finale:            'Finale',
 };
 
-export const getLimits = (phase: Phase): PhaseLimits => PHASE_LIMITS[phase];
+// Einsatzlimits einer Phase. In der Gruppenphase steigen die Limits ab dem
+// 2. Spieltag (mehr Impact pro Spiel): min 20 / max 170 / Auto-Abzug 20.
+// Spieltag 1 bleibt bei min 10 / max 100 / Auto-Abzug 10.
+export const getLimits = (phase: Phase, matchday?: number): PhaseLimits => {
+  if (phase === 'gruppenphase' && (matchday ?? 1) >= 2) {
+    return { minBet: 20, maxBet: 170, autoDeduct: 20 };
+  }
+  return PHASE_LIMITS[phase];
+};
 
 // Überlebensmodus: Spieler kann nicht alle heute offenen Spiele zum normalen
 // Mindesteinsatz abdecken. Dann fällt das Minimum auf 1 Credit und er darf
