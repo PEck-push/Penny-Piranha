@@ -909,9 +909,12 @@ export default function Dashboard() {
       const ids = [p.activeAccessories?.head, p.activeAccessories?.hand, p.activeAccessories?.torso]
         .filter(Boolean) as string[];
       const items = ids.map(id => ACCESSORY_BY_ID[id]).filter(Boolean);
-      if (items.length === 0) return null;
+      // Underdog-Orden nur 24 h ab Sieg (aus underdogBadgeAt) — nicht dauerhaft.
+      const showUnderdog = !!p.underdogBadgeAt && (Date.now() - p.underdogBadgeAt) < 86_400_000;
+      if (items.length === 0 && !showUnderdog) return null;
       return (
         <span className="flex items-center gap-0.5 shrink-0">
+          {showUnderdog && <span title="Underdog-Sieg (24 h)" className="text-[12px] leading-none">🥇</span>}
           {items.map((a, i) => <span key={i} title={a.label} className="text-[12px] leading-none">{a.icon}</span>)}
         </span>
       );

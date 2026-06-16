@@ -27,7 +27,9 @@ export const ACCESSORIES: Accessory[] = [
   // ── Kopf ──
   { id: 'alpenmuetze', label: 'Alpenmütze',    slot: 'head', icon: '🧢', desc: 'Sieger im Österreich-Block', block: 'austria' },
   // ── Hand ──
-  { id: 'underdog_medal', label: 'Underdog-Orden', slot: 'hand', icon: '🥇', desc: 'Underdog-Sieg (Außenseiter-Tipp)' },
+  // Der Underdog-Orden ist KEIN dauerhaft tragbares Accessoire mehr: Er erscheint
+  // nach einem Außenseiter-Sieg 24 h lang automatisch (player.underdogBadgeAt) —
+  // siehe CharacterAvatar (Avatar) und Dashboard accIcons (Leaderboard).
 ];
 
 export const ACCESSORY_BY_ID: Record<string, Accessory> =
