@@ -356,6 +356,8 @@ interface AppState {
   // Admin: nur das Login-Passwort eines Spielers neu setzen (Auth), ohne
   // jegliche Änderung an Account/Fortschritt. Liefert Erfolg/Fehler zurück.
   setPlayerPassword: (playerId: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
+  // Admin: negative Token-Guthaben (Alt-Bug Doppel-Abzug) auf 0 korrigieren.
+  fixNegativeBalances: () => Promise<{ ok: boolean; fixed?: number; restored?: number; error?: string }>;
   awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
   simulateReveal: (net: number) => Promise<void>;
   // ─── Shop ───────────────────────────────────────────────────────────────────
@@ -1072,6 +1074,25 @@ export const useStore = create<AppState>()((set, get) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
         return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
+      }
+    },
+
+    // Negative Token-Guthaben (Alt-Bug) serverseitig auf 0 korrigieren.
+    fixNegativeBalances: async () => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Kein Admin-Token.' };
+        const res = await fetch('/.netlify/functions/admin-fix-negatives', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+        // Optimistisch lokale Negativwerte auf 0 ziehen.
+        set(s => ({ players: s.players.map(p => (p.tokens ?? 0) < 0 ? { ...p, tokens: 0 } : p) }));
+        return { ok: true, fixed: (data as any)?.fixed ?? 0, restored: (data as any)?.restored ?? 0 };
       } catch (err: any) {
         return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
       }

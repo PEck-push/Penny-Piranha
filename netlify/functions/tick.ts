@@ -152,6 +152,10 @@ export default async (req: Request) => {
 
   const playersSnap = await db.collection('players').get();
   const players = playersSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  // Laufendes Restguthaben pro Spieler über ALLE in diesem Tick sperrenden
+  // Märkte hinweg. Verhindert Mehrfach-Abzug vom selben (veralteten) Snapshot,
+  // wenn mehrere Spiele gleichzeitig sperren → keine negativen Guthaben mehr.
+  const remaining = new Map<string, number>(players.map(p => [p.id, p.tokens ?? 0]));
 
   for (const marketDoc of toLock) {
     const market = marketDoc.data() as any;
@@ -186,10 +190,11 @@ export default async (req: Request) => {
 
     for (const player of players) {
       if (bettorIds.has(player.id)) continue;
-      const tokens = player.tokens ?? 0;
+      const tokens = remaining.get(player.id) ?? 0;
       if (tokens <= 0) continue;
       const amount = Math.min(tokens, autoDeduct);
       if (amount <= 0) continue;
+      remaining.set(player.id, tokens - amount); // Restguthaben für weitere Märkte dieses Ticks
 
       batch.update(db.collection('players').doc(player.id), { tokens: FieldValue.increment(-amount) });
       jackpotGain += amount;
