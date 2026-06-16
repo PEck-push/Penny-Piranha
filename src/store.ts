@@ -345,6 +345,9 @@ interface AppState {
   setJackpot: (value: number) => Promise<void>;
   setActiveAccessory: (slot: 'head' | 'hand' | 'torso', accessoryId: string | null) => Promise<void>;
   grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
+  // Admin: nur das Login-Passwort eines Spielers neu setzen (Auth), ohne
+  // jegliche Änderung an Account/Fortschritt. Liefert Erfolg/Fehler zurück.
+  setPlayerPassword: (playerId: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
   awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
   simulateReveal: (net: number) => Promise<void>;
   // ─── Shop ───────────────────────────────────────────────────────────────────
@@ -1001,6 +1004,26 @@ export const useStore = create<AppState>()((set, get) => {
             : p),
         }));
       } catch (err) { console.error('[Store] grantAccessory Fehler:', err); }
+    },
+
+    // Admin: nur das Login-Passwort eines Spielers neu setzen. Greift NICHT in
+    // den lokalen State ein (Passwort ist kein State) und ändert serverseitig
+    // ausschließlich das Auth-Passwort — kein Touch an Tokens/Fortschritt/UID.
+    setPlayerPassword: async (playerId, newPassword) => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Kein Admin-Token.' };
+        const res = await fetch('/.netlify/functions/admin-set-password', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, newPassword }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+        return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
+      }
     },
 
     // Block-Sieger küren: Spieler mit den meisten richtigen Tipps im jeweiligen
