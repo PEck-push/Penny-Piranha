@@ -175,6 +175,8 @@ export default function Admin() {
   const [simMsg, setSimMsg] = useState('');
   // Entwurfswerte (YYYY-MM-DDTHH:mm) der Annahmeschluss-Eingaben je Markt.
   const [betCloseDraft, setBetCloseDraft] = useState<Record<string, string>>({});
+  // Entwurfswerte (Preistopf) der Gratis-Wetten je Markt.
+  const [prizeDraft, setPrizeDraft] = useState<Record<string, string>>({});
 
   const markets = useStore(s => s.markets);
   const answers = useStore(s => s.answers);
@@ -185,6 +187,7 @@ export default function Admin() {
   const pauseMarket = useStore(s => s.pauseMarket);
   const reopenMarket = useStore(s => s.reopenMarket);
   const setMarketBetClose = useStore(s => s.setMarketBetClose);
+  const updateFreeBetPrize = useStore(s => s.setFreeBetPrize);
   const linkWmMarketsToApi = useStore(s => s.linkWmMarketsToApi);
   const recomputeDailyGains = useStore(s => s.recomputeDailyGains);
   const applyMatchdayLimits = useStore(s => s.applyMatchdayLimits);
@@ -1790,6 +1793,28 @@ export default function Admin() {
                     {typeof m.betCloseAt === 'number' && (
                       <span className="text-[9px] text-green/80 font-bold w-full">aktiv ab {toLocalInput(m.betCloseAt).replace('T', ' · ')} Uhr → sperrt automatisch</span>
                     )}
+                  </div>
+                )}
+                {/* Preistopf (nur Gratis-/Jackpot-Wetten) — nachträglich änderbar */}
+                {m.noStake && (m.status === 'open' || m.status === 'locked' || m.status === 'paused') && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-white/5">
+                    <span className="text-[10px] font-black text-muted">🏆 Preistopf:</span>
+                    <span className="text-[10px] font-bold text-yellow">{m.fixedPrize ?? 0} TKN</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={prizeDraft[m.id] ?? ''}
+                      onChange={e => setPrizeDraft(d => ({ ...d, [m.id]: e.target.value }))}
+                      placeholder="neu…"
+                      className="text-[10px] bg-input border border-white/10 rounded-lg px-2 py-1.5 text-white font-sans w-[80px]" />
+                    <button
+                      onClick={() => {
+                        const v = parseInt(prizeDraft[m.id] ?? '', 10);
+                        if (!Number.isFinite(v) || v < 0) return;
+                        updateFreeBetPrize(m.id, v);
+                        setPrizeDraft(d => { const n = { ...d }; delete n[m.id]; return n; });
+                      }}
+                      className="text-[10px] font-black rounded-lg px-2.5 py-1.5 border cursor-pointer bg-transparent font-sans text-yellow border-yellow/35 hover:bg-yellow/10">✓ Setzen</button>
                   </div>
                 )}
                 {(m.status === 'open' || m.status === 'locked') && (
