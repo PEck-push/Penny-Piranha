@@ -190,7 +190,7 @@ export default function Admin() {
   const updateFreeBetPrize = useStore(s => s.setFreeBetPrize);
   const linkWmMarketsToApi = useStore(s => s.linkWmMarketsToApi);
   const recomputeDailyGains = useStore(s => s.recomputeDailyGains);
-  const applyMatchdayLimits = useStore(s => s.applyMatchdayLimits);
+  const applyLimitsFromMatch = useStore(s => s.applyLimitsFromMatch);
   const giveTokens = useStore(s => s.giveTokens);
   const executeBuyback = useStore(s => s.executeBuyback);
   const liveSchedule = useStore(s => s.schedule);
@@ -677,17 +677,19 @@ export default function Admin() {
     );
     setTimeout(() => setRecomputeMsg(''), 8000);
   };
-  // Einsatzlimits ab Spieltag 2 (min 20 / max 170 / Abzug 20) auf offene Märkte.
+  // Höhere Limits ab einem Grenz-Spiel (kickoff-basiert). Davor → Standard.
   const [mdLimitMsg, setMdLimitMsg] = useState('');
-  const handleApplyMatchdayLimits = async () => {
+  const [limitCutoffId, setLimitCutoffId] = useState('');
+  // Offene WM-Spiele, nach Anpfiff sortiert (Auswahl des Grenz-Spiels).
+  const openWmMarkets = markets
+    .filter(m => m.marketSubtype === 'wm-match' && m.status === 'open' && typeof m.kickoffAt === 'number')
+    .sort((a, b) => (a.kickoffAt ?? 0) - (b.kickoffAt ?? 0));
+  const handleApplyLimits = async () => {
+    if (!limitCutoffId) return;
     setMdLimitMsg('Setze Limits…');
-    const { updated } = await applyMatchdayLimits();
-    setMdLimitMsg(
-      updated === 0
-        ? 'Keine offenen WM-Spiele zum Aktualisieren (evtl. schon auf 20/170/20).'
-        : `${updated} offene WM-Spiele auf min 20 / max 170 / Abzug 20 gesetzt.`,
-    );
-    setTimeout(() => setMdLimitMsg(''), 8000);
+    const { high, standard } = await applyLimitsFromMatch(limitCutoffId);
+    setMdLimitMsg(`Ab Grenz-Spiel: ${high} Spiele auf 20/170/20, ${standard} davor auf Standard 10/100/10 zurückgesetzt.`);
+    setTimeout(() => setMdLimitMsg(''), 9000);
   };
   // Anzahl WM-Märkte, denen die API-ID noch fehlt (für Button-Hinweis).
   const unlinkedWmCount = markets.filter(
@@ -1360,15 +1362,27 @@ export default function Admin() {
               {recomputeMsg && <div className="mt-2 text-[11px] font-bold text-yellow">{recomputeMsg}</div>}
 
               {/* Spieltag-2-Limits anwenden */}
-              <button
-                onClick={handleApplyMatchdayLimits}
-                className="mt-3 w-full p-3 border rounded-xl bg-transparent border-blue2/40 text-blue2 font-sans text-[13px] font-black cursor-pointer hover:bg-blue/10 transition-all">
-                ⬆️ Höhere Limits auf offene WM-Spiele (min 20 / max 170)
-              </button>
+              <div className="mt-3 flex flex-col gap-2">
+                <select value={limitCutoffId} onChange={e => { setLimitCutoffId(e.target.value); setMdLimitMsg(''); }}
+                  className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-blue2/60">
+                  <option value="">Grenz-Spiel wählen (erstes Spiel mit hohen Limits)…</option>
+                  {openWmMarkets.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {toLocalInput(m.kickoffAt).slice(5).replace('T', ' ')} · {m.teamA} vs {m.teamB}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleApplyLimits}
+                  disabled={!limitCutoffId}
+                  className="w-full p-3 border rounded-xl bg-transparent border-blue2/40 text-blue2 font-sans text-[13px] font-black cursor-pointer hover:bg-blue/10 transition-all disabled:opacity-40">
+                  ⬆️ Hohe Limits ab diesem Spiel (20/170/20)
+                </button>
+              </div>
               <div className="mt-2 text-[10px] text-muted leading-snug">
-                Setzt bei <b>allen offenen</b> WM-Spielen die höheren Limits: Mindesteinsatz <b>20</b>,
-                Maximaleinsatz <b>170</b>, Auto-Abzug bei fehlender Wette <b>20</b>. (Spieltag 1 ist bereits
-                aufgelöst, daher sind alle offenen Spiele aktuell.) Auf jetzt geöffnete Märkte einmal anwenden.
+                Setzt ab dem gewählten Spiel (per Anpfiffzeit) die höheren Limits <b>20 / 170 / Abzug 20</b>.
+                Alle offenen WM-Spiele <b>davor</b> bleiben/werden auf Standard <b>10 / 100 / Abzug 10</b> zurückgesetzt.
+                Für Spieltag 2 also <b>Tschechien vs Südafrika</b> als Grenz-Spiel wählen.
               </div>
               {mdLimitMsg && <div className="mt-2 text-[11px] font-bold text-blue2">{mdLimitMsg}</div>}
             </div>

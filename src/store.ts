@@ -341,7 +341,10 @@ interface AppState {
   recomputeDailyGains: () => Promise<{ day: string | null; updated: number }>;
   // Offene WM-Märkte ab dem 2. Spieltag auf die höheren Limits (min 20 /
   // max 170 / Auto-Abzug 20) setzen.
-  applyMatchdayLimits: () => Promise<{ updated: number }>;
+  // Höhere Limits (20/170/20) ab dem Anpfiff eines Grenz-Spiels setzen; alle
+  // offenen WM-Spiele DAVOR auf Standard (10/100/10) zurück. Zuverlässig über
+  // kickoffAt statt schedule.matchday.
+  applyLimitsFromMatch: (cutoffMarketId: string) => Promise<{ high: number; standard: number }>;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
@@ -884,29 +887,32 @@ export const useStore = create<AppState>()((set, get) => {
       return { day: targetKey, updated };
     },
 
-    // Höhere Limits (min 20 / max 170 / Auto-Abzug 20) auf alle OFFENEN
-    // WM-Spiele setzen. Bewusst KEINE Spieltag-Erkennung über schedule.matchday
-    // (aus dem API-Import oft nicht gesetzt) — Spieltag 1 ist ohnehin schon
-    // aufgelöst, also sind alle offenen WM-Märkte aktuell/ab Spieltag 2. Nur
-    // offene Märkte: bei gesperrten ist die Wettannahme zu und der Auto-Abzug gelaufen.
-    applyMatchdayLimits: async () => {
+    // Höhere Limits (20/170/20) ab dem Anpfiff des Grenz-Spiels (cutoffMarketId);
+    // alle offenen WM-Spiele DAVOR werden auf Standard (10/100/10) zurückgesetzt.
+    // Über kickoffAt (zuverlässig), nicht über schedule.matchday. Nur offene
+    // Märkte: bei gesperrten ist die Wettannahme zu und der Auto-Abzug gelaufen.
+    applyLimitsFromMatch: async (cutoffMarketId) => {
       const { markets } = get();
-      let updated = 0;
+      const cutoff = markets.find(m => m.id === cutoffMarketId)?.kickoffAt;
+      if (typeof cutoff !== 'number') return { high: 0, standard: 0 };
+      let high = 0, standard = 0;
       for (const m of markets) {
-        if (m.marketSubtype !== 'wm-match' || m.status !== 'open') continue;
-        if (m.minBet === 20 && m.maxBet === 170 && m.autoDeductAmount === 20) continue; // schon gesetzt
-        set(s => ({ markets: s.markets.map(mk => mk.id === m.id
-          ? { ...mk, minBet: 20, maxBet: 170, autoDeductAmount: 20 } : mk) }));
+        if (m.marketSubtype !== 'wm-match' || m.status !== 'open' || typeof m.kickoffAt !== 'number') continue;
+        const t = m.kickoffAt >= cutoff
+          ? { minBet: 20, maxBet: 170, autoDeductAmount: 20 }
+          : { minBet: 10, maxBet: 100, autoDeductAmount: 10 };
+        if (m.minBet === t.minBet && m.maxBet === t.maxBet && m.autoDeductAmount === t.autoDeductAmount) continue;
+        set(s => ({ markets: s.markets.map(mk => mk.id === m.id ? { ...mk, ...t } : mk) }));
         if (db) {
           try {
-            await updateDoc(doc(db, 'markets', m.id), { minBet: 20, maxBet: 170, autoDeductAmount: 20 });
-            updated++;
+            await updateDoc(doc(db, 'markets', m.id), t);
+            if (m.kickoffAt >= cutoff) high++; else standard++;
           } catch (err) {
-            console.error('[Store] applyMatchdayLimits Fehler:', err);
+            console.error('[Store] applyLimitsFromMatch Fehler:', err);
           }
         }
       }
-      return { updated };
+      return { high, standard };
     },
 
     giveTokens: async (playerId, amount) => {
