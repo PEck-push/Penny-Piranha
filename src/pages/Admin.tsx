@@ -684,8 +684,8 @@ export default function Admin() {
     const { updated } = await applyMatchdayLimits();
     setMdLimitMsg(
       updated === 0
-        ? 'Keine offenen Spieltag-2+-Märkte zum Aktualisieren gefunden (evtl. schon gesetzt).'
-        : `${updated} Märkte ab Spieltag 2 auf min 20 / max 170 / Abzug 20 gesetzt.`,
+        ? 'Keine offenen WM-Spiele zum Aktualisieren (evtl. schon auf 20/170/20).'
+        : `${updated} offene WM-Spiele auf min 20 / max 170 / Abzug 20 gesetzt.`,
     );
     setTimeout(() => setMdLimitMsg(''), 8000);
   };
@@ -1363,12 +1363,12 @@ export default function Admin() {
               <button
                 onClick={handleApplyMatchdayLimits}
                 className="mt-3 w-full p-3 border rounded-xl bg-transparent border-blue2/40 text-blue2 font-sans text-[13px] font-black cursor-pointer hover:bg-blue/10 transition-all">
-                ⬆️ Einsatzlimits ab Spieltag 2 anwenden (min 20 / max 170)
+                ⬆️ Höhere Limits auf offene WM-Spiele (min 20 / max 170)
               </button>
               <div className="mt-2 text-[10px] text-muted leading-snug">
-                Setzt bei allen <b>offenen</b> WM-Märkten ab dem <b>2. Spieltag</b> die höheren Limits:
-                Mindesteinsatz <b>20</b>, Maximaleinsatz <b>170</b>, Auto-Abzug bei fehlender Wette <b>20</b>.
-                Neue Märkte ab Spieltag 2 bekommen diese Limits automatisch.
+                Setzt bei <b>allen offenen</b> WM-Spielen die höheren Limits: Mindesteinsatz <b>20</b>,
+                Maximaleinsatz <b>170</b>, Auto-Abzug bei fehlender Wette <b>20</b>. (Spieltag 1 ist bereits
+                aufgelöst, daher sind alle offenen Spiele aktuell.) Auf jetzt geöffnete Märkte einmal anwenden.
               </div>
               {mdLimitMsg && <div className="mt-2 text-[11px] font-bold text-blue2">{mdLimitMsg}</div>}
             </div>
