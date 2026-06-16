@@ -192,8 +192,9 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {shop.hand && (
         <img src={shopSrc(shop.hand)} alt="" onError={hideOnError} className={`${overlay} z-[28]`} />
       )}
-      {/* z-30: Hand-Accessoire */}
-      {acc.hand && (
+      {/* z-30: Hand-Accessoire. underdog_medal ist hier ausgenommen — es ist kein
+          dauerhaftes Accessoire mehr, sondern läuft als 24-h-Auto-Badge (z-33). */}
+      {acc.hand && acc.hand !== 'underdog_medal' && (
         <img src={`/overlays/accessories/${acc.hand}.webp`} alt="" onError={hideOnError}
           className={`${overlay} z-30`} />
       )}

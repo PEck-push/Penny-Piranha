@@ -431,7 +431,8 @@ export async function resolveMarketAdmin(
         // Accessoires automatisch freischalten (rein kosmetisch, nicht auto-getragen).
         const accessoryAdds: string[] = [];
         if (correct && newStreak === 4) accessoryAdds.push('flames');        // Kopf: Flammen
-        if (correct && isUnderdog)      accessoryAdds.push('underdog_medal'); // Hand: Underdog-Orden
+        // Underdog: KEIN dauerhaftes Accessoire mehr — nur das 24-h-Auto-Badge
+        // (underdogBadgeAt, oben gesetzt).
 
         const allOverlayAdds = [...overlayAdds, ...accessoryAdds];
         if (allOverlayAdds.length > 0) upd.unlockedOverlays = FieldValue.arrayUnion(...allOverlayAdds);
