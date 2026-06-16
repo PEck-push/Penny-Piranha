@@ -99,6 +99,11 @@ export default function Admin() {
   const [accPlayer, setAccPlayer] = useState('');
   const [accId, setAccId] = useState('');
   const [accMsg, setAccMsg] = useState('');
+  // Passwort setzen (Admin)
+  const [pwPlayer, setPwPlayer] = useState('');
+  const [pwValue, setPwValue] = useState('');
+  const [pwMsg, setPwMsg] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
   // Shop-Verwaltung
   const [shopMsg, setShopMsg] = useState('');
   const [shopFormOpen, setShopFormOpen] = useState(false);
@@ -190,6 +195,7 @@ export default function Admin() {
   const createTestPlayer = useStore(s => s.createTestPlayer);
   const autoBetTestPlayers = useStore(s => s.autoBetTestPlayers);
   const grantAccessory = useStore(s => s.grantAccessory);
+  const setPlayerPassword = useStore(s => s.setPlayerPassword);
   const awardBlockWinner = useStore(s => s.awardBlockWinner);
   const shopItems       = useStore(s => s.shopItems);
   const createShopItem  = useStore(s => s.createShopItem);
@@ -2099,6 +2105,51 @@ export default function Admin() {
                 className="w-full p-2.5 rounded-xl bg-yellow/20 border border-yellow/40 text-yellow text-[12px] font-black disabled:opacity-40">
                 🎁 Freischalten
               </button>
+            </div>
+          </div>
+
+          {/* ── PASSWORT SETZEN ─────────────────────────────────── */}
+          <div className="bg-card border border-blue2/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🔑</span>
+              <div className="text-[11px] font-black text-blue2 tracking-[0.15em] uppercase">Passwort setzen</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3 leading-relaxed">
+              Setzt <b>nur</b> das Login-Passwort des Spielers neu. <b>Account, Tokens, Tipps und Fortschritt
+              bleiben unverändert</b> (gleiche UID). Danach kann sich der Spieler mit seiner E-Mail + dem neuen
+              Passwort einloggen. Min. 6 Zeichen.
+            </div>
+            <div className="flex flex-col gap-2">
+              <select value={pwPlayer} onChange={e => { setPwPlayer(e.target.value); setPwMsg(''); }}
+                className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-blue2/60">
+                <option value="">Spieler wählen…</option>
+                {[...players].filter(p => !p.isTestPlayer).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+                  .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input
+                type="text"
+                value={pwValue}
+                onChange={e => setPwValue(e.target.value)}
+                placeholder="Neues Passwort (min. 6 Zeichen)"
+                className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-blue2/60 font-mono"
+              />
+              <button
+                onClick={async () => {
+                  if (!pwPlayer || pwValue.length < 6 || pwBusy) return;
+                  setPwBusy(true);
+                  setPwMsg('Setze Passwort…');
+                  const { ok, error } = await setPlayerPassword(pwPlayer, pwValue);
+                  const pName = players.find(p => p.id === pwPlayer)?.name ?? '?';
+                  setPwMsg(ok ? `✓ Neues Passwort für ${pName} gesetzt.` : `✗ ${error ?? 'Fehlgeschlagen.'}`);
+                  if (ok) setPwValue('');
+                  setPwBusy(false);
+                  setTimeout(() => setPwMsg(''), 6000);
+                }}
+                disabled={!pwPlayer || pwValue.length < 6 || pwBusy}
+                className="w-full p-2.5 rounded-xl bg-blue/20 border border-blue2/40 text-blue2 text-[12px] font-black disabled:opacity-40">
+                🔑 Passwort setzen
+              </button>
+              {pwMsg && <div className="text-[11px] font-bold text-blue2">{pwMsg}</div>}
             </div>
           </div>
 
