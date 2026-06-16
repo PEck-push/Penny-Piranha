@@ -884,20 +884,16 @@ export const useStore = create<AppState>()((set, get) => {
       return { day: targetKey, updated };
     },
 
-    // Bestehende OFFENE WM-Märkte ab dem 2. Spieltag auf die höheren Limits
-    // setzen (min 20 / max 170 / Auto-Abzug 20). Der Spieltag kommt aus dem
-    // Spielplan (matchId → schedule.matchday). Nur offene Märkte: bei bereits
-    // gesperrten ist die Wettannahme zu und der Auto-Abzug schon gelaufen.
+    // Höhere Limits (min 20 / max 170 / Auto-Abzug 20) auf alle OFFENEN
+    // WM-Spiele setzen. Bewusst KEINE Spieltag-Erkennung über schedule.matchday
+    // (aus dem API-Import oft nicht gesetzt) — Spieltag 1 ist ohnehin schon
+    // aufgelöst, also sind alle offenen WM-Märkte aktuell/ab Spieltag 2. Nur
+    // offene Märkte: bei gesperrten ist die Wettannahme zu und der Auto-Abzug gelaufen.
     applyMatchdayLimits: async () => {
-      const { markets, schedule } = get();
-      const mdByMatchId = new Map<string, number | undefined>(
-        schedule.map(s => [s.matchId, s.matchday]),
-      );
+      const { markets } = get();
       let updated = 0;
       for (const m of markets) {
         if (m.marketSubtype !== 'wm-match' || m.status !== 'open') continue;
-        const md = m.matchId ? mdByMatchId.get(m.matchId) : undefined;
-        if (!md || md < 2) continue;
         if (m.minBet === 20 && m.maxBet === 170 && m.autoDeductAmount === 20) continue; // schon gesetzt
         set(s => ({ markets: s.markets.map(mk => mk.id === m.id
           ? { ...mk, minBet: 20, maxBet: 170, autoDeductAmount: 20 } : mk) }));
