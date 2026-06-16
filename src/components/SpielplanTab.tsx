@@ -79,7 +79,11 @@ export default function SpielplanTab() {
   };
 
   const handleBet = (marketId: string, optionId: string, optionLabel: string) => {
-    if (!me || me.tokens < betAmount) return;
+    if (!me) return;
+    // Beim Ändern zählt der bisherige Einsatz zum Budget (wird refundiert) —
+    // sonst lässt sich ein Tipp bei 0 freiem Guthaben nicht reduzieren.
+    const budget = me.tokens + (isChangingBet && selectedMyBet ? selectedMyBet.amount : 0);
+    if (budget < betAmount) return;
     setConfirmBet({ marketId, optionId, optionLabel, amount: betAmount, isChange: isChangingBet });
   };
 
@@ -104,6 +108,11 @@ export default function SpielplanTab() {
   };
 
   if (!me) return null;
+
+  // Beim Ändern einer Wette wird der bestehende Einsatz erstattet → verfügbares
+  // Budget = freie Token + bisheriger Einsatz dieser Wette. Ohne das klebte der
+  // Slider bei 0 Guthaben fest, und man konnte einen Tipp nicht reduzieren.
+  const changeBudget = me.tokens + (isChangingBet && selectedMyBet ? selectedMyBet.amount : 0);
 
   const isFinished = (m: WmMatch) =>
     m.status === 'finished' || (m.scoreA != null && m.scoreB != null);
@@ -570,19 +579,28 @@ export default function SpielplanTab() {
                     <span className="text-[11px] font-black text-muted uppercase tracking-[0.1em]">Dein Einsatz</span>
                     <span className="font-mono text-[18px] font-bold text-yellow">{betAmount} <span className="text-[13px] text-muted">TKN</span></span>
                   </div>
-                  <input
-                    type="range"
-                    min={selectedMarket.minBet ?? 10}
-                    max={selectedMarket.maxBet && selectedMarket.maxBet > 0
-                      ? Math.min(selectedMarket.maxBet, me.tokens)
-                      : Math.min(500, me.tokens)}
-                    value={Math.min(betAmount, me.tokens)}
-                    onChange={e => setBetAmount(parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-input rounded-full appearance-none outline-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-blue [&::-webkit-slider-thumb]:to-purple [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg"
-                  />
+                  {(() => {
+                    // Budget = freie Token + (beim Ändern) bisheriger Einsatz. Max hart
+                    // aufs Budget gedeckelt; Min nie über Max (sonst eingefrorener Regler).
+                    const cap = selectedMarket.maxBet && selectedMarket.maxBet > 0
+                      ? Math.min(selectedMarket.maxBet, changeBudget)
+                      : Math.min(500, changeBudget);
+                    const sMin = Math.min(selectedMarket.minBet ?? 10, cap);
+                    const sVal = Math.min(Math.max(betAmount, sMin), cap);
+                    return (
+                      <input
+                        type="range"
+                        min={sMin}
+                        max={cap}
+                        value={sVal}
+                        onChange={e => setBetAmount(parseInt(e.target.value))}
+                        className="w-full h-1.5 bg-input rounded-full appearance-none outline-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:bg-gradient-to-br [&::-webkit-slider-thumb]:from-blue [&::-webkit-slider-thumb]:to-purple [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-bg"
+                      />
+                    );
+                  })()}
                   <div className="flex justify-between text-[10px] text-muted/60 mt-1">
                     <span>Min {selectedMarket.minBet ?? 10}</span>
-                    <span>Guthaben: {me.tokens} TKN</span>
+                    <span>Verfügbar: {changeBudget} TKN</span>
                   </div>
                 </div>
 
@@ -602,7 +620,7 @@ export default function SpielplanTab() {
                       <button
                         key={opt.id}
                         onClick={() => handleBet(selectedMarket.id, opt.id, opt.label)}
-                        disabled={me.tokens < betAmount}
+                        disabled={changeBudget < betAmount}
                         className={clsx(
                           'rounded-[16px] border-2 py-3 px-2 flex flex-col items-center gap-1 transition-all hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer font-sans',
                           i === 0 ? 'bg-blue/15 border-blue2/60 text-blue2 hover:bg-blue/25' :
