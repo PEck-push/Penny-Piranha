@@ -358,6 +358,7 @@ interface AppState {
   setPlayerPassword: (playerId: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
   // Admin: negative Token-Guthaben (Alt-Bug Doppel-Abzug) auf 0 korrigieren.
   fixNegativeBalances: () => Promise<{ ok: boolean; fixed?: number; restored?: number; error?: string }>;
+  backfillBetActive: () => Promise<{ ok: boolean; total?: number; updated?: number; active?: number; inactive?: number; error?: string }>;
   awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
   simulateReveal: (net: number) => Promise<void>;
   // ─── Shop ───────────────────────────────────────────────────────────────────
@@ -1093,6 +1094,31 @@ export const useStore = create<AppState>()((set, get) => {
         // Optimistisch lokale Negativwerte auf 0 ziehen.
         set(s => ({ players: s.players.map(p => (p.tokens ?? 0) < 0 ? { ...p, tokens: 0 } : p) }));
         return { ok: true, fixed: (data as any)?.fixed ?? 0, restored: (data as any)?.restored ?? 0 };
+      } catch (err: any) {
+        return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
+      }
+    },
+
+    // Setzt das `active`-Flag an allen Tipps anhand des Markt-Status (Fundament
+    // für den künftig eingegrenzten bets-Listener). Reine Datenpflege, keine
+    // sichtbare Auswirkung — der Listener lädt weiterhin alle Tipps.
+    backfillBetActive: async () => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Kein Admin-Token.' };
+        const res = await fetch('/.netlify/functions/admin-backfill-bet-active', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+        return {
+          ok: true,
+          total: (data as any)?.total ?? 0,
+          updated: (data as any)?.updated ?? 0,
+          active: (data as any)?.active ?? 0,
+          inactive: (data as any)?.inactive ?? 0,
+        };
       } catch (err: any) {
         return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
       }

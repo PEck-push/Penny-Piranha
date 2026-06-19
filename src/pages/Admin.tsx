@@ -104,6 +104,7 @@ export default function Admin() {
   const [pwValue, setPwValue] = useState('');
   const [pwMsg, setPwMsg] = useState('');
   const [negMsg, setNegMsg] = useState('');
+  const [backfillMsg, setBackfillMsg] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
   // Shop-Verwaltung
   const [shopMsg, setShopMsg] = useState('');
@@ -202,6 +203,7 @@ export default function Admin() {
   const grantAccessory = useStore(s => s.grantAccessory);
   const setPlayerPassword = useStore(s => s.setPlayerPassword);
   const fixNegativeBalances = useStore(s => s.fixNegativeBalances);
+  const backfillBetActive = useStore(s => s.backfillBetActive);
   const awardBlockWinner = useStore(s => s.awardBlockWinner);
   const shopItems       = useStore(s => s.shopItems);
   const createShopItem  = useStore(s => s.createShopItem);
@@ -2244,6 +2246,32 @@ export default function Admin() {
               🩹 Negative Guthaben auf 0 setzen
             </button>
             {negMsg && <div className="mt-2 text-[11px] font-bold text-red">{negMsg}</div>}
+          </div>
+
+          {/* ── TIPP-AKTIV-MARKIERUNG (BACKFILL) ─────────────────── */}
+          <div className="bg-card border border-blue/25 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🏷️</span>
+              <div className="text-[11px] font-black text-blue tracking-[0.15em] uppercase">Tipp-Markierung (Lesevorgänge)</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3 leading-relaxed">
+              Markiert jeden Tipp als <b>aktiv</b> (Spiel läuft / offen) oder <b>inaktiv</b> (Spiel ausgewertet/storniert).
+              Reine Datenpflege im Hintergrund — <b>keine sichtbare Änderung</b>. Fundament, damit später nur noch
+              eigene + aktive Tipps geladen werden (weniger Lesevorgänge). Einmal nach dem Deploy ausführen.
+            </div>
+            <button
+              onClick={async () => {
+                setBackfillMsg('Markiere…');
+                const { ok, total, updated, active, inactive, error } = await backfillBetActive();
+                setBackfillMsg(ok
+                  ? `✓ ${updated}/${total} Tipps angepasst (aktiv: ${active}, inaktiv: ${inactive}).`
+                  : `✗ ${error ?? 'Fehlgeschlagen.'}`);
+                setTimeout(() => setBackfillMsg(''), 10000);
+              }}
+              className="w-full p-2.5 rounded-xl bg-blue/15 border border-blue/40 text-blue text-[12px] font-black">
+              🏷️ Tipps markieren (Backfill)
+            </button>
+            {backfillMsg && <div className="mt-2 text-[11px] font-bold text-blue">{backfillMsg}</div>}
           </div>
 
           {/* ── SHOP-VERWALTUNG ─────────────────────────────────── */}

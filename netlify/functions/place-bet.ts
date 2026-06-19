@@ -97,6 +97,9 @@ export default async (req: Request, _ctx: Context) => {
         optionLabel,
         amount,
         timestamp: now,
+        // Tipp eines noch offenen Markts → wird live geladen (Fundament für
+        // den künftig eingegrenzten bets-Listener). Bei Auflösung/Storno → false.
+        active: true,
       });
     });
 
