@@ -71,7 +71,9 @@ function formatScoreLine(s: ResolveScore): string {
 function persistBetPayouts(batch: FirebaseFirestore.WriteBatch, payoutsByBet: Map<string, number>) {
   const db = getDb();
   for (const [betId, payout] of payoutsByBet) {
-    batch.update(db.collection('bets').doc(betId), { payout });
+    // active:false → Markt ist ausgewertet, Tipp fällt aus dem (künftig
+    // eingegrenzten) Live-Listener heraus.
+    batch.update(db.collection('bets').doc(betId), { payout, active: false });
   }
 }
 
@@ -523,7 +525,7 @@ export async function rolloverMarketAdmin(marketId: string, by: 'auto' | 'admin'
         batch.update(db.collection('players').doc(String(b.playerId)), { tokens: FieldValue.increment(r) });
         refunded += r;
       }
-      batch.update(d.ref, { payout: r });
+      batch.update(d.ref, { payout: r, active: false });
     });
     batch.update(marketRef, {
       status: 'resolved', winningOptionId: null, resolutionType: 'rollover',
@@ -559,7 +561,7 @@ export async function stornoMarketAdmin(marketId: string, by: 'auto' | 'admin' =
       if ((b.amount || 0) > 0) {
         batch.update(db.collection('players').doc(String(b.playerId)), { tokens: FieldValue.increment(b.amount) });
       }
-      batch.update(d.ref, { payout: b.amount || 0 });
+      batch.update(d.ref, { payout: b.amount || 0, active: false });
     });
     batch.update(marketRef, {
       status: 'cancelled', resolutionType: 'storno',
