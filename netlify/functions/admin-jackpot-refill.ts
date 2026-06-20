@@ -33,11 +33,12 @@ export default async (req: Request, _ctx: Context) => {
   const db = getDb();
   try {
     const appRef = db.collection('appState').doc('global');
-    const [appSnap, feedSnap, marketsSnap, betsSnap] = await Promise.all([
+    const [appSnap, feedSnap, marketsSnap, betsSnap, autoSnap] = await Promise.all([
       appRef.get(),
       db.collection('feed').get(),
       db.collection('markets').get(),
       db.collection('bets').get(),
+      db.collection('autoDeductions').get(),
     ]);
 
     // Tipps nach Markt gruppieren (für die Underdog-/Combo-Rekonstruktion).
@@ -49,13 +50,27 @@ export default async (req: Request, _ctx: Context) => {
       betsByMarket.set(String(b.marketId), arr);
     });
 
-    // 1) Streak-Boni aus dem Feed summieren.
+    // ── Zuflüsse (Info): woraus ist der Jackpot historisch gewachsen? ──────────
+    // 1) Nicht getippte Spiele: Auto-Abzug-Audit (autoDeductions.amount).
+    let autoDeductInflow = 0, autoDeductCount = 0;
+    autoSnap.forEach(d => {
+      const a = d.data() as any;
+      autoDeductInflow += Number(a.amount ?? 0);
+      autoDeductCount++;
+    });
+    // 2) Shop-Käufe: Feed-Events 'shop_purchase' (creditsChange = -Kaufpreis).
+    let shopInflow = 0, shopCount = 0;
+
+    // 1) Streak-Boni aus dem Feed summieren (+ Shop-Zuflüsse mitnehmen).
     let streakTotal = 0, streakCount = 0;
     feedSnap.forEach(d => {
       const f = d.data() as any;
       if (f.type === 'streak_on_fire' || f.type === 'streak_damn_hot') {
         streakTotal += Number(f.creditsChange ?? 0);
         streakCount++;
+      } else if (f.type === 'shop_purchase') {
+        shopInflow += Math.abs(Number(f.creditsChange ?? 0));
+        shopCount++;
       }
     });
 
@@ -116,6 +131,10 @@ export default async (req: Request, _ctx: Context) => {
       total, currentJackpot,
       newJackpot: currentJackpot + total,
       alreadyApplied,
+      // Zuflüsse (rein informativ, nicht Teil der Rückerstattung):
+      autoDeductInflow, autoDeductCount,
+      shopInflow, shopCount,
+      inflowTotal: autoDeductInflow + shopInflow,
     };
 
     if (!apply) return json({ ok: true, applied: false, ...breakdown });

@@ -2716,10 +2716,18 @@ export default function Admin() {
 
                   {refund && (
                     <div className="mt-2.5">
-                      {refund.error && !refund.total
+                      {refund.error && !refund.total && !refund.inflowTotal
                         ? <div className="text-[11px] text-red bg-red/10 border border-red/30 rounded-lg px-3 py-2">{refund.error}</div>
                         : <>
+                            {/* Zuflüsse: woraus der Jackpot gewachsen ist */}
+                            <div className="space-y-1 bg-green/[0.04] border border-green/20 rounded-xl p-2.5 text-[11px] mb-2">
+                              <div className="text-[9px] font-black text-green/80 tracking-[0.1em] uppercase mb-0.5">Zuflüsse (gewachsen aus)</div>
+                              <div className="flex justify-between"><span className="text-muted">🛍️ Shop-Käufe ({refund.shopCount}×)</span><span className="font-mono text-green">+{refund.shopInflow}</span></div>
+                              <div className="flex justify-between"><span className="text-muted">⏱️ Nicht getippte Spiele ({refund.autoDeductCount}×)</span><span className="font-mono text-green">+{refund.autoDeductInflow}</span></div>
+                              <div className="flex justify-between border-t border-green/20 pt-1 mt-1"><span className="font-black text-green">Summe Zuflüsse</span><span className="font-mono font-bold text-green">+{refund.inflowTotal}</span></div>
+                            </div>
                             <div className="space-y-1 bg-white/[0.03] border border-border rounded-xl p-2.5 text-[11px]">
+                              <div className="text-[9px] font-black text-muted tracking-[0.1em] uppercase mb-0.5">Abflüsse (Boni, rückerstattbar)</div>
                               <div className="flex justify-between"><span className="text-muted">🔥 Streak-Boni ({refund.streakCount}×)</span><span className="font-mono text-white">{refund.streakTotal}</span></div>
                               <div className="flex justify-between"><span className="text-muted">🐶 Underdog-Boni ({refund.underdogMarkets} Märkte)</span><span className="font-mono text-white">{refund.underdogTotal}</span></div>
                               <div className="flex justify-between"><span className="text-muted">🔗 Combo-Gewinne ({refund.comboWins}×)</span><span className="font-mono text-white">{refund.comboTotal}</span></div>

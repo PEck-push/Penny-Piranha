@@ -263,6 +263,10 @@ export interface JackpotRefundResult {
   comboTotal: number; comboWins: number;
   total: number; currentJackpot: number; newJackpot: number;
   alreadyApplied: boolean;
+  // Zuflüsse (informativ): woraus der Jackpot historisch gewachsen ist.
+  autoDeductInflow: number; autoDeductCount: number;
+  shopInflow: number; shopCount: number;
+  inflowTotal: number;
 }
 
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
@@ -272,6 +276,7 @@ async function callJackpotRefund(apply: boolean): Promise<JackpotRefundResult> {
   const empty: JackpotRefundResult = {
     ok: false, streakTotal: 0, streakCount: 0, underdogTotal: 0, underdogMarkets: 0,
     comboTotal: 0, comboWins: 0, total: 0, currentJackpot: 0, newJackpot: 0, alreadyApplied: false,
+    autoDeductInflow: 0, autoDeductCount: 0, shopInflow: 0, shopCount: 0, inflowTotal: 0,
   };
   try {
     const token = await auth?.currentUser?.getIdToken();
