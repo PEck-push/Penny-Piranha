@@ -389,12 +389,11 @@ interface AppState {
   // Tagesgewinn (dailyNetGain) aller Spieler aus den aufgelösten Ergebnissen des
   // aktuellen US-Spieltags neu berechnen — repariert einen falschen Tagessieger.
   recomputeDailyGains: () => Promise<{ day: string | null; updated: number }>;
-  // Offene WM-Märkte ab dem 2. Spieltag auf die höheren Limits (min 20 /
-  // max 170 / Auto-Abzug 20) setzen.
-  // Höhere Limits (20/170/20) ab dem Anpfiff eines Grenz-Spiels setzen; alle
-  // offenen WM-Spiele DAVOR auf Standard (10/100/10) zurück. Zuverlässig über
-  // kickoffAt statt schedule.matchday.
-  applyLimitsFromMatch: (cutoffMarketId: string) => Promise<{ high: number; standard: number }>;
+  // Höhere Limits (min/max/Auto-Abzug frei wählbar) ab dem Anpfiff eines
+  // Grenz-Spiels auf alle offenen WM-Spiele AB diesem Anpfiff setzen; Spiele
+  // davor bleiben unangetastet. Speichert die Einstellung (appState.raisedLimits),
+  // damit der Tick spätere Spiele der Runde automatisch gleich stempelt.
+  applyLimitsFromMatch: (cutoffMarketId: string, minBet: number, maxBet: number, autoDeduct: number) => Promise<{ high: number; standard: number }>;
   giveTokens: (playerId: string, amount: number) => void;
   executeBuyback: (playerId: string) => Promise<void>;
   setAdminMessage: (msg: string) => Promise<void>;
@@ -946,29 +945,46 @@ export const useStore = create<AppState>()((set, get) => {
       return { day: targetKey, updated };
     },
 
-    // Höhere Limits (20/170/20) ab dem Anpfiff des Grenz-Spiels (cutoffMarketId);
-    // alle offenen WM-Spiele DAVOR werden auf Standard (10/100/10) zurückgesetzt.
-    // Über kickoffAt (zuverlässig), nicht über schedule.matchday. Nur offene
-    // Märkte: bei gesperrten ist die Wettannahme zu und der Auto-Abzug gelaufen.
-    applyLimitsFromMatch: async (cutoffMarketId) => {
+    // Höhere Limits ab dem Anpfiff des Grenz-Spiels (cutoffMarketId) auf alle
+    // offenen WM-Spiele AB diesem Anpfiff setzen (min/max/Auto-Abzug frei
+    // wählbar). Spiele DAVOR bleiben unangetastet (kein Clobbern bereits
+    // gesetzter Limits). Zusätzlich wird die Einstellung in appState.raisedLimits
+    // gespeichert, damit der Cron-Tick auch später öffnende Spiele derselben
+    // Runde automatisch mit diesen Limits stempelt ("ganze Runde").
+    applyLimitsFromMatch: async (cutoffMarketId, minBet, maxBet, autoDeduct) => {
       const { markets } = get();
-      const cutoff = markets.find(m => m.id === cutoffMarketId)?.kickoffAt;
+      const cutoffMarket = markets.find(m => m.id === cutoffMarketId);
+      const cutoff = cutoffMarket?.kickoffAt;
       if (typeof cutoff !== 'number') return { high: 0, standard: 0 };
+      const t = { minBet, maxBet, autoDeductAmount: autoDeduct };
       let high = 0, standard = 0;
       for (const m of markets) {
         if (m.marketSubtype !== 'wm-match' || m.status !== 'open' || typeof m.kickoffAt !== 'number') continue;
-        const t = m.kickoffAt >= cutoff
-          ? { minBet: 20, maxBet: 170, autoDeductAmount: 20 }
-          : { minBet: 10, maxBet: 100, autoDeductAmount: 10 };
-        if (m.minBet === t.minBet && m.maxBet === t.maxBet && m.autoDeductAmount === t.autoDeductAmount) continue;
+        if (m.kickoffAt < cutoff) { standard++; continue; } // vor dem Grenz-Spiel: unverändert
+        if (m.minBet === t.minBet && m.maxBet === t.maxBet && m.autoDeductAmount === t.autoDeductAmount) { high++; continue; }
         set(s => ({ markets: s.markets.map(mk => mk.id === m.id ? { ...mk, ...t } : mk) }));
         if (db) {
           try {
             await updateDoc(doc(db, 'markets', m.id), t);
-            if (m.kickoffAt >= cutoff) high++; else standard++;
+            high++;
           } catch (err) {
             console.error('[Store] applyLimitsFromMatch Fehler:', err);
           }
+        }
+      }
+      // Einstellung speichern → Tick stempelt später öffnende Spiele der Runde.
+      if (db) {
+        try {
+          await setDoc(doc(db, 'appState', 'global'), {
+            raisedLimits: {
+              fromKickoffAt: cutoff,
+              fromMatchLabel: `${cutoffMarket?.teamA ?? ''} vs ${cutoffMarket?.teamB ?? ''}`.trim(),
+              minBet, maxBet, autoDeduct,
+              announced: false,
+            },
+          }, { merge: true });
+        } catch (err) {
+          console.error('[Store] raisedLimits speichern Fehler:', err);
         }
       }
       return { high, standard };

@@ -692,19 +692,28 @@ export default function Admin() {
     );
     setTimeout(() => setRecomputeMsg(''), 8000);
   };
-  // Höhere Limits ab einem Grenz-Spiel (kickoff-basiert). Davor → Standard.
+  // Höhere Limits ab einem Grenz-Spiel (kickoff-basiert). Werte frei wählbar.
   const [mdLimitMsg, setMdLimitMsg] = useState('');
   const [limitCutoffId, setLimitCutoffId] = useState('');
+  const [limitMin, setLimitMin] = useState('30');
+  const [limitMax, setLimitMax] = useState('210');
+  const [limitAbzug, setLimitAbzug] = useState('30');
   // Offene WM-Spiele, nach Anpfiff sortiert (Auswahl des Grenz-Spiels).
   const openWmMarkets = markets
     .filter(m => m.marketSubtype === 'wm-match' && m.status === 'open' && typeof m.kickoffAt === 'number')
     .sort((a, b) => (a.kickoffAt ?? 0) - (b.kickoffAt ?? 0));
   const handleApplyLimits = async () => {
     if (!limitCutoffId) return;
+    const mn = parseInt(limitMin), mx = parseInt(limitMax), az = parseInt(limitAbzug);
+    if ([mn, mx, az].some(n => isNaN(n) || n < 0) || mx < mn) {
+      setMdLimitMsg('Bitte gültige Werte (max ≥ min) eingeben.');
+      setTimeout(() => setMdLimitMsg(''), 6000);
+      return;
+    }
     setMdLimitMsg('Setze Limits…');
-    const { high, standard } = await applyLimitsFromMatch(limitCutoffId);
-    setMdLimitMsg(`Ab Grenz-Spiel: ${high} Spiele auf 20/170/20, ${standard} davor auf Standard 10/100/10 zurückgesetzt.`);
-    setTimeout(() => setMdLimitMsg(''), 9000);
+    const { high, standard } = await applyLimitsFromMatch(limitCutoffId, mn, mx, az);
+    setMdLimitMsg(`✓ ${high} Spiele ab Grenz-Spiel auf ${mn}/${mx}/Abzug ${az} gesetzt (${standard} davor unverändert). Gilt auch für später öffnende Spiele der Runde — Telegram kündigt es am Spieltag an.`);
+    setTimeout(() => setMdLimitMsg(''), 12000);
   };
   // Anzahl WM-Märkte, denen die API-ID noch fehlt (für Button-Hinweis).
   const unlinkedWmCount = markets.filter(
@@ -1376,7 +1385,7 @@ export default function Admin() {
               </div>
               {recomputeMsg && <div className="mt-2 text-[11px] font-bold text-yellow">{recomputeMsg}</div>}
 
-              {/* Spieltag-2-Limits anwenden */}
+              {/* Höhere Limits ab Grenz-Spiel (frei wählbar) */}
               <div className="mt-3 flex flex-col gap-2">
                 <select value={limitCutoffId} onChange={e => { setLimitCutoffId(e.target.value); setMdLimitMsg(''); }}
                   className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-blue2/60">
@@ -1387,17 +1396,35 @@ export default function Admin() {
                     </option>
                   ))}
                 </select>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] text-muted uppercase tracking-wide">Min-Einsatz</span>
+                    <input type="number" min="0" value={limitMin} onChange={e => setLimitMin(e.target.value)}
+                      className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[13px] text-white outline-none focus:border-blue2/60" />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] text-muted uppercase tracking-wide">Max-Einsatz</span>
+                    <input type="number" min="0" value={limitMax} onChange={e => setLimitMax(e.target.value)}
+                      className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[13px] text-white outline-none focus:border-blue2/60" />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[9px] text-muted uppercase tracking-wide">Auto-Abzug</span>
+                    <input type="number" min="0" value={limitAbzug} onChange={e => setLimitAbzug(e.target.value)}
+                      className="bg-white/5 border border-border rounded-xl px-3 py-2 text-[13px] text-white outline-none focus:border-blue2/60" />
+                  </label>
+                </div>
                 <button
                   onClick={handleApplyLimits}
                   disabled={!limitCutoffId}
                   className="w-full p-3 border rounded-xl bg-transparent border-blue2/40 text-blue2 font-sans text-[13px] font-black cursor-pointer hover:bg-blue/10 transition-all disabled:opacity-40">
-                  ⬆️ Hohe Limits ab diesem Spiel (20/170/20)
+                  ⬆️ Limits ab diesem Spiel setzen ({limitMin}/{limitMax}/Abzug {limitAbzug})
                 </button>
               </div>
               <div className="mt-2 text-[10px] text-muted leading-snug">
-                Setzt ab dem gewählten Spiel (per Anpfiffzeit) die höheren Limits <b>20 / 170 / Abzug 20</b>.
-                Alle offenen WM-Spiele <b>davor</b> bleiben/werden auf Standard <b>10 / 100 / Abzug 10</b> zurückgesetzt.
-                Für Spieltag 2 also <b>Tschechien vs Südafrika</b> als Grenz-Spiel wählen.
+                Setzt ab dem gewählten Spiel (per Anpfiffzeit) die eingestellten Limits auf alle offenen WM-Spiele.
+                Spiele <b>davor</b> bleiben unverändert. Die Einstellung wird gespeichert, damit auch später
+                automatisch öffnende Spiele derselben Runde diese Limits bekommen. Das Telegram-Summary kündigt
+                die höheren Einsätze am Tag des Grenz-Spiels automatisch an.
               </div>
               {mdLimitMsg && <div className="mt-2 text-[11px] font-bold text-blue2">{mdLimitMsg}</div>}
             </div>
