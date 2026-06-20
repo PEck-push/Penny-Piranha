@@ -22,7 +22,8 @@ export type JackpotLedgerKind =
   | 'jackpot-round'   // ± Rest einer Gratis-/Jackpot-Sonderrunde
   | 'finale-absorb'   // − Finale schüttet den angesparten Jackpot aus
   | 'rollover'        // + Rollover: nicht zurückgezahlter Einsatz-Rest
-  | 'manual-set';     // ± Admin hat den Jackpot manuell gesetzt
+  | 'manual-set'      // ± Admin hat den Jackpot manuell gesetzt
+  | 'bonus-refund';   // + einmalige Rückerstattung historisch abgeflossener Boni
 
 export interface JackpotLedgerEntry {
   delta: number;          // +rein / −raus (auf ganze Tokens gerundet)

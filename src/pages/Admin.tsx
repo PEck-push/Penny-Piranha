@@ -5,7 +5,7 @@ import CoinIcon from '../components/CoinIcon';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
-import type { ScheduleMatch, JackpotLedgerEntry } from '../store';
+import type { ScheduleMatch, JackpotLedgerEntry, JackpotRefundResult } from '../store';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { deName } from '../utils/teams';
@@ -128,6 +128,10 @@ export default function Admin() {
   const [ledger, setLedger] = useState<JackpotLedgerEntry[] | null>(null);
   const [ledgerBusy, setLedgerBusy] = useState(false);
 
+  // Boni-Rückerstattung (einmaliges Auffüllen des Jackpots)
+  const [refund, setRefund] = useState<JackpotRefundResult | null>(null);
+  const [refundBusy, setRefundBusy] = useState(false);
+
   // Eigene Gratis-Wette erstellen (gleiches Prinzip wie Jackpot-Runden)
   const [freeBetQuestion, setFreeBetQuestion] = useState('');
   const [freeBetFormat, setFreeBetFormat] = useState<'binary' | 'single' | 'multi'>('binary');
@@ -209,6 +213,8 @@ export default function Admin() {
   const fixNegativeBalances = useStore(s => s.fixNegativeBalances);
   const backfillBetActive = useStore(s => s.backfillBetActive);
   const fetchJackpotLedger = useStore(s => s.fetchJackpotLedger);
+  const auditJackpotRefund = useStore(s => s.auditJackpotRefund);
+  const applyJackpotRefund = useStore(s => s.applyJackpotRefund);
   const awardBlockWinner = useStore(s => s.awardBlockWinner);
   const shopItems       = useStore(s => s.shopItems);
   const createShopItem  = useStore(s => s.createShopItem);
@@ -2689,6 +2695,58 @@ export default function Admin() {
                     </button>
                   </div>
                 </div>
+
+                {/* Einmalige Boni-Rückerstattung (Jackpot wieder auffüllen) */}
+                <div className="border-t border-border mt-3 pt-3">
+                  <div className="text-[10px] font-black text-muted tracking-[0.1em] uppercase mb-2">Boni-Rückerstattung</div>
+                  <div className="text-[10px] text-muted mb-2 leading-relaxed">
+                    Früher wurden Streak-, Underdog- und Combo-Auszahlungen aus dem Jackpot gedeckt. Seit der Umstellung
+                    „Jackpot wächst nur" trägt das Haus diese Boni. Hier kannst du die <b>historisch abgeflossene Summe</b>
+                    {' '}nachrechnen und den Jackpot einmalig <b className="text-yellow">auffüllen</b>.
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setRefundBusy(true);
+                      setRefund(await auditJackpotRefund());
+                      setRefundBusy(false);
+                    }}
+                    className="w-full p-2.5 rounded-xl bg-white/5 border border-border text-white text-[12px] font-black">
+                    {refundBusy ? 'Berechne…' : '🧮 Abgeflossene Boni berechnen'}
+                  </button>
+
+                  {refund && (
+                    <div className="mt-2.5">
+                      {refund.error && !refund.total
+                        ? <div className="text-[11px] text-red bg-red/10 border border-red/30 rounded-lg px-3 py-2">{refund.error}</div>
+                        : <>
+                            <div className="space-y-1 bg-white/[0.03] border border-border rounded-xl p-2.5 text-[11px]">
+                              <div className="flex justify-between"><span className="text-muted">🔥 Streak-Boni ({refund.streakCount}×)</span><span className="font-mono text-white">{refund.streakTotal}</span></div>
+                              <div className="flex justify-between"><span className="text-muted">🐶 Underdog-Boni ({refund.underdogMarkets} Märkte)</span><span className="font-mono text-white">{refund.underdogTotal}</span></div>
+                              <div className="flex justify-between"><span className="text-muted">🔗 Combo-Gewinne ({refund.comboWins}×)</span><span className="font-mono text-white">{refund.comboTotal}</span></div>
+                              <div className="flex justify-between border-t border-border pt-1 mt-1"><span className="font-black text-yellow">Summe Rückerstattung</span><span className="font-mono font-bold text-yellow">+{refund.total}</span></div>
+                              <div className="flex justify-between"><span className="text-muted">Jackpot: {refund.currentJackpot} →</span><span className="font-mono text-green">{refund.newJackpot}</span></div>
+                            </div>
+                            {refund.alreadyApplied
+                              ? <div className="text-[11px] text-green bg-green/10 border border-green/30 rounded-lg px-3 py-2 mt-2">✓ Rückerstattung wurde bereits angewendet.</div>
+                              : refund.total > 0 && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`Jackpot um +${refund.total} auffüllen (auf ${refund.newJackpot})? Das lässt sich nur einmal ausführen.`)) return;
+                                      setRefundBusy(true);
+                                      const r = await applyJackpotRefund();
+                                      setRefund(r);
+                                      setRefundBusy(false);
+                                    }}
+                                    disabled={refundBusy}
+                                    className="w-full mt-2 p-2.5 rounded-xl bg-yellow/20 border border-yellow/40 text-yellow text-[12px] font-black disabled:opacity-40">
+                                    {refundBusy ? 'Wird angewendet…' : `💰 Jackpot um +${refund.total} auffüllen`}
+                                  </button>
+                                )}
+                            {refund.applied && <div className="text-[11px] text-green bg-green/10 border border-green/30 rounded-lg px-3 py-2 mt-2">✓ Erledigt — Jackpot ist jetzt {refund.newJackpot}.</div>}
+                          </>}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -2707,6 +2765,7 @@ export default function Admin() {
               'finale-absorb':  { emoji: '🏆', label: 'Finale' },
               'rollover':       { emoji: '↩️', label: 'Rollover' },
               'manual-set':     { emoji: '✋', label: 'Manuell' },
+              'bonus-refund':   { emoji: '💰', label: 'Boni-Rückerstattung' },
             };
             const fmtTs = (ms: number) => ms
               ? new Date(ms).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -2720,9 +2779,9 @@ export default function Admin() {
                   <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase">Jackpot-Bewegungen</div>
                 </div>
                 <div className="text-[10px] text-muted mb-3 leading-relaxed">
-                  Zeigt jede Hausbank-/Jackpot-Änderung mit Grund. <b className="text-yellow">Wichtig:</b> Streak-Boni
-                  (🔥 +30/+100) und Underdog-Boni (🐶 +10 %) werden <b>aus der Hausbank</b> ausgezahlt — der Topf
-                  sinkt dadurch zwischen den Spielen, bis das Finale ihn ausschüttet.
+                  Zeigt jede Jackpot-Änderung mit Grund. Der Jackpot <b className="text-yellow">wächst nur</b> (Auto-Abzüge,
+                  Shop-Käufe, verlorene Einsätze, Rundung) und wird <b>ausschließlich beim Finale</b> ausgeschüttet.
+                  Streak-, Underdog- und Combo-Boni trägt das Haus und belasten den Jackpot nicht.
                 </div>
                 <button
                   onClick={async () => {

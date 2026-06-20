@@ -253,7 +253,41 @@ export interface JackpotLedgerEntry {
   ts: number;          // ms seit Epoch
 }
 
+// Ergebnis des Boni-Rückerstattungs-Tools (admin-jackpot-refill).
+export interface JackpotRefundResult {
+  ok: boolean;
+  applied?: boolean;
+  error?: string;
+  streakTotal: number; streakCount: number;
+  underdogTotal: number; underdogMarkets: number;
+  comboTotal: number; comboWins: number;
+  total: number; currentJackpot: number; newJackpot: number;
+  alreadyApplied: boolean;
+}
+
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
+
+// Ruft das Boni-Rückerstattungs-Tool (Netlify Function) auf. apply=false = Audit.
+async function callJackpotRefund(apply: boolean): Promise<JackpotRefundResult> {
+  const empty: JackpotRefundResult = {
+    ok: false, streakTotal: 0, streakCount: 0, underdogTotal: 0, underdogMarkets: 0,
+    comboTotal: 0, comboWins: 0, total: 0, currentJackpot: 0, newJackpot: 0, alreadyApplied: false,
+  };
+  try {
+    const token = await auth?.currentUser?.getIdToken();
+    if (!token) return { ...empty, error: 'Kein Admin-Token.' };
+    const res = await fetch('/.netlify/functions/admin-jackpot-refill', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apply }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ...empty, ...(data as any), ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+    return { ...empty, ...(data as any), ok: true };
+  } catch (err: any) {
+    return { ...empty, error: err?.message ?? 'Unbekannter Fehler.' };
+  }
+}
 
 // Kanonischer Schlüssel einer Multiple-Choice-Auswahl: sortierte Options-IDs,
 // per '|' verbunden. Tipp und Auflösung erzeugen denselben Schlüssel, sodass
@@ -372,6 +406,10 @@ interface AppState {
   backfillBetActive: () => Promise<{ ok: boolean; total?: number; updated?: number; active?: number; inactive?: number; error?: string }>;
   // Admin-Diagnose: letzte Jackpot-/Hausbank-Bewegungen (neueste zuerst).
   fetchJackpotLedger: (n?: number) => Promise<JackpotLedgerEntry[]>;
+  // Admin: historisch aus dem Jackpot bezahlte Boni nachrechnen (audit) bzw.
+  // einmalig zurückerstatten (apply).
+  auditJackpotRefund: () => Promise<JackpotRefundResult>;
+  applyJackpotRefund: () => Promise<JackpotRefundResult>;
   awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
   simulateReveal: (net: number) => Promise<void>;
   // ─── Shop ───────────────────────────────────────────────────────────────────
@@ -1021,6 +1059,10 @@ export const useStore = create<AppState>()((set, get) => {
         }
       }
     },
+
+    // Admin: Boni-Rückerstattung berechnen (apply=false) oder anwenden (apply=true).
+    auditJackpotRefund: async () => callJackpotRefund(false),
+    applyJackpotRefund: async () => callJackpotRefund(true),
 
     // Admin-Diagnose: die letzten n Jackpot-/Hausbank-Bewegungen laden.
     fetchJackpotLedger: async (n = 60) => {

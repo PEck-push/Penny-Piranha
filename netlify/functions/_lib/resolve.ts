@@ -267,9 +267,9 @@ export async function resolveMarketAdmin(
         }
       }
       persistBetPayouts(batch, betPayouts);
-      // Gewinn: Mehrbetrag über den Einsatztopf hinaus kommt aus dem Jackpot/Haus.
-      // Niederlage: die Einsätze wandern in den Jackpot.
-      const jackpotDelta = won ? -Math.max(0, totalPayout - totalPool) : totalPool;
+      // Jackpot soll NUR wachsen: Gewinn-Mehrbetrag deckt das Haus (kein Abzug
+      // aus dem Jackpot). Verlorene Einsätze fließen weiterhin in den Jackpot.
+      const jackpotDelta = won ? 0 : totalPool;
       const legs = (market.comboLegs ?? []).map((l: any) => ({
         ...l, status: won ? 'hit' : (l.status === 'pending' ? 'miss' : l.status),
       }));
@@ -283,12 +283,11 @@ export async function resolveMarketAdmin(
         comboLegs: legs,
       });
       batch.update(appRef, { jackpot: FieldValue.increment(jackpotDelta) });
+      // delta 0 (Gewinn) wird vom Logger übersprungen; nur der Verlust-Zufluss wird geloggt.
       logJackpotChange(batch, db, {
         delta: jackpotDelta,
         kind: 'combo',
-        reason: won
-          ? `Combo geknackt (Auszahlung aus Haus): ${market.question ?? marketId}`
-          : `Combo gescheitert (Einsätze ins Haus): ${market.question ?? marketId}`,
+        reason: `Combo gescheitert (Einsätze in den Jackpot): ${market.question ?? marketId}`,
         marketId,
       });
       batch.set(db.collection('feed').doc(), {
@@ -314,13 +313,10 @@ export async function resolveMarketAdmin(
     const payouts: Record<string, number> = {};
     const betPayouts = new Map<string, number>();
     let jackpotDelta = 0;
-    // Itemisierung für das Jackpot-Logbuch (summieren auf jackpotDelta):
-    //   poolDelta     = was aus Einsätzen/Rundung in den Topf fließt (+)
-    //   underdogPaid  = ausgezahlte Underdog-Boni aus der Hausbank (−)
-    //   streakPaid    = ausgezahlte Streak-Boni aus der Hausbank (−)
+    // poolDelta = was aus Einsätzen/Rundung in den Topf fließt (+). Boni (Underdog/
+    // Streak) belasten den Jackpot NICHT mehr — sie werden vom Haus gedeckt, damit
+    // der Jackpot nur wächst und allein das Finale ihn ausschüttet.
     let poolDelta = 0;
-    let underdogPaid = 0;
-    let streakPaid = 0;
     let resType: 'normal' | 'no-winner' | 'all-same-side' = 'normal';
 
     if (market.multiSelect) {
@@ -369,8 +365,7 @@ export async function resolveMarketAdmin(
           const bonus = round(b.amount * UNDERDOG_BONUS);
           payouts[b.playerId] = (payouts[b.playerId] ?? 0) + bonus;
           betPayouts.set(b.id, (betPayouts.get(b.id) ?? 0) + bonus);
-          jackpotDelta -= bonus;
-          underdogPaid += bonus;
+          // Underdog-Bonus wird vom Haus gedeckt — kein Abzug aus dem Jackpot.
         }
       }
       jackpotDelta += effectivePool - paid; // rounding remainder → jackpot
@@ -438,8 +433,7 @@ export async function resolveMarketAdmin(
         if (correct && newStreak === 7) { streakBonus = 100; overlayAdds.push('damn_hot'); }
         if (streakBonus > 0) {
           upd.tokens = FieldValue.increment(basePayout + streakBonus);
-          jackpotDelta -= streakBonus;
-          streakPaid += streakBonus;
+          // Streak-Bonus wird vom Haus gedeckt — kein Abzug aus dem Jackpot.
           feedExtra.push({
             type: newStreak === 7 ? 'streak_damn_hot' : 'streak_on_fire',
             playerId: ps.id,
@@ -478,9 +472,8 @@ export async function resolveMarketAdmin(
     }
 
     batch.update(appRef, { jackpot: FieldValue.increment(jackpotDelta) });
-    // Itemisiertes Logbuch: Pool-Zufluss, Underdog- und Streak-Boni getrennt
-    // ausweisen (Summe = jackpotDelta). So sieht man im Admin, ob der Topf durch
-    // Boni schrumpft. logJackpotChange überspringt 0-Beträge selbst.
+    // Jackpot-Logbuch: nur noch der Pool-Zufluss (Einsätze/Rundung) — Boni
+    // belasten den Jackpot nicht mehr. jackpotDelta === poolDelta. 0 wird übersprungen.
     const mLabel = market.question ?? marketId;
     logJackpotChange(batch, db, {
       delta: poolDelta,
@@ -488,18 +481,6 @@ export async function resolveMarketAdmin(
       reason: resType === 'no-winner'
         ? `Kein Gewinner – Einsätze in den Jackpot: ${mLabel}`
         : `Auswertung – Pool-Rest/Rundung: ${mLabel}`,
-      marketId,
-    });
-    logJackpotChange(batch, db, {
-      delta: -underdogPaid,
-      kind: 'underdog-bonus',
-      reason: `Underdog-Boni ausgezahlt: ${mLabel}`,
-      marketId,
-    });
-    logJackpotChange(batch, db, {
-      delta: -streakPaid,
-      kind: 'streak-bonus',
-      reason: `Streak-Boni ausgezahlt: ${mLabel}`,
       marketId,
     });
     persistBetPayouts(batch, betPayouts);
