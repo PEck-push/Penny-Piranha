@@ -1,6 +1,7 @@
 import type { Context } from '@netlify/functions';
 import { getDb, FieldValue } from './_lib/firebaseAdmin';
 import { verifyAuth } from './_lib/userAuth';
+import { logJackpotChange } from './_lib/jackpotLedger';
 
 // Atomarer Shop-Kauf. Transaktion deckt:
 //   - Item-Verfügbarkeit (available, availableFrom/Until, stock)
@@ -71,6 +72,12 @@ export default async (req: Request, _ctx: Context) => {
       // aus dem Spielsystem, was die Hausbank ungewollt erhoeht.
       if (cost > 0) {
         tx.set(appRef, { jackpot: FieldValue.increment(cost) }, { merge: true });
+        logJackpotChange(tx, db, {
+          delta: cost,
+          kind: 'shop-purchase',
+          reason: `Shop-Kauf: ${itemLabel}`,
+          playerId: uid,
+        });
       }
     });
 

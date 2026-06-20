@@ -1,4 +1,5 @@
 import { getDb, FieldValue } from './firebaseAdmin';
+import { logJackpotChange } from './jackpotLedger';
 
 // WM 2026 resolution rules (from the implementation plan):
 //   - Parimutuel payout with kaufmännischer Rundung (Math.round)
@@ -208,6 +209,14 @@ export async function resolveMarketAdmin(
       // des Festpreises rollt in den jackpot. Beim Absorbieren wird der angesparte
       // Pot Teil von `prize` und damit ausgeschüttet — der Saldo bleibt fixedPrize−paid.
       batch.update(appRef, { jackpot: FieldValue.increment(fixedPrize - paid) });
+      logJackpotChange(batch, db, {
+        delta: fixedPrize - paid,
+        kind: market.absorbsJackpotPot ? 'finale-absorb' : 'jackpot-round',
+        reason: market.absorbsJackpotPot
+          ? `Finale schüttet Jackpot aus: ${market.question ?? marketId}`
+          : `Gratis-/Jackpot-Runde Rest: ${market.question ?? marketId}`,
+        marketId,
+      });
       const winLabel = (market.options ?? []).find((o: any) => o.id === winningOptionId)?.label ?? winningOptionId;
       batch.set(db.collection('feed').doc(), {
         type: 'jackpot_distribution',
@@ -274,6 +283,14 @@ export async function resolveMarketAdmin(
         comboLegs: legs,
       });
       batch.update(appRef, { jackpot: FieldValue.increment(jackpotDelta) });
+      logJackpotChange(batch, db, {
+        delta: jackpotDelta,
+        kind: 'combo',
+        reason: won
+          ? `Combo geknackt (Auszahlung aus Haus): ${market.question ?? marketId}`
+          : `Combo gescheitert (Einsätze ins Haus): ${market.question ?? marketId}`,
+        marketId,
+      });
       batch.set(db.collection('feed').doc(), {
         type: 'market_resolved', marketId,
         text: won
@@ -297,6 +314,13 @@ export async function resolveMarketAdmin(
     const payouts: Record<string, number> = {};
     const betPayouts = new Map<string, number>();
     let jackpotDelta = 0;
+    // Itemisierung für das Jackpot-Logbuch (summieren auf jackpotDelta):
+    //   poolDelta     = was aus Einsätzen/Rundung in den Topf fließt (+)
+    //   underdogPaid  = ausgezahlte Underdog-Boni aus der Hausbank (−)
+    //   streakPaid    = ausgezahlte Streak-Boni aus der Hausbank (−)
+    let poolDelta = 0;
+    let underdogPaid = 0;
+    let streakPaid = 0;
     let resType: 'normal' | 'no-winner' | 'all-same-side' = 'normal';
 
     if (market.multiSelect) {
@@ -307,6 +331,7 @@ export async function resolveMarketAdmin(
       if (winStake === 0) {
         resType = 'no-winner';
         jackpotDelta += totalStake;
+        poolDelta += totalStake;
       } else {
         let paid = 0;
         for (const b of winBets) {
@@ -316,11 +341,13 @@ export async function resolveMarketAdmin(
           paid += payout;
         }
         jackpotDelta += totalStake - paid;
+        poolDelta += totalStake - paid;
       }
     } else if (winPool === 0) {
       // Kein Gewinner → ganzer Einsatz-Pool in den Jackpot. Seed verfällt.
       resType = 'no-winner';
       jackpotDelta += totalPool;
+      poolDelta += totalPool;
     } else if (winPool === totalPool) {
       // Alle auf derselben Seite: reine Einsatz-Rückzahlung, Jackpot unangetastet.
       resType = 'all-same-side';
@@ -343,9 +370,11 @@ export async function resolveMarketAdmin(
           payouts[b.playerId] = (payouts[b.playerId] ?? 0) + bonus;
           betPayouts.set(b.id, (betPayouts.get(b.id) ?? 0) + bonus);
           jackpotDelta -= bonus;
+          underdogPaid += bonus;
         }
       }
       jackpotDelta += effectivePool - paid; // rounding remainder → jackpot
+      poolDelta += effectivePool - paid;
     }
     // Verlierer-Bets als 0 markieren (für Anzeige im Verlauf).
     for (const b of allBets) if (!betPayouts.has(b.id)) betPayouts.set(b.id, 0);
@@ -410,6 +439,7 @@ export async function resolveMarketAdmin(
         if (streakBonus > 0) {
           upd.tokens = FieldValue.increment(basePayout + streakBonus);
           jackpotDelta -= streakBonus;
+          streakPaid += streakBonus;
           feedExtra.push({
             type: newStreak === 7 ? 'streak_damn_hot' : 'streak_on_fire',
             playerId: ps.id,
@@ -448,6 +478,30 @@ export async function resolveMarketAdmin(
     }
 
     batch.update(appRef, { jackpot: FieldValue.increment(jackpotDelta) });
+    // Itemisiertes Logbuch: Pool-Zufluss, Underdog- und Streak-Boni getrennt
+    // ausweisen (Summe = jackpotDelta). So sieht man im Admin, ob der Topf durch
+    // Boni schrumpft. logJackpotChange überspringt 0-Beträge selbst.
+    const mLabel = market.question ?? marketId;
+    logJackpotChange(batch, db, {
+      delta: poolDelta,
+      kind: resType === 'no-winner' ? 'no-winner' : 'resolve-pool',
+      reason: resType === 'no-winner'
+        ? `Kein Gewinner – Einsätze in den Jackpot: ${mLabel}`
+        : `Auswertung – Pool-Rest/Rundung: ${mLabel}`,
+      marketId,
+    });
+    logJackpotChange(batch, db, {
+      delta: -underdogPaid,
+      kind: 'underdog-bonus',
+      reason: `Underdog-Boni ausgezahlt: ${mLabel}`,
+      marketId,
+    });
+    logJackpotChange(batch, db, {
+      delta: -streakPaid,
+      kind: 'streak-bonus',
+      reason: `Streak-Boni ausgezahlt: ${mLabel}`,
+      marketId,
+    });
     persistBetPayouts(batch, betPayouts);
 
     const winLabel = options.find(o => o.id === winningOptionId)?.label ?? winningOptionId;
@@ -532,6 +586,12 @@ export async function rolloverMarketAdmin(marketId: string, by: 'auto' | 'admin'
       resolvedBy: by, resolvedAt: FieldValue.serverTimestamp(), resolveInProgress: false,
     });
     batch.update(db.collection('appState').doc('global'), { jackpot: FieldValue.increment(totalPool - refunded) });
+    logJackpotChange(batch, db, {
+      delta: totalPool - refunded,
+      kind: 'rollover',
+      reason: `Rollover (50% zurück, Rest in den Jackpot): ${market.question ?? marketId}`,
+      marketId,
+    });
     batch.set(db.collection('feed').doc(), {
       type: 'market_resolved', marketId,
       text: `🎰 Rollover: ${market.question ?? marketId} — 50% Einsatz zurück`,

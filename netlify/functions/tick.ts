@@ -1,6 +1,7 @@
 import type { Config } from '@netlify/functions';
 import { getDb, FieldValue } from './_lib/firebaseAdmin';
 import { verifyCron } from './_lib/cronAuth';
+import { logJackpotChange } from './_lib/jackpotLedger';
 
 // Runs every 15 minutes (see config.schedule below). Two jobs:
 //   1. OPEN: create a betting market for any scheduled match whose kickoff is
@@ -210,6 +211,12 @@ export default async (req: Request) => {
 
     if (jackpotGain > 0) {
       batch.update(db.collection('appState').doc('global'), { jackpot: FieldValue.increment(jackpotGain) });
+      logJackpotChange(batch, db, {
+        delta: jackpotGain,
+        kind: 'auto-deduct',
+        reason: `Auto-Abzug (kein Tipp): ${market.question ?? marketDoc.id}`,
+        marketId: marketDoc.id,
+      });
     }
     await batch.commit();
   }
