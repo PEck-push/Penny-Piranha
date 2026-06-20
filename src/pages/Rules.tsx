@@ -106,7 +106,7 @@ const SECTIONS: { icon: string; title: string; body: string }[] = [
   {
     icon: '💪',
     title: 'Underdog-Bonus',
-    body: 'Wer auf einen Außenseiter tippt — eine Option mit unter 15 % Anteil am Gesamttopf zum Zeitpunkt der Markt-Sperrung — kassiert bei einem Treffer zusätzlich 10 % seines Einsatzes als Bonus aus der Hausbank. Mut wird belohnt!',
+    body: 'Wer auf einen Außenseiter tippt — eine Option mit unter 15 % Anteil am Gesamttopf zum Zeitpunkt der Markt-Sperrung — kassiert bei einem Treffer zusätzlich 10 % seines Einsatzes als Bonus vom Haus. Mut wird belohnt!',
   },
   {
     icon: '▶️',
