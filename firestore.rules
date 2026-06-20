@@ -136,7 +136,8 @@ service cloud.firestore {
         || (request.auth != null
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                 'jackpot', 'currentMatchday', 'hausbank',
-                'testMode', 'exchangeRate', 'adminMessage', 'whatsappGroupLink'
+                'testMode', 'exchangeRate', 'adminMessage', 'whatsappGroupLink',
+                'raisedLimits', 'bonusRefundApplied', 'bonusRefundAt', 'bonusRefundAmount'
               ]));
     }
 

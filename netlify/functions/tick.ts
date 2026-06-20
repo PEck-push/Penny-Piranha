@@ -38,6 +38,15 @@ export default async (req: Request) => {
     .get();
 
   if (!scheduleSnap.empty) {
+    // Gespeicherte „erhöhte Limits ab Grenz-Spiel"-Einstellung (Admin) lesen:
+    // Spiele, die ab diesem Anpfiff öffnen, bekommen diese Limits automatisch
+    // gestempelt — so gilt die Erhöhung für die ganze Runde, auch für Spiele,
+    // die erst später ins 72h-Fenster rutschen.
+    const appGlobalSnap = await db.collection('appState').doc('global').get();
+    const raised = (appGlobalSnap.data() as any)?.raisedLimits as
+      | { fromKickoffAt: number; minBet: number; maxBet: number; autoDeduct: number }
+      | undefined;
+
     // Duplikat-Check nur für die Spiele im Fenster (matchId 'in'), statt ALLE
     // wm-match-Märkte zu lesen. 'in' erlaubt max. 30 Werte. Der Spielplan kommt
     // durch die kickoffAt-Range-Query bereits aufsteigend sortiert — wir nehmen
@@ -61,9 +70,14 @@ export default async (req: Request) => {
 
       // Gruppenphase: ab dem 2. Spieltag höhere Limits (min 20 / max 170 / Abzug 20).
       const baseLimits = PHASE_LIMITS[match.phase as string] ?? PHASE_LIMITS.gruppenphase;
-      const limits = (match.phase ?? 'gruppenphase') === 'gruppenphase' && (match.matchday ?? 1) >= 2
+      const phaseLimits = (match.phase ?? 'gruppenphase') === 'gruppenphase' && (match.matchday ?? 1) >= 2
         ? { minBet: 20, maxBet: 170, autoDeduct: 20 }
         : baseLimits;
+      // Admin-Override „erhöhte Limits ab Grenz-Spiel": gilt für alle Spiele ab
+      // dem hinterlegten Anpfiff (ganze Runde) und hat Vorrang vor den Phasen-Limits.
+      const limits = raised && match.kickoffAt >= raised.fromKickoffAt
+        ? { minBet: raised.minBet, maxBet: raised.maxBet, autoDeduct: raised.autoDeduct }
+        : phaseLimits;
       const marketRef = db.collection('markets').doc();
       await marketRef.set({
         question: `${match.teamA} vs. ${match.teamB}`,

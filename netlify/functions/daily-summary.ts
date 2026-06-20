@@ -283,7 +283,7 @@ function naturalCountdown(fromMs: number, toMs: number): string {
   return `in ${days} Tagen — ${weekday} ${spaced} (${timeStr})`;
 }
 
-async function buildSummary(): Promise<{ text: string; fakt: string; reset: boolean; usedBefore: string[] }> {
+async function buildSummary(): Promise<{ text: string; fakt: string; reset: boolean; usedBefore: string[]; announceLimits: boolean }> {
   const db = getDb();
   const now = Date.now();
   const todayKey = viennaDayKey(now);
@@ -306,6 +306,22 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
   const markets: any[] = marketsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
   const schedule: ScheduleEntry[] = scheduleSnap.docs.map(d => ({ matchId: d.id, ...(d.data() as any) }));
   const shopItems: ShopItem[] = shopSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+
+  // ── Ankündigung erhöhter Einsätze — am Tag des Grenz-Spiels, genau einmal ──
+  // Der Admin hat per „Limits ab Grenz-Spiel" eine Erhöhung gespeichert
+  // (appState.raisedLimits). Am Wiener Kalendertag des Grenz-Spiel-Anpfiffs hängt
+  // das Summary eine Ankündigungszeile an; danach wird announced=true gesetzt.
+  const raisedLimits = (appSnap.data() as any)?.raisedLimits as
+    | { fromKickoffAt: number; fromMatchLabel?: string; minBet: number; maxBet: number; autoDeduct: number; announced?: boolean }
+    | undefined;
+  let limitAnnounceLine: string | null = null;
+  let announceLimits = false;
+  if (raisedLimits && !raisedLimits.announced
+      && typeof raisedLimits.fromKickoffAt === 'number'
+      && viennaDayKey(raisedLimits.fromKickoffAt) === todayKey) {
+    limitAnnounceLine = `⚡ *Ab heute höhere Einsätze!* Mindestens ${fmtTKN(raisedLimits.minBet)} · maximal ${fmtTKN(raisedLimits.maxBet)} Token pro Tipp. Wer nicht tippt, zahlt ${fmtTKN(raisedLimits.autoDeduct)} Token Auto-Abzug in den Jackpot.`;
+    announceLimits = true;
+  }
 
   // ── Turnier-Phase erkennen: vor dem ersten Spiel = Pre-Tournament-Modus ──
   // Definition: das erste Match hat noch nicht angepfiffen (kickoffAt > now)
@@ -432,6 +448,8 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
     lines.push(`💡 _${fakt}_`);
     lines.push('');
 
+    if (limitAnnounceLine) { lines.push(limitAnnounceLine); lines.push(''); }
+
     // Countdown bis erstes Spiel — natuerliche Formulierung
     if (earliestKickoff != null) {
       const first = schedule.find(s => s.kickoffAt === earliestKickoff)!;
@@ -471,7 +489,7 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
     }
 
     lines.push('Tippen 👉 https://kruegerl-propheten.netlify.app');
-    return { text: lines.join('\n'), fakt, reset, usedBefore };
+    return { text: lines.join('\n'), fakt, reset, usedBefore, announceLimits };
   }
 
   // ─── B) Turnier-Modus (Standard-Daily) ─────────────────────────────────
@@ -480,6 +498,8 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
   lines.push('');
   lines.push(`💡 _${fakt}_`);
   lines.push('');
+
+  if (limitAnnounceLine) { lines.push(limitAnnounceLine); lines.push(''); }
 
   const hasRueckblick = !!(sieger || pech || ranked.length > 0);
   if (hasRueckblick) {
@@ -527,7 +547,7 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
   }
 
   lines.push('Jetzt tippen 👉 https://kruegerl-propheten.netlify.app');
-  return { text: lines.join('\n'), fakt, reset, usedBefore };
+  return { text: lines.join('\n'), fakt, reset, usedBefore, announceLimits };
 }
 
 async function sendToTelegram(text: string): Promise<{ ok: boolean; error?: string }> {
@@ -564,7 +584,7 @@ export default async (req: Request) => {
   } catch { /* kein gültiges URL-Objekt (z. B. Scheduled-Invocation) → senden */ }
 
   try {
-    const { text, fakt, reset, usedBefore } = await buildSummary();
+    const { text, fakt, reset, usedBefore, announceLimits } = await buildSummary();
     if (dry) {
       return new Response(text, {
         status: 200,
@@ -584,6 +604,16 @@ export default async (req: Request) => {
         await getDb().collection('appState').doc('global').set({ usedFacts: newUsed }, { merge: true });
       } catch (e) {
         console.error('[daily-summary] usedFacts speichern fehlgeschlagen:', e);
+      }
+    }
+    // Erhöhte-Einsätze-Ankündigung wurde versendet → einmalig als erledigt
+    // markieren (deep-merge setzt nur das Flag, behält die übrigen Limit-Werte).
+    if (announceLimits) {
+      try {
+        await getDb().collection('appState').doc('global')
+          .set({ raisedLimits: { announced: true } }, { merge: true });
+      } catch (e) {
+        console.error('[daily-summary] raisedLimits.announced speichern fehlgeschlagen:', e);
       }
     }
     return new Response(JSON.stringify({ ok: true, length: text.length }), { status: 200 });
