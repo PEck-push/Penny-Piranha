@@ -160,6 +160,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Jackpot-Bewegungslog (Diagnose): jede Hausbank-/Jackpot-Änderung mit
+    // Grund. Lesen für authed (Admin-Diagnose). Automatische Einträge schreibt
+    // der Server (Admin-SDK, umgeht Rules); manuelle Jackpot-Korrekturen darf der
+    // Admin-Client anhängen (create). Bestehende Einträge bleiben unveränderbar.
+    match /jackpotLedger/{entryId} {
+      allow read: if request.auth != null;
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // ── Bet-Changes audit: revisionssicheres Log der Wett-Änderungen. Nur lesen
     // (Admin-Token-Historie); geschrieben ausschliesslich vom Server (change-bet
     // via Admin-SDK). Kein Client-Write, damit niemand Audit-Spuren faelscht.

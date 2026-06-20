@@ -5,7 +5,7 @@ import CoinIcon from '../components/CoinIcon';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
-import type { ScheduleMatch } from '../store';
+import type { ScheduleMatch, JackpotLedgerEntry } from '../store';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { deName } from '../utils/teams';
@@ -124,6 +124,10 @@ export default function Admin() {
   const [jackpotInput, setJackpotInput] = useState('');
   const [pendingJackpot, setPendingJackpot] = useState<number | null>(null);
 
+  // Jackpot-Bewegungen (Diagnose-Logbuch)
+  const [ledger, setLedger] = useState<JackpotLedgerEntry[] | null>(null);
+  const [ledgerBusy, setLedgerBusy] = useState(false);
+
   // Eigene Gratis-Wette erstellen (gleiches Prinzip wie Jackpot-Runden)
   const [freeBetQuestion, setFreeBetQuestion] = useState('');
   const [freeBetFormat, setFreeBetFormat] = useState<'binary' | 'single' | 'multi'>('binary');
@@ -204,6 +208,7 @@ export default function Admin() {
   const setPlayerPassword = useStore(s => s.setPlayerPassword);
   const fixNegativeBalances = useStore(s => s.fixNegativeBalances);
   const backfillBetActive = useStore(s => s.backfillBetActive);
+  const fetchJackpotLedger = useStore(s => s.fetchJackpotLedger);
   const awardBlockWinner = useStore(s => s.awardBlockWinner);
   const shopItems       = useStore(s => s.shopItems);
   const createShopItem  = useStore(s => s.createShopItem);
@@ -2684,6 +2689,91 @@ export default function Admin() {
                     </button>
                   </div>
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* ── JACKPOT-BEWEGUNGEN (DIAGNOSE) ───────────────────── */}
+          {(() => {
+            const KIND_META: Record<string, { emoji: string; label: string }> = {
+              'auto-deduct':    { emoji: '⏱️', label: 'Auto-Abzug' },
+              'shop-purchase':  { emoji: '🛍️', label: 'Shop-Kauf' },
+              'resolve-pool':   { emoji: '⚽', label: 'Pool-Rest' },
+              'no-winner':      { emoji: '🚫', label: 'Kein Gewinner' },
+              'underdog-bonus': { emoji: '🐶', label: 'Underdog-Bonus' },
+              'streak-bonus':   { emoji: '🔥', label: 'Streak-Bonus' },
+              'combo':          { emoji: '🔗', label: 'Combo' },
+              'jackpot-round':  { emoji: '🎰', label: 'Gratis-Runde' },
+              'finale-absorb':  { emoji: '🏆', label: 'Finale' },
+              'rollover':       { emoji: '↩️', label: 'Rollover' },
+              'manual-set':     { emoji: '✋', label: 'Manuell' },
+            };
+            const fmtTs = (ms: number) => ms
+              ? new Date(ms).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+              : '—';
+            const totalIn  = (ledger ?? []).filter(e => e.delta > 0).reduce((s, e) => s + e.delta, 0);
+            const totalOut = (ledger ?? []).filter(e => e.delta < 0).reduce((s, e) => s + e.delta, 0);
+            return (
+              <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[18px]">📊</span>
+                  <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase">Jackpot-Bewegungen</div>
+                </div>
+                <div className="text-[10px] text-muted mb-3 leading-relaxed">
+                  Zeigt jede Hausbank-/Jackpot-Änderung mit Grund. <b className="text-yellow">Wichtig:</b> Streak-Boni
+                  (🔥 +30/+100) und Underdog-Boni (🐶 +10 %) werden <b>aus der Hausbank</b> ausgezahlt — der Topf
+                  sinkt dadurch zwischen den Spielen, bis das Finale ihn ausschüttet.
+                </div>
+                <button
+                  onClick={async () => {
+                    setLedgerBusy(true);
+                    const rows = await fetchJackpotLedger(80);
+                    setLedger(rows);
+                    setLedgerBusy(false);
+                  }}
+                  className="w-full p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[12px] font-black">
+                  {ledgerBusy ? 'Lade…' : '📊 Bewegungen laden'}
+                </button>
+
+                {ledger !== null && (
+                  <div className="mt-3">
+                    <div className="flex gap-2 mb-2.5">
+                      <div className="flex-1 bg-green/5 border border-green/20 rounded-xl px-2 py-1.5 text-center">
+                        <div className="text-[9px] text-muted">Zufluss</div>
+                        <div className="font-mono text-[13px] font-bold text-green">+{totalIn}</div>
+                      </div>
+                      <div className="flex-1 bg-red/5 border border-red/20 rounded-xl px-2 py-1.5 text-center">
+                        <div className="text-[9px] text-muted">Abfluss</div>
+                        <div className="font-mono text-[13px] font-bold text-red">{totalOut}</div>
+                      </div>
+                      <div className="flex-1 bg-white/5 border border-border rounded-xl px-2 py-1.5 text-center">
+                        <div className="text-[9px] text-muted">Netto</div>
+                        <div className="font-mono text-[13px] font-bold text-white">{totalIn + totalOut >= 0 ? '+' : ''}{totalIn + totalOut}</div>
+                      </div>
+                    </div>
+                    {ledger.length === 0
+                      ? <div className="text-[11px] text-muted text-center py-3">Noch keine Bewegungen aufgezeichnet. Neue Auswertungen, Auto-Abzüge und Käufe erscheinen ab jetzt hier.</div>
+                      : <div className="space-y-1.5 max-h-[340px] overflow-y-auto">
+                          {ledger.map(e => {
+                            const meta = KIND_META[e.kind] ?? { emoji: '•', label: e.kind };
+                            const up = e.delta >= 0;
+                            return (
+                              <div key={e.id} className="flex items-start gap-2 bg-white/[0.03] border border-border rounded-lg px-2.5 py-1.5">
+                                <span className="text-[14px] leading-tight mt-0.5">{meta.emoji}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[11px] font-bold text-white truncate">{meta.label}</div>
+                                  <div className="text-[10px] text-muted truncate">{e.reason}</div>
+                                  <div className="text-[9px] text-muted/70">{fmtTs(e.ts)}</div>
+                                </div>
+                                <div className={clsx('font-mono text-[13px] font-bold shrink-0', up ? 'text-green' : 'text-red')}>
+                                  {up ? '+' : ''}{e.delta}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>}
+                  </div>
+                )}
               </div>
             );
           })()}

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
 import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField, query, orderBy, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export type FeedEventType =
@@ -242,6 +242,17 @@ export interface ScheduleMatch {
   scorers?: { team?: string; player: string; minute?: number | null }[];
 }
 
+// Jackpot-/Hausbank-Bewegung (Diagnose-Logbuch, gespiegelt aus jackpotLedger).
+export interface JackpotLedgerEntry {
+  id: string;
+  delta: number;       // +rein / −raus
+  kind: string;        // Kategorie (auto-deduct, streak-bonus, …)
+  reason: string;      // menschenlesbarer Grund
+  marketId?: string | null;
+  playerId?: string | null;
+  ts: number;          // ms seit Epoch
+}
+
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
 
 // Kanonischer Schlüssel einer Multiple-Choice-Auswahl: sortierte Options-IDs,
@@ -359,6 +370,8 @@ interface AppState {
   // Admin: negative Token-Guthaben (Alt-Bug Doppel-Abzug) auf 0 korrigieren.
   fixNegativeBalances: () => Promise<{ ok: boolean; fixed?: number; restored?: number; error?: string }>;
   backfillBetActive: () => Promise<{ ok: boolean; total?: number; updated?: number; active?: number; inactive?: number; error?: string }>;
+  // Admin-Diagnose: letzte Jackpot-/Hausbank-Bewegungen (neueste zuerst).
+  fetchJackpotLedger: (n?: number) => Promise<JackpotLedgerEntry[]>;
   awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
   simulateReveal: (net: number) => Promise<void>;
   // ─── Shop ───────────────────────────────────────────────────────────────────
@@ -988,14 +1001,49 @@ export const useStore = create<AppState>()((set, get) => {
 
     // Hausbank/Jackpot manuell auf einen exakten Wert setzen (Admin-Korrektur).
     setJackpot: async (value) => {
+      const prev = get().jackpot;
       const v = Math.max(0, Math.floor(value));
       set({ jackpot: v });
       if (db) {
         try {
           await setDoc(doc(db, 'appState', 'global'), { jackpot: v }, { merge: true });
+          // Manuelle Korrektur ins Bewegungslog (Diagnose), nur bei echter Änderung.
+          if (v !== prev) {
+            await addDoc(collection(db, 'jackpotLedger'), {
+              delta: v - prev,
+              kind: 'manual-set',
+              reason: `Manuell gesetzt: ${prev} → ${v}`,
+              ts: serverTimestamp(),
+            });
+          }
         } catch (err) {
           console.error('[Store] setJackpot Fehler:', err);
         }
+      }
+    },
+
+    // Admin-Diagnose: die letzten n Jackpot-/Hausbank-Bewegungen laden.
+    fetchJackpotLedger: async (n = 60) => {
+      if (!db) return [];
+      try {
+        const q = query(collection(db, 'jackpotLedger'), orderBy('ts', 'desc'), limit(n));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => {
+          const x = d.data() as any;
+          const ts = x.ts?.toMillis ? x.ts.toMillis() : (typeof x.ts === 'number' ? x.ts : 0);
+          return {
+            id: d.id,
+            delta: Number(x.delta ?? 0),
+            kind: String(x.kind ?? ''),
+            reason: String(x.reason ?? ''),
+            marketId: x.marketId ?? null,
+            playerId: x.playerId ?? null,
+            ts,
+          } as JackpotLedgerEntry;
+        });
+      } catch (err) {
+        console.error('[Store] fetchJackpotLedger Fehler:', err);
+        return [];
       }
     },
 
