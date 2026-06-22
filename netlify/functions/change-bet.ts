@@ -68,6 +68,16 @@ export default async (req: Request, _ctx: Context) => {
       const newOpt = options.find(o => o.id === newOptionId);
       if (!newOpt) throw new Error('option_not_found');
 
+      // Mindest-/Höchsteinsatz auch beim Ändern erzwingen (serverseitig, da der
+      // Slider umgangen werden kann). Gratis-/Jackpot-Tipps (newAmount == 0)
+      // bleiben frei.
+      if (newAmount > 0) {
+        const minBet = Number(m.minBet ?? 0);
+        const maxBet = Number(m.maxBet ?? 0);
+        if (minBet > 0 && newAmount < minBet) throw new Error('below_min_bet');
+        if (maxBet > 0 && newAmount > maxBet) throw new Error('above_max_bet');
+      }
+
       const oldAmount = Number(old.amount ?? 0);
       const oldOptionId = String(old.optionId ?? '');
       const tokens = Number(p.tokens ?? 0);
@@ -136,6 +146,8 @@ function errorMessage(code: string): string {
     case 'market_expired':           return 'Tipp-Fenster geschlossen.';
     case 'option_not_found':         return 'Diese Option gibt es nicht.';
     case 'insufficient_tokens':      return 'Nicht genug Tokens für den neuen Einsatz.';
+    case 'below_min_bet':            return 'Einsatz liegt unter dem Mindesteinsatz.';
+    case 'above_max_bet':            return 'Einsatz liegt über dem Höchsteinsatz.';
     default:                          return 'Ändern fehlgeschlagen.';
   }
 }
