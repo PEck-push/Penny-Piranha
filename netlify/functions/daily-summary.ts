@@ -307,10 +307,12 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
   const schedule: ScheduleEntry[] = scheduleSnap.docs.map(d => ({ matchId: d.id, ...(d.data() as any) }));
   const shopItems: ShopItem[] = shopSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
-  // ── Ankündigung erhöhter Einsätze — am Tag des Grenz-Spiels, genau einmal ──
+  // ── Ankündigung erhöhter Einsätze — so früh wie möglich, genau einmal ──
   // Der Admin hat per „Limits ab Grenz-Spiel" eine Erhöhung gespeichert
-  // (appState.raisedLimits). Am Wiener Kalendertag des Grenz-Spiel-Anpfiffs hängt
-  // das Summary eine Ankündigungszeile an; danach wird announced=true gesetzt.
+  // (appState.raisedLimits). Die Ankündigung geht mit der NÄCHSTEN Tages-
+  // Zusammenfassung raus (nicht erst am Spieltag), solange das Grenz-Spiel noch
+  // nicht angepfiffen hat — damit bereits-Tipper rechtzeitig anpassen können.
+  // Danach wird announced=true gesetzt (feuert nur einmal).
   const raisedLimits = (appSnap.data() as any)?.raisedLimits as
     | { fromKickoffAt: number; fromMatchLabel?: string; minBet: number; maxBet: number; autoDeduct: number; announced?: boolean }
     | undefined;
@@ -318,8 +320,11 @@ async function buildSummary(): Promise<{ text: string; fakt: string; reset: bool
   let announceLimits = false;
   if (raisedLimits && !raisedLimits.announced
       && typeof raisedLimits.fromKickoffAt === 'number'
-      && viennaDayKey(raisedLimits.fromKickoffAt) === todayKey) {
-    limitAnnounceLine = `⚡ *Ab heute höhere Einsätze!* Mindestens ${fmtTKN(raisedLimits.minBet)} · maximal ${fmtTKN(raisedLimits.maxBet)} Token pro Tipp. Wer nicht tippt, zahlt ${fmtTKN(raisedLimits.autoDeduct)} Token Auto-Abzug in den Jackpot.`;
+      && raisedLimits.fromKickoffAt > now) {
+    const ab = raisedLimits.fromMatchLabel ? ` (ab „${raisedLimits.fromMatchLabel}")` : '';
+    limitAnnounceLine =
+      `⚡ *Höhere Einsätze in der nächsten Runde!*${ab} Mindestens ${fmtTKN(raisedLimits.minBet)} · maximal ${fmtTKN(raisedLimits.maxBet)} Token pro Tipp, Auto-Abzug ${fmtTKN(raisedLimits.autoDeduct)} (wer nicht tippt). `
+      + `Wer schon getippt hat und unter dem neuen Minimum liegt: bitte in der App den Einsatz anpassen!`;
     announceLimits = true;
   }
 
