@@ -1228,7 +1228,7 @@ export default function Admin() {
                   .slice(0, 30)
                   .map(m => (
                     <option key={m.matchId} value={m.matchId}>
-                      {m.teamA} vs. {m.teamB} ({new Date(m.kickoffAt).toLocaleDateString('de-AT')})
+                      {deName(m.teamA)} vs. {deName(m.teamB)} ({new Date(m.kickoffAt).toLocaleDateString('de-AT')})
                     </option>
                   ))
                 }

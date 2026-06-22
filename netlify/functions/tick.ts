@@ -2,6 +2,7 @@ import type { Config } from '@netlify/functions';
 import { getDb, FieldValue } from './_lib/firebaseAdmin';
 import { verifyCron } from './_lib/cronAuth';
 import { logJackpotChange } from './_lib/jackpotLedger';
+import { deName } from '../../src/utils/teams';
 
 // Runs every 15 minutes (see config.schedule below). Two jobs:
 //   1. OPEN: create a betting market for any scheduled match whose kickoff is
@@ -82,17 +83,22 @@ export default async (req: Request) => {
         && (!raised.fromPhase || match.phase === raised.fromPhase)
         ? { minBet: raised.minBet, maxBet: raised.maxBet, autoDeduct: raised.autoDeduct }
         : phaseLimits;
+      // Teamnamen aus dem Spielplan kommen englisch aus der API (football-data.org)
+      // — vor dem Speichern auf deutsche Anzeigenamen übersetzen, damit ALLE
+      // Menüs (Dashboard, Meine Wetten, Spielplan, Feed …) deutsche Namen zeigen.
+      const a = deName(match.teamA);
+      const b = deName(match.teamB);
       const marketRef = db.collection('markets').doc();
       await marketRef.set({
-        question: `${match.teamA} vs. ${match.teamB}`,
+        question: `${a} vs. ${b}`,
         type: 'standard',
         status: 'open',
         createdBy: 'system',
         createdAt: now,
         options: [
-          { id: 'home', label: match.teamA, pool: 0 },
+          { id: 'home', label: a, pool: 0 },
           { id: 'draw', label: 'Unentschieden', pool: 0 },
-          { id: 'away', label: match.teamB, pool: 0 },
+          { id: 'away', label: b, pool: 0 },
         ],
         winningOptionId: null,
         resolutionType: null,
@@ -100,8 +106,8 @@ export default async (req: Request) => {
         marketSubtype: 'wm-match',
         matchId,
         footballDataOrgId: match.footballDataOrgId ?? null,
-        teamA: match.teamA,
-        teamB: match.teamB,
+        teamA: a,
+        teamB: b,
         kickoffAt: match.kickoffAt,
         groupLabel: match.groupLabel ?? '',
         phase: match.phase ?? 'gruppenphase',
@@ -115,7 +121,7 @@ export default async (req: Request) => {
       await feedRef.set({
         type: 'market_locked',
         marketId: marketRef.id,
-        text: `⚽ Markt offen: ${match.teamA} vs. ${match.teamB}`,
+        text: `⚽ Markt offen: ${a} vs. ${b}`,
         ts: FieldValue.serverTimestamp(),
       });
     }
