@@ -2,6 +2,31 @@ import { collection, doc, onSnapshot, query, orderBy, limit, getDocs } from 'fir
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet, Answer, FeedEvent, ScheduleMatch } from '../store';
 import { withShopPresentation, type ShopItem } from '../data/shopItems';
+import { deName } from '../utils/teams';
+
+// WM-Match-Märkte können mit englischen API-Teamnamen (football-data.org) in
+// Firestore liegen — etwa weil der Server-Auto-Open sie so angelegt hat. Beim
+// Einlesen zentral auf deutsche Anzeigenamen übersetzen, damit ALLE Menüs
+// (Dashboard, Meine Wetten, Spielplan, Combos …) deutsche Namen zeigen.
+// Idempotent: bereits deutsche Namen bleiben unverändert.
+const normalizeMarketTeams = (m: Market): Market => {
+  if (m.marketSubtype !== 'wm-match') return m;
+  const a = m.teamA ? deName(m.teamA) : m.teamA;
+  const b = m.teamB ? deName(m.teamB) : m.teamB;
+  const options = Array.isArray(m.options)
+    ? m.options.map(o =>
+        o.id === 'home' && a ? { ...o, label: a }
+        : o.id === 'away' && b ? { ...o, label: b }
+        : o)
+    : m.options;
+  return {
+    ...m,
+    teamA: a,
+    teamB: b,
+    question: a && b ? `${a} vs. ${b}` : m.question,
+    options,
+  };
+};
 
 let syncInitialized = false;
 let unsubscribers: (() => void)[] = [];
@@ -28,12 +53,18 @@ export const initFirebaseSync = () => {
   }, err => console.error('[Firebase] players Fehler:', err)));
 
   sub(onSnapshot(collection(db, 'markets'), snap => {
-    const markets = snap.docs.map(d => ({ id: d.id, ...d.data() } as Market));
+    const markets = snap.docs.map(d => normalizeMarketTeams({ id: d.id, ...d.data() } as Market));
     useStore.setState({ markets });
   }, err => console.error('[Firebase] markets Fehler:', err)));
 
   sub(onSnapshot(collection(db, 'bets'), snap => {
-    const bets = snap.docs.map(d => ({ id: d.id, ...d.data() } as Bet));
+    // optionLabel wird beim Tippen gespeichert und kann bei Alt-Wetten englisch
+    // sein (z. B. Heim/Auswärts-Team). deName ist idempotent — deutsche Labels
+    // und Nicht-Team-Optionen (JA/NEIN, Unentschieden) bleiben unverändert.
+    const bets = snap.docs.map(d => {
+      const b = { id: d.id, ...d.data() } as Bet;
+      return b.optionLabel ? { ...b, optionLabel: deName(b.optionLabel) } : b;
+    });
     useStore.setState({ bets });
   }, err => console.error('[Firebase] bets Fehler:', err)));
 
