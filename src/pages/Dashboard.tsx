@@ -421,6 +421,27 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Hinweis: bestehende Tipps liegen unter dem inzwischen erhöhten
+          Mindesteinsatz — Spieler sollen ihren Einsatz anheben. */}
+      {(() => {
+        const belowMin = bets.filter(b =>
+          b.playerId === me.id && b.amount > 0 &&
+          markets.some(m => m.id === b.marketId && m.status === 'open' &&
+            m.marketSubtype !== 'jackpot' && (m.minBet ?? 0) > b.amount),
+        );
+        if (belowMin.length === 0) return null;
+        return (
+          <div onClick={() => setActiveTab('my-bets')}
+            className="bg-yellow/10 border border-yellow/30 rounded-2xl px-4 py-3 mb-3 flex items-start gap-2.5 cursor-pointer hover:bg-yellow/15 transition-colors">
+            <span className="text-[18px] leading-none">⚠️</span>
+            <div className="text-[12px] text-yellow/90 leading-relaxed">
+              <b className="text-yellow">Mindesteinsatz erhöht.</b> {belowMin.length === 1 ? 'Einer deiner Tipps liegt' : `${belowMin.length} deiner Tipps liegen`} unter dem neuen Mindesteinsatz.
+              Tippe hier, öffne die betroffene Wette und passe den Einsatz an — sonst zählt der Tipp ggf. nicht.
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Hot Takes */}
       {markets.filter(m => m.type === 'hot-take' && m.status === 'open').map(m => (
         <HotTakeCard key={m.id} m={m} onClick={() => openMarketModal(m)} myBet={bets.find(b => b.marketId === m.id && b.playerId === me.id)} />
@@ -832,6 +853,13 @@ export default function Dashboard() {
                   </>
                 )}
               </div>
+              {/* Hinweis, wenn der bestehende Tipp unter dem inzwischen erhöhten
+                  Mindesteinsatz liegt — Spieler sollen ihren Einsatz anpassen. */}
+              {!isJackpot && m.status === 'open' && (m.minBet ?? 0) > b.amount && (
+                <div className="mt-2.5 text-[11px] font-bold text-yellow bg-yellow/10 border border-yellow/30 rounded-lg px-2.5 py-1.5 leading-snug">
+                  ⚠️ Mindesteinsatz ist jetzt {m.minBet} TKN — dein Tipp ({b.amount} TKN) liegt darunter. Tippe auf die Wette und passe den Einsatz an.
+                </div>
+              )}
             </div>
           );
         })}
