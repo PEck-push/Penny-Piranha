@@ -1421,10 +1421,12 @@ export default function Admin() {
                 </button>
               </div>
               <div className="mt-2 text-[10px] text-muted leading-snug">
-                Setzt ab dem gewählten Spiel (per Anpfiffzeit) die eingestellten Limits auf alle offenen WM-Spiele.
-                Spiele <b>davor</b> bleiben unverändert. Die Einstellung wird gespeichert, damit auch später
-                automatisch öffnende Spiele derselben Runde diese Limits bekommen. Das Telegram-Summary kündigt
-                die höheren Einsätze am Tag des Grenz-Spiels automatisch an.
+                Setzt ab dem gewählten Spiel (per Anpfiffzeit) die eingestellten Limits auf alle offenen WM-Spiele
+                <b> derselben Phase</b> (z.B. der Gruppen-Spieltag-Bump). Spiele <b>davor</b> bleiben unverändert.
+                Das Telegram-Summary kündigt die höheren Einsätze am Tag des Grenz-Spiels an.
+                <br /><br />
+                <b>Hinweis:</b> Die K.-o.-Runden (Sechzehntel- bis Finale) eskalieren <b>automatisch</b>
+                (45/290 → 60/360 → 75/430 → HF 90/490 → Finale 105/550). Dafür musst du hier nichts mehr setzen.
               </div>
               {mdLimitMsg && <div className="mt-2 text-[11px] font-bold text-blue2">{mdLimitMsg}</div>}
             </div>

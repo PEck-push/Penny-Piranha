@@ -11,14 +11,15 @@ import { logJackpotChange } from './_lib/jackpotLedger';
 
 const OPEN_WINDOW_MS = 72 * 60 * 60 * 1000;
 
+// Muss mit src/utils/phase.ts (PHASE_LIMITS) identisch bleiben.
 const PHASE_LIMITS: Record<string, { minBet: number; maxBet: number; autoDeduct: number }> = {
   gruppenphase:      { minBet: 10,  maxBet: 100, autoDeduct: 10 },
-  sechzehntelfinale: { minBet: 25,  maxBet: 250, autoDeduct: 25 },
-  achtelfinale:      { minBet: 50,  maxBet: 400, autoDeduct: 50 },
-  viertelfinale:     { minBet: 75,  maxBet: 600, autoDeduct: 75 },
-  halbfinale:        { minBet: 100, maxBet: 800, autoDeduct: 100 },
-  platz3:            { minBet: 50,  maxBet: 400, autoDeduct: 50 },
-  finale:            { minBet: 150, maxBet: 0,   autoDeduct: 150 },
+  sechzehntelfinale: { minBet: 45,  maxBet: 290, autoDeduct: 45 },
+  achtelfinale:      { minBet: 60,  maxBet: 360, autoDeduct: 60 },
+  viertelfinale:     { minBet: 75,  maxBet: 430, autoDeduct: 75 },
+  halbfinale:        { minBet: 90,  maxBet: 490, autoDeduct: 90 },
+  platz3:            { minBet: 75,  maxBet: 430, autoDeduct: 75 },
+  finale:            { minBet: 105, maxBet: 550, autoDeduct: 105 },
 };
 
 export default async (req: Request) => {
@@ -44,7 +45,7 @@ export default async (req: Request) => {
     // die erst später ins 72h-Fenster rutschen.
     const appGlobalSnap = await db.collection('appState').doc('global').get();
     const raised = (appGlobalSnap.data() as any)?.raisedLimits as
-      | { fromKickoffAt: number; minBet: number; maxBet: number; autoDeduct: number }
+      | { fromKickoffAt: number; fromPhase?: string; minBet: number; maxBet: number; autoDeduct: number }
       | undefined;
 
     // Duplikat-Check nur für die Spiele im Fenster (matchId 'in'), statt ALLE
@@ -68,14 +69,17 @@ export default async (req: Request) => {
       if (marketByMatch.has(matchId)) continue;
       if (typeof match.kickoffAt !== 'number') continue;
 
-      // Gruppenphase: ab dem 2. Spieltag höhere Limits (min 20 / max 170 / Abzug 20).
+      // Gruppenphase: ab dem 2. Spieltag höhere Limits (min 30 / max 210 / Abzug 30).
       const baseLimits = PHASE_LIMITS[match.phase as string] ?? PHASE_LIMITS.gruppenphase;
       const phaseLimits = (match.phase ?? 'gruppenphase') === 'gruppenphase' && (match.matchday ?? 1) >= 2
-        ? { minBet: 20, maxBet: 170, autoDeduct: 20 }
+        ? { minBet: 30, maxBet: 210, autoDeduct: 30 }
         : baseLimits;
-      // Admin-Override „erhöhte Limits ab Grenz-Spiel": gilt für alle Spiele ab
-      // dem hinterlegten Anpfiff (ganze Runde) und hat Vorrang vor den Phasen-Limits.
+      // Admin-Override „erhöhte Limits ab Grenz-Spiel": gilt nur für offene Märkte
+      // DERSELBEN Phase ab dem hinterlegten Anpfiff (z.B. Gruppen-Spieltag-Bump).
+      // Phasen-gebunden, damit ein Gruppen-Override NICHT die K.-o.-Eskalation
+      // überschreibt (die kommt automatisch aus PHASE_LIMITS).
       const limits = raised && match.kickoffAt >= raised.fromKickoffAt
+        && (!raised.fromPhase || match.phase === raised.fromPhase)
         ? { minBet: raised.minBet, maxBet: raised.maxBet, autoDeduct: raised.autoDeduct }
         : phaseLimits;
       const marketRef = db.collection('markets').doc();
