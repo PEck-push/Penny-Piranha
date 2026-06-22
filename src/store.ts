@@ -164,6 +164,7 @@ export interface Market {
   // (manuelles Öffnen) wird betCloseAt wieder entfernt.
   betCloseAt?: number;
   groupLabel?: string;
+  phase?: string;              // Turnierphase (gruppenphase … finale) – vom Tick gesetzt
   minBet?: number;
   maxBet?: number;             // 0 = All-in (Finale)
   autoDeductAmount?: number;
@@ -956,10 +957,12 @@ export const useStore = create<AppState>()((set, get) => {
       const cutoffMarket = markets.find(m => m.id === cutoffMarketId);
       const cutoff = cutoffMarket?.kickoffAt;
       if (typeof cutoff !== 'number') return { high: 0, standard: 0 };
+      const cutoffPhase = cutoffMarket?.phase;
       const t = { minBet, maxBet, autoDeductAmount: autoDeduct };
       let high = 0, standard = 0;
       for (const m of markets) {
         if (m.marketSubtype !== 'wm-match' || m.status !== 'open' || typeof m.kickoffAt !== 'number') continue;
+        if (cutoffPhase && m.phase !== cutoffPhase) continue; // nur dieselbe Phase (z.B. Gruppen-Bump)
         if (m.kickoffAt < cutoff) { standard++; continue; } // vor dem Grenz-Spiel: unverändert
         if (m.minBet === t.minBet && m.maxBet === t.maxBet && m.autoDeductAmount === t.autoDeductAmount) { high++; continue; }
         set(s => ({ markets: s.markets.map(mk => mk.id === m.id ? { ...mk, ...t } : mk) }));
@@ -978,6 +981,7 @@ export const useStore = create<AppState>()((set, get) => {
           await setDoc(doc(db, 'appState', 'global'), {
             raisedLimits: {
               fromKickoffAt: cutoff,
+              fromPhase: cutoffMarket?.phase ?? null,
               fromMatchLabel: `${cutoffMarket?.teamA ?? ''} vs ${cutoffMarket?.teamB ?? ''}`.trim(),
               minBet, maxBet, autoDeduct,
               announced: false,

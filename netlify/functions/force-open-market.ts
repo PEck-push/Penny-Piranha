@@ -7,14 +7,15 @@ import { verifyAdmin } from './_lib/adminAuth';
 // Creates a wm-match market immediately, bypassing the 48h window from tick.ts.
 // Uses identical market structure so the result is indistinguishable from tick.ts.
 
+// Muss mit src/utils/phase.ts (PHASE_LIMITS) identisch bleiben.
 const PHASE_LIMITS: Record<string, { minBet: number; maxBet: number; autoDeduct: number }> = {
-  gruppenphase:      { minBet: 10,  maxBet: 150, autoDeduct: 10 },
-  sechzehntelfinale: { minBet: 25,  maxBet: 250, autoDeduct: 25 },
-  achtelfinale:      { minBet: 50,  maxBet: 400, autoDeduct: 50 },
-  viertelfinale:     { minBet: 75,  maxBet: 600, autoDeduct: 75 },
-  halbfinale:        { minBet: 100, maxBet: 800, autoDeduct: 100 },
-  platz3:            { minBet: 50,  maxBet: 400, autoDeduct: 50 },
-  finale:            { minBet: 150, maxBet: 0,   autoDeduct: 150 },
+  gruppenphase:      { minBet: 10,  maxBet: 100, autoDeduct: 10 },
+  sechzehntelfinale: { minBet: 45,  maxBet: 290, autoDeduct: 45 },
+  achtelfinale:      { minBet: 60,  maxBet: 360, autoDeduct: 60 },
+  viertelfinale:     { minBet: 75,  maxBet: 430, autoDeduct: 75 },
+  halbfinale:        { minBet: 90,  maxBet: 490, autoDeduct: 90 },
+  platz3:            { minBet: 75,  maxBet: 430, autoDeduct: 75 },
+  finale:            { minBet: 105, maxBet: 550, autoDeduct: 105 },
 };
 
 export default async (req: Request, _context: Context) => {
