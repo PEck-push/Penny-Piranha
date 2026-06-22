@@ -242,8 +242,14 @@ export default function Dashboard() {
 
 
   const handleBet = (optionId: string, optionLabel: string) => {
-    if (selectedMarket && me && me.tokens >= betAmount && !selectedExpired)
-      setConfirmBet({ optionId, optionLabel, amount: betAmount });
+    if (!selectedMarket || !me || selectedExpired) return;
+    // Auf gültiges Intervall klemmen, bevor bestätigt wird — der Mindesteinsatz
+    // gilt auch dann, wenn der Regler nie bewegt wurde.
+    const min = selectedMarket.minBet ?? 1;
+    const max = selectedMarket.maxBet ?? Math.max(min, betAmount);
+    const amount = Math.min(Math.max(betAmount, min), Math.max(min, max));
+    if (me.tokens < amount) return;
+    setConfirmBet({ optionId, optionLabel, amount });
   };
 
   // Pending-Lock gegen Doppelklick: setConfirmBet räumt den Modal-State erst nach
@@ -284,6 +290,13 @@ export default function Dashboard() {
 
   const openMarketModal = (m: Market) => {
     setSelectedMarket(m);
+    // Einsatz auf den Mindesteinsatz des Markts vorbelegen. Sonst bliebe der
+    // hartkodierte Default stehen und man könnte unter dem Minimum tippen,
+    // solange man den Regler nicht bewegt (der Slider zeigt zwar geklemmt an,
+    // der tatsächliche betAmount blieb aber zu niedrig).
+    const min = m.minBet ?? 1;
+    const max = m.maxBet ?? min;
+    setBetAmount(Math.min(Math.max(min, 1), Math.max(min, max)));
     setOpenAnswerText('');
     setAnswerSubmitted(false);
   };

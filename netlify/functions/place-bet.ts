@@ -79,6 +79,17 @@ export default async (req: Request, _ctx: Context) => {
       const tokens = Number(p.tokens ?? 0);
       if (amount > 0 && tokens < amount) throw new Error('insufficient_tokens');
 
+      // Mindest-/Höchsteinsatz serverseitig erzwingen — der Client-Slider ist
+      // nur UI und kann (z. B. durch den Default-Wert) umgangen werden. Greift
+      // nur bei echten Geld-Tipps des Spielers selbst; Gratis-/Jackpot-Tipps
+      // (amount == 0) und die Admin-Pool-Befüllung für Test-Spieler bleiben frei.
+      if (amount > 0 && targetPlayerId === auth.uid) {
+        const minBet = Number(m.minBet ?? 0);
+        const maxBet = Number(m.maxBet ?? 0);
+        if (minBet > 0 && amount < minBet) throw new Error('below_min_bet');
+        if (maxBet > 0 && amount > maxBet) throw new Error('above_max_bet');
+      }
+
       if (amount > 0) {
         // Pool atomar im Markt-Doc fortschreiben (verhindert Lost-Update bei
         // parallelen Wetten).
@@ -120,6 +131,8 @@ function errorMessage(code: string): string {
     case 'market_expired':           return 'Tipp-Fenster geschlossen.';
     case 'option_not_found':         return 'Diese Option gibt es nicht.';
     case 'insufficient_tokens':      return 'Nicht genug Tokens.';
+    case 'below_min_bet':            return 'Einsatz liegt unter dem Mindesteinsatz.';
+    case 'above_max_bet':            return 'Einsatz liegt über dem Höchsteinsatz.';
     case 'forbidden_not_admin':      return 'Nur Admins dürfen für andere wetten.';
     case 'forbidden_target_not_test':return 'Nur für Test-Spieler erlaubt.';
     default:                          return 'Tippen fehlgeschlagen.';
