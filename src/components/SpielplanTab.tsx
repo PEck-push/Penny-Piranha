@@ -490,9 +490,14 @@ export default function SpielplanTab() {
                     </div>
                     {selectedMarket.status === 'open' && (selectedMarket.kickoffAt ?? Infinity) > now && (
                       <>
+                        {(selectedMarket.minBet ?? 0) > selectedMyBet.amount && (
+                          <div className="mt-2 text-[11px] font-bold text-yellow bg-yellow/10 border border-yellow/30 rounded-lg px-2.5 py-1.5 leading-snug">
+                            ⚠️ Mindesteinsatz wurde auf {selectedMarket.minBet} TKN erhöht — dein Tipp liegt darunter. Tippe „Wette ändern" und passe den Einsatz an.
+                          </div>
+                        )}
                         <div className="text-[10px] text-muted/70 mt-1.5">Änderbar bis ~10 Min. vor Anpfiff.</div>
                         <button
-                          onClick={() => { setIsChangingBet(true); setBetAmount(selectedMyBet.amount); }}
+                          onClick={() => { setIsChangingBet(true); setBetAmount(Math.max(selectedMyBet.amount, selectedMarket.minBet ?? 1)); }}
                           className="mt-3 text-[11px] font-black text-yellow border border-yellow/30 bg-yellow/10 rounded-lg px-3 py-1.5 hover:bg-yellow/20 transition-colors cursor-pointer">
                           ✏️ Wette ändern
                         </button>
