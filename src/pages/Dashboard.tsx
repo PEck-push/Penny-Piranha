@@ -1424,8 +1424,13 @@ export default function Dashboard() {
                             <div className="text-[15px] font-black text-white mt-1">
                               {myBet.amount} TKN auf „{myBet.optionLabel}"
                             </div>
+                            {selectedMarket.status === 'open' && (selectedMarket.minBet ?? 0) > myBet.amount && (
+                              <div className="mt-2 text-[11px] font-bold text-yellow bg-yellow/10 border border-yellow/30 rounded-lg px-2.5 py-1.5 leading-snug">
+                                ⚠️ Mindesteinsatz wurde auf {selectedMarket.minBet} TKN erhöht — dein Tipp liegt darunter. Tippe „Wette ändern" und passe den Einsatz an.
+                              </div>
+                            )}
                             {selectedMarket.status === 'open' && (
-                              <button onClick={() => { setChangingBetMarket(selectedMarket.id); setBetAmount(myBet.amount); }}
+                              <button onClick={() => { setChangingBetMarket(selectedMarket.id); setBetAmount(Math.max(myBet.amount, selectedMarket.minBet ?? 1)); }}
                                 className="mt-3 text-[11px] font-black text-yellow border border-yellow/30 bg-yellow/10 rounded-lg px-3 py-1.5 hover:bg-yellow/20 transition-colors cursor-pointer">
                                 ✏️ Wette ändern
                               </button>
