@@ -1,9 +1,56 @@
 import { create } from 'zustand';
-import { db } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { ACCESSORIES } from './data/accessories';
+import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
+import { db, auth } from './firebase';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField, query, orderBy, limit } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+
+export type FeedEventType =
+  | 'bet_placed' | 'market_resolved' | 'streak_on_fire' | 'streak_damn_hot'
+  | 'badge_unlocked' | 'underdog_win' | 'phase_winner' | 'jackpot_distribution'
+  | 'buyback' | 'market_locked' | 'shop_drop' | 'shop_purchase';
+
+export interface FeedEvent {
+  id: string;
+  type: FeedEventType;
+  playerId?: string;
+  playerName?: string;
+  marketId?: string;
+  text: string;
+  creditsChange?: number;
+  ts: number; // Unix ms
+}
 
 export type Badge = 'MARKET MOVER' | 'THE WHALE' | 'BANKROTT' | 'STREAK';
 export type ResolutionType = 'normal' | 'rollover' | 'storno' | 'no-winner' | 'all-same-side';
+
+// WM 2026: Badge-IDs für PNG-Overlay-System (Achievements).
+export type BadgeId =
+  | 'on_fire'
+  | 'damn_hot'
+  | 'whale'
+  | 'bankrupt'
+  | 'phoenix'
+  | 'underdog'
+  | 'phasekoenig'
+  | 'tageskoenig'
+  | 'arschkarte'
+  | 'wunderteam';
+
+export const BADGE_LABELS: Record<BadgeId, string> = {
+  on_fire:     'ON FIRE 🔥',
+  damn_hot:    'DAMN HOT 🔥🔥',
+  whale:       'THE WHALE 🐳',
+  bankrupt:    'BANKROTT 💀',
+  phoenix:     'PHOENIX 🦅',
+  underdog:    'UNDERDOG-CHAMPION 💪',
+  phasekoenig: 'PHASENKÖNIG 👑',
+  tageskoenig: 'SPIELTAGSKÖNIG 🏆',
+  arschkarte:  'ARSCHKARTE 🃏',
+  wunderteam:  'WUNDERTEAM 🇦🇹',
+};
+
+export type StreakLevel = 'none' | 'on_fire' | 'damn_hot';
 
 export interface MarketComboLeg {
   marketId: string;
@@ -29,13 +76,70 @@ export interface Player {
   tokens: number;
   comboMalus: boolean;
   badges: Badge[];
+
+  // ── WM 2026 (alle optional → bestehende Daten bleiben gültig) ──────────────
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  // Charakter (nach Registrierung gesperrt)
+  headId?: string;
+  bodyId?: string;
+  characterLocked?: boolean;
+  // PNG-Overlays
+  unlockedOverlays?: string[];
+  activeAccessoryId?: string | null;
+  // Getragene Accessoires je Slot (rein kosmetisch). IDs aus data/accessories.ts.
+  activeAccessories?: { head?: string | null; hand?: string | null; torso?: string | null };
+  activeBadgeId?: BadgeId | null;
+  // Shop: gekaufte Items (überleben Charakter-Reset) und aktuell getragene
+  // Shop-Items je Slot. Werden auf EIGENEN z-Ebenen gerendert, parallel zu den
+  // event-vergebenen Accessoires.
+  shopInventory?: string[];
+  activeShopItems?: { head?: string | null; hand?: string | null; torso?: string | null; effect?: string | null; background?: string | null };
+  // Zeitpunkt des letzten Shop-Besuchs (für „Neu im Shop"-Punkt am Nav-Button).
+  lastShopVisitTs?: number;
+  // Credits / Buyback
+  buybackUsed?: boolean;
+  // Streak
+  currentStreak?: number;
+  bestStreak?: number;
+  streakLevel?: StreakLevel;
+  streakHistory?: { length: number; from: string; to: string }[];
+  // Counter für Badges
+  austriaSpecialCorrect?: number;
+  underdogCorrect?: number;
+  // Underdog-Badge: Zeitpunkt (UTC ms) des letzten Außenseiter-Siegs. Der Orden
+  // wird ab diesem Zeitpunkt 24 h lang automatisch angezeigt, danach nicht mehr.
+  underdogBadgeAt?: number;
+  // Bilanz seit dem letzten angesehenen Reveal (wird beim Wegtippen des
+  // Reveal-Videos pro Spieler genullt) — NUR für den Reveal-Screen.
+  dailyNetGain?: number;
+  // Bilanz des aktuellen US-Spieltags (wird NUR beim Spieltagwechsel server-
+  // seitig genullt) — Grundlage für den Tagessieger-Orden + 08:00-Summary.
+  // Getrennt von dailyNetGain, damit das Ansehen des Reveals den Orden nicht
+  // zerstört.
+  matchdayNetGain?: number;
+  // Reveal-Queue für nächtliche Ergebnisse
+  unseenResolutions?: string[];
+  // Test-Spieler (erfundene Mitspieler, nur im Testmodus) — beim Reset gelöscht
+  isTestPlayer?: boolean;
+  // Admin-Rolle (in Firestore per Hand oder über Admin-UI setzen)
+  isAdmin?: boolean;
+  // Freigabe-Status: neue Spieler sind 'pending' (approved=false) und müssen vom
+  // Admin manuell freigegeben werden (nach erfolgter Einzahlung). Bestandsspieler
+  // ohne Feld (undefined) gelten als freigegeben.
+  approved?: boolean;
+  // Test/Admin: erzwingt beim nächsten Aufruf eine neue Charakter-Erstellung.
+  needsCharacter?: boolean;
+  // Onboarding-Tour beim ersten Dashboard-Aufruf gezeigt? (false = noch zeigen)
+  onboardingDone?: boolean;
 }
 
 export interface Market {
   id: string;
   question: string;
   type: 'standard' | 'hot-take' | 'anonymous' | 'combo';
-  status: 'open' | 'locked' | 'resolved' | 'cancelled';
+  status: 'open' | 'locked' | 'resolved' | 'cancelled' | 'paused';
   options: MarketOption[];
   createdAt: number;
   expiresAt?: number;
@@ -45,6 +149,58 @@ export interface Market {
   isOpenQuestion?: boolean;
   comboLegs?: MarketComboLeg[];
   multiplier?: number;
+
+  // ── WM 2026 Felder ────────────────────────────────────────────────────────────
+  marketSubtype?: 'wm-match' | 'spezialwette' | 'milestone' | 'club-special' | 'jackpot';
+  matchId?: string;            // verknüpft mit WmMatch.matchId aus wm2026Schedule.ts
+  footballDataOrgId?: number;  // API-Spiel-ID (football-data.org) für auto-resolve
+  teamA?: string;
+  teamB?: string;
+  kickoffAt?: number;          // UTC ms — wann Markt automatisch sperrt
+  // Expliziter Annahmeschluss (UTC ms), v.a. für Gratis-/Jackpot-Wetten ohne
+  // eigenen Anpfiff. Ist er gesetzt und erreicht, sperrt der Cron-Tick den Markt
+  // automatisch (ohne Token-Abzug). Fehlt das Feld, schließt der Markt NICHT
+  // automatisch — so bleiben neu angelegte Wetten unberührt. Über reopenMarket
+  // (manuelles Öffnen) wird betCloseAt wieder entfernt.
+  betCloseAt?: number;
+  groupLabel?: string;
+  phase?: string;              // Turnierphase (gruppenphase … finale) – vom Tick gesetzt
+  minBet?: number;
+  maxBet?: number;             // 0 = All-in (Finale)
+  autoDeductAmount?: number;
+  autoDeductProcessed?: boolean;
+  initialSeedCredits?: number;
+  lockedPoolSnapshot?: Record<string, number>;
+  winningOptionIds?: string[]; // für Multi-Winner (Milestone etc.)
+  austriaBlock?: boolean;      // Spezialwette gehört zum Österreich-Block
+  comboGroupId?: string;       // Combo-Gruppe: alle Legs teilen dieselbe ID
+  comboGroupLabel?: string;    // Obertitel der Combo-Gruppe
+  // Jackpot-Sonderrunden (einsatzfrei, fester Haus-Preis)
+  noStake?: boolean;           // true → Gratis-Tipp ohne Token-Einsatz
+  jackpotBlock?: string;       // 'block1' | 'block2' | 'finale'
+  jackpotBlockLabel?: string;  // z.B. "🏁 Ende Gruppenphase"
+  fixedPrize?: number;         // fester Token-Preis dieser Frage (vom Haus)
+  absorbsJackpotPot?: boolean; // Finale-Headline: schluckt angesparten jackpot
+  allowMultiWinner?: boolean;  // mehrere Optionen koennen gleichzeitig richtig sein
+                               // (z. B. Surprise-Out, wenn zwei Favoriten in derselben Runde rausfliegen)
+  // Multiple-Choice: Spieler kreuzt mehrere Antworten an, gewinnt nur bei exakter
+  // Übereinstimmung mit der vom Admin gewählten richtigen Menge. Der Tipp wird als
+  // ein Bet gespeichert (optionId = kanonischer Schlüssel der Auswahl).
+  multiSelect?: boolean;
+  // Vom Resolve gesetzt (auto-resolve mit API-Score). Im Admin-Inspector & im
+  // Feed zur Anzeige des End-Ergebnisses verwendet. `duration` = REGULAR |
+  // EXTRA_TIME | PENALTY_SHOOTOUT (football-data.org).
+  finalScore?: {
+    home: number;
+    away: number;
+    duration?: string;
+    penaltiesHome?: number;
+    penaltiesAway?: number;
+  };
+  // Firestore-Timestamp serialisiert — kann beim Lesen als
+  // { seconds, nanoseconds } oder mit toMillis() ankommen.
+  resolvedAt?: unknown;
+  resolvedBy?: 'auto' | 'admin';
 }
 
 export interface Bet {
@@ -55,6 +211,11 @@ export interface Bet {
   optionLabel: string;
   amount: number;
   timestamp: number;
+  // Vom Resolve gesetzt: tatsächlich ausgezahlter Betrag (Parimutuel + Mindest-
+  // garantie + Underdog-Bonus für Standard; Combo: amount×mult; Jackpot: gleich-
+  // verteilt; Rollover: 50%; Storno: 100%). Streak-Boni hängen am Spieler und
+  // zählen NICHT in payout. 0 = verloren. Fehlt = noch nicht aufgelöst.
+  payout?: number;
 }
 
 export interface Answer {
@@ -65,7 +226,80 @@ export interface Answer {
   timestamp: number;
 }
 
+// WM 2026 Spielplan-Eintrag (aus Firestore `schedule`, befüllt via API-Import).
+export interface ScheduleMatch {
+  matchId: string;
+  footballDataOrgId?: number;
+  phase: string;
+  groupLabel: string;
+  teamA: string;
+  teamB: string;
+  kickoffAt: number; // UTC ms
+  matchday?: number;
+  status?: 'scheduled' | 'live' | 'finished';
+  scoreA?: number | null;
+  scoreB?: number | null;
+  // Torschützen, falls die API sie liefert (football-data.org Free-Tier i.d.R. nicht).
+  scorers?: { team?: string; player: string; minute?: number | null }[];
+}
+
+// Jackpot-/Hausbank-Bewegung (Diagnose-Logbuch, gespiegelt aus jackpotLedger).
+export interface JackpotLedgerEntry {
+  id: string;
+  delta: number;       // +rein / −raus
+  kind: string;        // Kategorie (auto-deduct, streak-bonus, …)
+  reason: string;      // menschenlesbarer Grund
+  marketId?: string | null;
+  playerId?: string | null;
+  ts: number;          // ms seit Epoch
+}
+
+// Ergebnis des Boni-Rückerstattungs-Tools (admin-jackpot-refill).
+export interface JackpotRefundResult {
+  ok: boolean;
+  applied?: boolean;
+  error?: string;
+  streakTotal: number; streakCount: number;
+  underdogTotal: number; underdogMarkets: number;
+  comboTotal: number; comboWins: number;
+  total: number; currentJackpot: number; newJackpot: number;
+  alreadyApplied: boolean;
+  // Zuflüsse (informativ): woraus der Jackpot historisch gewachsen ist.
+  autoDeductInflow: number; autoDeductCount: number;
+  shopInflow: number; shopCount: number;
+  inflowTotal: number;
+}
+
 export const getMarketTotal = (m: Market) => m.options.reduce((s, o) => s + o.pool, 0);
+
+// Ruft das Boni-Rückerstattungs-Tool (Netlify Function) auf. apply=false = Audit.
+async function callJackpotRefund(apply: boolean): Promise<JackpotRefundResult> {
+  const empty: JackpotRefundResult = {
+    ok: false, streakTotal: 0, streakCount: 0, underdogTotal: 0, underdogMarkets: 0,
+    comboTotal: 0, comboWins: 0, total: 0, currentJackpot: 0, newJackpot: 0, alreadyApplied: false,
+    autoDeductInflow: 0, autoDeductCount: 0, shopInflow: 0, shopCount: 0, inflowTotal: 0,
+  };
+  try {
+    const token = await auth?.currentUser?.getIdToken();
+    if (!token) return { ...empty, error: 'Kein Admin-Token.' };
+    const res = await fetch('/.netlify/functions/admin-jackpot-refill', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apply }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ...empty, ...(data as any), ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+    return { ...empty, ...(data as any), ok: true };
+  } catch (err: any) {
+    return { ...empty, error: err?.message ?? 'Unbekannter Fehler.' };
+  }
+}
+
+// Kanonischer Schlüssel einer Multiple-Choice-Auswahl: sortierte Options-IDs,
+// per '|' verbunden. Tipp und Auflösung erzeugen denselben Schlüssel, sodass
+// „exakt richtig" über reinen String-Vergleich (b.optionId === winningOptionId)
+// funktioniert.
+export const buildSelectionKey = (ids: string[]) => [...ids].sort().join('|');
 
 // ─── Cookie helpers (nur für currentUser Session) ─────────────────────────────
 export const saveSessionCookie = (playerId: string, avatar: string, avatarColor: string) => {
@@ -84,32 +318,59 @@ export const clearSessionCookie = () => {
 };
 
 // ─── Initial Data ─────────────────────────────────────────────────────────────
-export const INITIAL_PLAYERS: Player[] = [
-  { id: 'p1',  name: 'Alex',    avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p2',  name: 'Neigi',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p3',  name: 'Michi',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p4',  name: 'Steindl', avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p5',  name: 'Paco',    avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p6',  name: 'Luigi',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p7',  name: 'Stefan',  avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p8',  name: 'Jakob',   avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p9',  name: 'Philipp', avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p10', name: 'Memo',    avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-  { id: 'p11', name: 'Moz',     avatar: '', avatarId: '', avatarColor: '', loggedIn: false, tokens: 1000, comboMalus: false, badges: [] },
-];
+// Initial leer — die Spielerliste kommt ausschließlich aus Firestore. Frühere
+// Hardcoded-Testnamen (Alex/Neigi/…) führten dazu, dass eine leere players-
+// Collection nach `go-live` die alten Test-Namen weiterhin in der Rangliste
+// sichtbar gemacht hat.
+export const INITIAL_PLAYERS: Player[] = [];
 export const INITIAL_MARKETS: Market[] = [];
+
+// Namen & Farben für erfundene Test-Spieler (Testmodus).
+const TEST_NAMES = ['Bot-Kevin', 'Bot-Sandra', 'Bot-Hugo', 'Bot-Lena', 'Bot-Mario', 'Bot-Nina', 'Bot-Otto', 'Bot-Resi', 'Bot-Toni', 'Bot-Vera'];
+const TEST_COLORS = ['#ff4500', '#00bfff', '#ffd700', '#32cd32', '#8b3dff', '#ff3d5a', '#00d68f'];
 
 interface AppState {
   players: Player[];
   markets: Market[];
   bets: Bet[];
   answers: Answer[];
+  feed: FeedEvent[];
+  schedule: ScheduleMatch[];
+  shopItems: ShopItem[]; // Katalog (Firestore: shopItems)
+  shopLastDropTs: number; // Zeitstempel des letzten neuen Items (für Neu-Punkt)
   jackpot: number;
+  currentPhase: string; // Phase string from appState/global
+  testMode: boolean; // per Default true; via "Live gehen" deaktiviert
+  adminMessage: string; // optionale Ticker-Nachricht des Admins
+  whatsappGroupLink: string; // Beitrittslink zur WhatsApp-Gruppe (angezeigt nach Registrierung)
+  exchangeRate: number; // Cashout-Wechselkurs: 100 TKN = X € (geteilt & persistiert)
   currentUser: string | null;
+  // Firebase-Auth-Email des eingeloggten Users. Wird unabhängig vom Spieler-
+  // Dokument geführt und dient als robuster Fallback für Admin-Checks
+  // (falls das Firestore-Profil mal ohne Email-Feld angelegt wurde).
+  currentEmail: string | null;
 
   login: (playerId: string, avatar: string, avatarColor: string, avatarId: string) => void;
   logout: () => void;
-  placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => void;
+  setCurrentUser: (uid: string | null) => void;
+  setCurrentEmail: (email: string | null) => void;
+  registerPlayer: (uid: string, data: Omit<Player, 'id'>) => Promise<void>;
+  logoutAuth: () => Promise<void>;
+  placeBet: (marketId: string, optionId: string, optionLabel: string, amount: number) => Promise<void>;
+  placeBetAs: (playerId: string, marketId: string, optionId: string, optionLabel: string, amount: number) => Promise<void>;
+  placeTip: (marketId: string, optionId: string, optionLabel: string) => Promise<void>;
+  placeTipAs: (playerId: string, marketId: string, optionId: string, optionLabel: string) => Promise<void>;
+  changeBet: (marketId: string, newOptionId: string, newOptionLabel: string, newAmount: number) => Promise<void>;
+  changeTip: (marketId: string, newOptionId: string, newOptionLabel: string) => Promise<void>;
+  closeMarket: (marketId: string) => Promise<void>;
+  setPlayerAdmin: (playerId: string, isAdmin: boolean) => Promise<void>;
+  setPlayerApproved: (playerId: string, approved: boolean) => Promise<void>;
+  resetPlayerCharacter: (playerId: string) => Promise<void>;
+  saveCharacter: (uid: string, fields: Partial<Pick<Player, 'headId' | 'bodyId' | 'avatar' | 'avatarId' | 'avatarColor'>>) => Promise<void>;
+  setOnboardingDone: (done: boolean) => Promise<void>;
+  deleteMarket: (marketId: string) => Promise<void>;
+  createTestPlayer: (name?: string) => Promise<void>;
+  autoBetTestPlayers: () => Promise<void>;
   submitAnswer: (marketId: string, text: string) => void;
   createMarket: (market: Omit<Market, 'id' | 'createdAt'>) => void;
   resolveOpenQuestion: (marketId: string, winnerPlayerIds: string[]) => void;
@@ -117,7 +378,55 @@ interface AppState {
   resolveRollover: (marketId: string) => void;
   resolveStorno: (marketId: string) => void;
   lockMarket: (marketId: string) => void;
+  pauseMarket: (marketId: string) => Promise<void>;
+  reopenMarket: (marketId: string) => Promise<void>;
+  // Annahmeschluss (UTC ms) setzen oder mit null entfernen.
+  setMarketBetClose: (marketId: string, betCloseAt: number | null) => Promise<void>;
+  // Preistopf (fixedPrize) einer Gratis-/Jackpot-Wette nachträglich setzen.
+  setFreeBetPrize: (marketId: string, fixedPrize: number) => Promise<void>;
+  // Bestehende WM-Märkte ohne footballDataOrgId nachträglich mit der API-ID aus
+  // dem Spielplan verknüpfen (Voraussetzung für die automatische Auflösung).
+  linkWmMarketsToApi: () => Promise<{ linked: number; unmatched: number }>;
+  // Tagesgewinn (dailyNetGain) aller Spieler aus den aufgelösten Ergebnissen des
+  // aktuellen US-Spieltags neu berechnen — repariert einen falschen Tagessieger.
+  recomputeDailyGains: () => Promise<{ day: string | null; updated: number }>;
+  // Höhere Limits (min/max/Auto-Abzug frei wählbar) ab dem Anpfiff eines
+  // Grenz-Spiels auf alle offenen WM-Spiele AB diesem Anpfiff setzen; Spiele
+  // davor bleiben unangetastet. Speichert die Einstellung (appState.raisedLimits),
+  // damit der Tick spätere Spiele der Runde automatisch gleich stempelt.
+  applyLimitsFromMatch: (cutoffMarketId: string, minBet: number, maxBet: number, autoDeduct: number) => Promise<{ high: number; standard: number }>;
   giveTokens: (playerId: string, amount: number) => void;
+  executeBuyback: (playerId: string) => Promise<void>;
+  setAdminMessage: (msg: string) => Promise<void>;
+  setWhatsappGroupLink: (url: string) => Promise<void>;
+  setExchangeRate: (rate: number) => Promise<void>;
+  setJackpot: (value: number) => Promise<void>;
+  setActiveAccessory: (slot: 'head' | 'hand' | 'torso', accessoryId: string | null) => Promise<void>;
+  grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
+  // Admin: nur das Login-Passwort eines Spielers neu setzen (Auth), ohne
+  // jegliche Änderung an Account/Fortschritt. Liefert Erfolg/Fehler zurück.
+  setPlayerPassword: (playerId: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
+  // Admin: negative Token-Guthaben (Alt-Bug Doppel-Abzug) auf 0 korrigieren.
+  fixNegativeBalances: () => Promise<{ ok: boolean; fixed?: number; restored?: number; error?: string }>;
+  backfillBetActive: () => Promise<{ ok: boolean; total?: number; updated?: number; active?: number; inactive?: number; error?: string }>;
+  // Admin-Diagnose: letzte Jackpot-/Hausbank-Bewegungen (neueste zuerst).
+  fetchJackpotLedger: (n?: number) => Promise<JackpotLedgerEntry[]>;
+  // Admin: historisch aus dem Jackpot bezahlte Boni nachrechnen (audit) bzw.
+  // einmalig zurückerstatten (apply).
+  auditJackpotRefund: () => Promise<JackpotRefundResult>;
+  applyJackpotRefund: () => Promise<JackpotRefundResult>;
+  awardBlockWinner: (block: string) => Promise<{ winners: string[] }>;
+  simulateReveal: (net: number) => Promise<void>;
+  // ─── Shop ───────────────────────────────────────────────────────────────────
+  purchaseShopItem: (itemId: string) => Promise<{ ok: boolean; error?: string }>;
+  setActiveShopItem: (slot: ShopSlot, itemId: string | null) => Promise<void>;
+  markShopVisited: () => Promise<void>;
+  createShopItem: (data: Omit<ShopItem, 'createdAt'>) => Promise<void>;
+  updateShopItem: (id: string, patch: Partial<ShopItem>) => Promise<void>;
+  deleteShopItem: (id: string) => Promise<void>;
+  seedShopExamples: () => Promise<{ added: number }>;
+  seedShopFirstItems: () => Promise<{ added: number }>;
+  seedShopTorsoItems: () => Promise<{ added: number }>;
   resetState: () => void;
 }
 
@@ -127,109 +436,31 @@ interface AppState {
 // Collections zurückgeliefert und alles aus dem localStorage gelöscht.
 // Jetzt: Firebase ist die einzige Wahrheit. Daten überleben jeden Refresh.
 export const useStore = create<AppState>()((set, get) => {
-  const resolveMarket = async (marketId: string, winningOptionId: string) => {
-    const state = get();
-    const market = state.markets.find(m => m.id === marketId);
-    if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-
-    const winOpt = market.options.find(o => o.id === winningOptionId);
-    const totalPool = getMarketTotal(market);
-    const winPool = winOpt?.pool ?? 0;
-    const allBets = state.bets.filter(b => b.marketId === marketId);
-    const winBets = allBets.filter(b => b.optionId === winningOptionId);
-    const pUpdates: Record<string, number> = {};
-    let newJackpot = state.jackpot;
-    let resType: ResolutionType;
-
-    if (market.type === 'combo') {
-      const multiplier = market.multiplier ?? 3;
-      if (winningOptionId === 'combo-win') {
-        resType = 'normal';
-        const winnerBets = allBets.filter(b => b.optionId === 'combo-win');
-        let totalPayout = 0;
-        winnerBets.forEach(b => {
-          const payout = b.amount * multiplier;
-          pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + payout;
-          totalPayout += payout;
-        });
-        newJackpot = Math.max(0, state.jackpot - Math.max(0, totalPayout - totalPool));
-      } else {
-        resType = 'no-winner';
-        newJackpot = state.jackpot + totalPool;
-      }
-    } else if (!winOpt || winPool === 0) {
-      resType = 'no-winner';
-      let refunded = 0;
-      allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-      newJackpot = state.jackpot + (totalPool - refunded);
-    } else if (winPool === totalPool) {
-      resType = 'all-same-side';
-      let jpPaid = 0;
-      winBets.forEach(b => { const share = state.jackpot > 0 ? Math.floor((b.amount / winPool) * state.jackpot) : 0; pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount + share; jpPaid += share; });
-      newJackpot = Math.max(0, state.jackpot - jpPaid);
-    } else {
-      resType = 'normal';
-      const eff = totalPool + state.jackpot;
-      let paid = 0;
-      winBets.forEach(b => { const p = Math.floor((b.amount / winPool) * eff); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + p; paid += p; });
-      newJackpot = Math.max(0, eff - paid);
-    }
-
-    set(s => ({
-      jackpot: newJackpot,
-      markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId, resolutionType: resType } : m),
-      players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-    }));
-
-    if (db) {
-      try {
-        const batch = writeBatch(db);
-        batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId, resolutionType: resType });
-        batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-        Object.entries(pUpdates).forEach(([pid, amt]) => {
-          const p = state.players.find(pl => pl.id === pid);
-          if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-        });
-        await batch.commit();
-      } catch (err) {
-        console.error('[Store] resolveMarket Fehler:', err);
-      }
-    }
-
-    if (market.type !== 'combo') {
-      const freshState = get();
-      const affectedCombos = freshState.markets.filter(
-        m => m.type === 'combo' &&
-        (m.status === 'open' || m.status === 'locked') &&
-        m.comboLegs?.some(l => l.marketId === marketId)
-      );
-      for (const combo of affectedCombos) {
-        const updatedLegs: MarketComboLeg[] = (combo.comboLegs ?? []).map(leg =>
-          leg.marketId === marketId
-            ? { ...leg, status: leg.predictedOptionId === winningOptionId ? 'hit' : 'miss' }
-            : leg
-        );
-        set(s => ({ markets: s.markets.map(m => m.id === combo.id ? { ...m, comboLegs: updatedLegs } : m) }));
-        if (db) {
-          try {
-            await updateDoc(doc(db, 'markets', combo.id), { comboLegs: updatedLegs });
-          } catch (err) {
-            console.error('[Store] Combo-Legs Fehler:', err);
-          }
-        }
-        if (updatedLegs.some(l => l.status === 'miss')) await resolveMarket(combo.id, 'combo-miss');
-        else if (updatedLegs.every(l => l.status === 'hit')) await resolveMarket(combo.id, 'combo-win');
-      }
-    }
-  };
+  // ── Hinweis: Client-seitige Resolver wurden entfernt ────────────────────────
+  // Die Auflösung lebt seit der Server-Migration ausschliesslich in der
+  // Netlify-Function `/.netlify/functions/resolve-market` (Atomar via
+  // `resolveInProgress`-Claim, identische Payout-Logik). Die unten verbliebenen
+  // Stubs sind no-op + Warn-Log, falls noch irgendeine UI-Stelle sie aufruft —
+  // sie sollen verhindern, dass eine doppelte Auszahlung passiert (Client +
+  // Server gleichzeitig).
 
   return {
     players: INITIAL_PLAYERS,
     markets: [],
     bets: [],
     answers: [],
+    feed: [],
+    schedule: [],
+    shopItems: [],
+    shopLastDropTs: 0,
     jackpot: 0,
+    currentPhase: 'gruppenphase',
+    testMode: true,
+    adminMessage: '',
+    whatsappGroupLink: '',
+    exchangeRate: 1,
     currentUser: null,
+    currentEmail: null,
 
     login: async (playerId, avatar, avatarColor, avatarId) => {
       const player = get().players.find(p => p.id === playerId);
@@ -256,6 +487,7 @@ export const useStore = create<AppState>()((set, get) => {
       const userId = get().currentUser;
       set(s => ({
         currentUser: null,
+        currentEmail: null,
         players: s.players.map(p =>
           p.id === userId ? { ...p, avatar: '', avatarId: '', avatarColor: '', loggedIn: false } : p
         ),
@@ -267,84 +499,260 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     placeBet: async (marketId, optionId, optionLabel, amount) => {
-      const state = get();
-      if (!state.currentUser) return;
-      const player = state.players.find(p => p.id === state.currentUser);
-      if (!player || player.tokens < amount) return;
-      const mkt = state.markets.find(m => m.id === marketId);
-      if (mkt?.expiresAt && Date.now() > mkt.expiresAt) return;
-      const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === state.currentUser);
-      if (alreadyBet) return;
+      const { currentUser, placeBetAs } = get();
+      if (!currentUser) return;
+      await placeBetAs(currentUser, marketId, optionId, optionLabel, amount);
+    },
 
-      const bet: Bet = {
-        id: Math.random().toString(36).substring(7),
-        marketId, playerId: state.currentUser, optionId, optionLabel, amount,
-        timestamp: Date.now(),
-      };
-      set(s => ({
-        bets: [...s.bets, bet],
-        players: s.players.map(p => p.id === s.currentUser ? { ...p, tokens: p.tokens - amount } : p),
-        markets: s.markets.map(m =>
-          m.id === marketId
-            ? { ...m, options: m.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) }
-            : m
-        ),
-      }));
+    // Platziert eine Wette im Namen eines beliebigen Spielers (für Test-Spieler
+    // und das manuelle Befüllen von Pools im Admin-Panel). Geht jetzt durch den
+    // Server-Endpunkt `/.netlify/functions/place-bet`, der atomar
+    //   (a) Status/Anpfiff/Expires prüft,
+    //   (b) Tokens dekrementiert,
+    //   (c) Pool inkrementiert,
+    //   (d) Bet-Doc anlegt
+    // — verhindert Lost-Update bei parallelen Wetten und Selbst-Beschenken
+    // via Devtools.
+    placeBetAs: async (playerId, marketId, optionId, optionLabel, amount) => {
+      const state = get();
+      const player = state.players.find(p => p.id === playerId);
+      if (!player) return;
+      const mkt = state.markets.find(m => m.id === marketId);
+      if (!mkt || mkt.status !== 'open') return;
+      if (mkt.expiresAt && Date.now() > mkt.expiresAt) return;
+      if (mkt.kickoffAt && Date.now() >= mkt.kickoffAt) return;
+      const alreadyBet = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
+      if (alreadyBet) return;
+      if (amount > 0 && player.tokens < amount) return;
+
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] placeBetAs: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/place-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, optionId, optionLabel, amount, playerId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] placeBetAs Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        // Optimistic local update — onSnapshot überschreibt das gleich mit Server-Truth.
+        const betId = `${marketId}__${playerId}`;
+        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount, timestamp: Date.now() };
+        set(s => ({
+          bets: [...s.bets.filter(b => b.id !== betId), bet],
+          players: amount > 0
+            ? s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens - amount } : p)
+            : s.players,
+          markets: amount > 0
+            ? s.markets.map(m =>
+                m.id === marketId
+                  ? { ...m, options: m.options.map(o => o.id === optionId ? { ...o, pool: o.pool + amount } : o) }
+                  : m)
+            : s.markets,
+        }));
+      } catch (err) {
+        console.error('[Store] placeBetAs Fehler:', err);
+      }
+    },
+
+    // Einsatzfreier Gratis-Tipp für Jackpot-Sonderrunden: nutzt denselben
+    // Server-Endpunkt mit amount: 0 — kein Token-Abzug, kein Pool-Aufbau.
+    placeTip: async (marketId, optionId, optionLabel) => {
+      const { currentUser, placeTipAs } = get();
+      if (!currentUser) return;
+      await placeTipAs(currentUser, marketId, optionId, optionLabel);
+    },
+
+    placeTipAs: async (playerId, marketId, optionId, optionLabel) => {
+      // Server-Endpoint kümmert sich um Status-/Doppel-Tipp-Check.
+      const state = get();
+      const mkt = state.markets.find(m => m.id === marketId);
+      if (!mkt || mkt.status !== 'open') return;
+      if (mkt.expiresAt && Date.now() > mkt.expiresAt) return;
+      if (mkt.kickoffAt && Date.now() >= mkt.kickoffAt) return;
+      const alreadyTipped = state.bets.some(b => b.marketId === marketId && b.playerId === playerId);
+      if (alreadyTipped) return;
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] placeTipAs: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/place-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, optionId, optionLabel, amount: 0, playerId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] placeTipAs Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        const betId = `${marketId}__${playerId}`;
+        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount: 0, timestamp: Date.now() };
+        set(s => ({ bets: [...s.bets.filter(b => b.id !== betId), bet] }));
+      } catch (err) {
+        console.error('[Store] placeTipAs Fehler:', err);
+      }
+    },
+
+    changeBet: async (marketId, newOptionId, newOptionLabel, newAmount) => {
+      const state = get();
+      const uid = state.currentUser;
+      if (!uid) return;
+      const oldBet = state.bets.find(b => b.marketId === marketId && b.playerId === uid);
+      const player = state.players.find(p => p.id === uid);
+      const market = state.markets.find(m => m.id === marketId);
+      if (!oldBet || !player || !market || market.status !== 'open') return;
+      if (market.expiresAt && Date.now() > market.expiresAt) return;
+      if (market.kickoffAt && Date.now() >= market.kickoffAt) return;
+      if (player.tokens + oldBet.amount < newAmount) return;
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] changeBet: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/change-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, newOptionId, newOptionLabel, newAmount }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] changeBet Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        const betId = `${marketId}__${uid}`;
+        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
+        set(s => ({
+          bets: [...s.bets.filter(b => b.id !== oldBet.id && b.id !== betId), newBet],
+          players: s.players.map(p => p.id === uid ? { ...p, tokens: p.tokens + oldBet.amount - newAmount } : p),
+          markets: s.markets.map(m =>
+            m.id === marketId
+              ? {
+                  ...m,
+                  options: m.options.map(o => {
+                    let pool = o.pool;
+                    if (o.id === oldBet.optionId) pool -= oldBet.amount;
+                    if (o.id === newOptionId)     pool += newAmount;
+                    return { ...o, pool };
+                  }),
+                }
+              : m),
+        }));
+      } catch (err) { console.error('[Store] changeBet Fehler:', err); }
+    },
+
+    changeTip: async (marketId, newOptionId, newOptionLabel) => {
+      const state = get();
+      const uid = state.currentUser;
+      if (!uid) return;
+      const oldBet = state.bets.find(b => b.marketId === marketId && b.playerId === uid);
+      const market = state.markets.find(m => m.id === marketId);
+      if (!oldBet || !market || market.status !== 'open') return;
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] changeTip: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/change-bet', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId, newOptionId, newOptionLabel, newAmount: 0 }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] changeTip Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        const betId = `${marketId}__${uid}`;
+        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() };
+        set(s => ({ bets: [...s.bets.filter(b => b.id !== oldBet.id && b.id !== betId), newBet] }));
+      } catch (err) { console.error('[Store] changeTip Fehler:', err); }
+    },
+
+    closeMarket: async (marketId) => {
+      const state = get();
+      const market = state.markets.find(m => m.id === marketId);
+      if (!market || (market.status !== 'open' && market.status !== 'locked')) return;
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] closeMarket: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/close-market', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] closeMarket Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+      } catch (err) { console.error('[Store] closeMarket Fehler:', err); }
+    },
+
+    deleteMarket: async (marketId) => {
+      set(s => ({ markets: s.markets.filter(m => m.id !== marketId) }));
+      if (db) {
+        try { await deleteDoc(doc(db, 'markets', marketId)); }
+        catch (err) { console.error('[Store] deleteMarket Fehler:', err); }
+      }
+    },
+
+    setPlayerAdmin: async (playerId, isAdmin) => {
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, isAdmin } : p) }));
       if (db) {
         try {
-          const updatedMkt = get().markets.find(m => m.id === marketId);
-          const batch = writeBatch(db);
-          batch.set(doc(db, 'bets', bet.id), bet);
-          batch.update(doc(db, 'players', state.currentUser!), { tokens: player.tokens - amount });
-          if (updatedMkt) batch.update(doc(db, 'markets', marketId), { options: updatedMkt.options });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] placeBet Fehler:', err);
-        }
+          await updateDoc(doc(db, 'players', playerId), { isAdmin });
+        } catch (err) { console.error('[Store] setPlayerAdmin Fehler:', err); }
+      }
+    },
+
+    setPlayerApproved: async (playerId, approved) => {
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, approved } : p) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'players', playerId), { approved });
+        } catch (err) { console.error('[Store] setPlayerApproved Fehler:', err); }
+      }
+    },
+
+    // Test/Admin: Charakter eines Spielers zurücksetzen → erzwingt Neuerstellung.
+    resetPlayerCharacter: async (playerId) => {
+      const cleared = { headId: '', bodyId: '', avatar: '', avatarId: '', avatarColor: '', characterLocked: false, needsCharacter: true };
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, ...cleared } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', playerId), cleared); }
+        catch (err) { console.error('[Store] resetPlayerCharacter Fehler:', err); }
+      }
+    },
+
+    // Neuen Charakter des aktuellen Spielers speichern (beendet needsCharacter).
+    saveCharacter: async (uid, fields) => {
+      const upd = { ...fields, needsCharacter: false };
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, ...upd } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', uid), upd); }
+        catch (err) { console.error('[Store] saveCharacter Fehler:', err); }
+      }
+    },
+
+    // Onboarding-Tour als gesehen markieren (oder zurücksetzen → erneut starten).
+    setOnboardingDone: async (done) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, onboardingDone: done } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', uid), { onboardingDone: done }); }
+        catch (err) { console.error('[Store] setOnboardingDone Fehler:', err); }
       }
     },
 
     resolveOpenQuestion: async (marketId, winnerPlayerIds) => {
-      const state = get();
-      const market = state.markets.find(m => m.id === marketId);
-      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-      const pUpdates: Record<string, number> = {};
-      let newJackpot = state.jackpot;
-      if (winnerPlayerIds.length > 0) {
-        const prize = Math.floor(state.jackpot / winnerPlayerIds.length);
-        winnerPlayerIds.forEach(pid => { pUpdates[pid] = prize; });
-        newJackpot = Math.max(0, state.jackpot - prize * winnerPlayerIds.length);
-      }
-      set(s => ({
-        jackpot: newJackpot,
-        markets: s.markets.map(m =>
-          m.id === marketId
-            ? { ...m, status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' }
-            : m
-        ),
-        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-      }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: winnerPlayerIds.join(',') || null, resolutionType: 'normal' });
-          batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-          Object.entries(pUpdates).forEach(([pid, amt]) => {
-            const p = state.players.find(pl => pl.id === pid);
-            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-          });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] resolveOpenQuestion Fehler:', err);
-        }
-      }
+      console.warn('[Store] resolveOpenQuestion: client-side resolver removed — use server endpoint.', { marketId, winnerPlayerIds });
     },
 
     submitAnswer: async (marketId, text) => {
       const state = get();
       if (!state.currentUser) return;
       const answer: Answer = {
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         marketId, playerId: state.currentUser, text: text.trim(), timestamp: Date.now(),
       };
       set(s => ({ answers: [...s.answers, answer] }));
@@ -359,7 +767,7 @@ export const useStore = create<AppState>()((set, get) => {
 
     createMarket: async (marketData) => {
       const m: Market = {
-        ...marketData, id: Math.random().toString(36).substring(7),
+        ...marketData, id: crypto.randomUUID(),
         createdAt: Date.now(), winningOptionId: null, resolutionType: null,
       };
       set(s => ({ markets: [...s.markets, m] }));
@@ -372,63 +780,16 @@ export const useStore = create<AppState>()((set, get) => {
       }
     },
 
-    resolveMarket,
+    resolveMarket: async (marketId, winningOptionId) => {
+      console.warn('[Store] resolveMarket: client-side resolver removed — use /.netlify/functions/resolve-market.', { marketId, winningOptionId });
+    },
 
     resolveRollover: async (marketId) => {
-      const state = get();
-      const market = state.markets.find(m => m.id === marketId);
-      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-      const allBets = state.bets.filter(b => b.marketId === marketId);
-      const pUpdates: Record<string, number> = {};
-      let refunded = 0;
-      allBets.forEach(b => { const r = Math.floor(b.amount * 0.5); pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + r; refunded += r; });
-      const newJackpot = state.jackpot + (getMarketTotal(market) - refunded);
-      set(s => ({
-        jackpot: newJackpot,
-        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'resolved', winningOptionId: null, resolutionType: 'rollover' } : m),
-        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-      }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'markets', marketId), { status: 'resolved', winningOptionId: null, resolutionType: 'rollover' });
-          batch.set(doc(db, 'appState', 'global'), { jackpot: newJackpot }, { merge: true });
-          Object.entries(pUpdates).forEach(([pid, amt]) => {
-            const p = state.players.find(pl => pl.id === pid);
-            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-          });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] resolveRollover Fehler:', err);
-        }
-      }
+      console.warn('[Store] resolveRollover: client-side resolver removed — use server endpoint.', { marketId });
     },
 
     resolveStorno: async (marketId) => {
-      const state = get();
-      const market = state.markets.find(m => m.id === marketId);
-      if (!market || market.status === 'resolved' || market.status === 'cancelled') return;
-      const pUpdates: Record<string, number> = {};
-      state.bets.filter(b => b.marketId === marketId).forEach(b => {
-        pUpdates[b.playerId] = (pUpdates[b.playerId] || 0) + b.amount;
-      });
-      set(s => ({
-        markets: s.markets.map(m => m.id === marketId ? { ...m, status: 'cancelled', resolutionType: 'storno' } : m),
-        players: s.players.map(p => pUpdates[p.id] ? { ...p, tokens: p.tokens + pUpdates[p.id] } : p),
-      }));
-      if (db) {
-        try {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'markets', marketId), { status: 'cancelled', resolutionType: 'storno' });
-          Object.entries(pUpdates).forEach(([pid, amt]) => {
-            const p = state.players.find(pl => pl.id === pid);
-            if (p) batch.update(doc(db, 'players', pid), { tokens: p.tokens + amt });
-          });
-          await batch.commit();
-        } catch (err) {
-          console.error('[Store] resolveStorno Fehler:', err);
-        }
-      }
+      console.warn('[Store] resolveStorno: client-side resolver removed — use server endpoint.', { marketId });
     },
 
     lockMarket: async (marketId) => {
@@ -442,23 +803,705 @@ export const useStore = create<AppState>()((set, get) => {
       }
     },
 
-    giveTokens: async (playerId, amount) => {
-      set(s => ({
-        players: s.players.map(p => p.id === playerId ? { ...p, tokens: p.tokens + amount } : p),
-      }));
-      const updatedPlayer = get().players.find(p => p.id === playerId);
-      if (db && updatedPlayer) {
+    // Pausieren: Markt für Spieler ausblenden (Status 'paused'), Einsätze & Pools
+    // bleiben erhalten — keine Rückbuchung. Über reopenMarket wieder öffnen.
+    pauseMarket: async (marketId) => {
+      const m = get().markets.find(mk => mk.id === marketId);
+      if (!m || (m.status !== 'open' && m.status !== 'locked')) return;
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, status: 'paused' } : mk) }));
+      if (db) {
         try {
-          await updateDoc(doc(db, 'players', playerId), { tokens: updatedPlayer.tokens });
+          await updateDoc(doc(db, 'markets', marketId), { status: 'paused' });
         } catch (err) {
-          console.error('[Store] giveTokens Fehler:', err);
+          console.error('[Store] pauseMarket Fehler:', err);
         }
       }
     },
 
+    // Wieder öffnen: pausierten oder gesperrten Markt zurück auf 'open' setzen.
+    // Ein evtl. gesetzter Annahmeschluss (betCloseAt) wird dabei entfernt, damit
+    // der Cron-Tick den Markt nicht sofort wieder sperrt — manuelles Öffnen ist
+    // also das Sicherheitsventil gegen einen fehlerhaften Auto-Schluss.
+    reopenMarket: async (marketId) => {
+      const m = get().markets.find(mk => mk.id === marketId);
+      if (!m || (m.status !== 'paused' && m.status !== 'locked')) return;
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, status: 'open', betCloseAt: undefined } : mk) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), { status: 'open', betCloseAt: deleteField() });
+        } catch (err) {
+          console.error('[Store] reopenMarket Fehler:', err);
+        }
+      }
+    },
+
+    // Annahmeschluss eines Marktes setzen (UTC ms) oder mit null entfernen. Bei
+    // gesetztem Wert sperrt der Cron-Tick den Markt automatisch, sobald er
+    // erreicht ist (ohne Token-Abzug) — gedacht v.a. für Gratis-/Jackpot-Wetten.
+    setMarketBetClose: async (marketId, betCloseAt) => {
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, betCloseAt: betCloseAt ?? undefined } : mk) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), {
+            betCloseAt: betCloseAt == null ? deleteField() : betCloseAt,
+          });
+        } catch (err) {
+          console.error('[Store] setMarketBetClose Fehler:', err);
+        }
+      }
+    },
+
+    // Preistopf (fixedPrize) einer Gratis-/Jackpot-Wette nachträglich ändern.
+    // Bei einsatzfreien Wetten ist das fair: niemand hat Token gesetzt, ein
+    // höherer Preis benachteiligt keinen. Nur bis zur Auflösung sinnvoll.
+    setFreeBetPrize: async (marketId, fixedPrize) => {
+      const prize = Math.max(0, Math.round(fixedPrize));
+      set(s => ({ markets: s.markets.map(mk => mk.id === marketId ? { ...mk, fixedPrize: prize } : mk) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'markets', marketId), { fixedPrize: prize });
+        } catch (err) {
+          console.error('[Store] setFreeBetPrize Fehler:', err);
+        }
+      }
+    },
+
+    // Nachträgliches Verknüpfen: WM-Märkte, die ohne footballDataOrgId angelegt
+    // wurden (z. B. via Admin-Massenfreigabe vor dem Fix), bekommen die API-ID aus
+    // dem passenden Spielplan-Eintrag (gematcht über matchId). Erst danach kann
+    // auto-resolve sie dem Ergebnis zuordnen und automatisch auflösen.
+    linkWmMarketsToApi: async () => {
+      const { markets, schedule } = get();
+      const fdoByMatchId = new Map<string, number>();
+      schedule.forEach(s => {
+        if (typeof s.footballDataOrgId === 'number') fdoByMatchId.set(s.matchId, s.footballDataOrgId);
+      });
+      const updates: { id: string; fdoId: number }[] = [];
+      let unmatched = 0;
+      for (const m of markets) {
+        if (m.marketSubtype !== 'wm-match') continue;
+        if (typeof m.footballDataOrgId === 'number') continue; // bereits verknüpft
+        const fdoId = m.matchId ? fdoByMatchId.get(m.matchId) : undefined;
+        if (typeof fdoId === 'number') updates.push({ id: m.id, fdoId });
+        else unmatched++;
+      }
+      if (updates.length > 0) {
+        const byId = new Map(updates.map(u => [u.id, u.fdoId]));
+        set(s => ({ markets: s.markets.map(m => byId.has(m.id) ? { ...m, footballDataOrgId: byId.get(m.id) } : m) }));
+        if (db) {
+          for (const u of updates) {
+            try {
+              await updateDoc(doc(db, 'markets', u.id), { footballDataOrgId: u.fdoId });
+            } catch (err) {
+              console.error('[Store] linkWmMarketsToApi Fehler:', err);
+            }
+          }
+        }
+      }
+      return { linked: updates.length, unmatched };
+    },
+
+    // Repariert den Tagessieger: berechnet matchdayNetGain (Spieltag-Bilanz,
+    // Grundlage des Ordens) aller Spieler aus den bereits aufgelösten WM-Spielen
+    // des AKTUELLEN US-Spieltags neu (Anker America/Los_Angeles — identisch zur
+    // Server-Logik in resolve.ts). Quelle sind die persistierten payout-Felder
+    // der Bets (payout − Einsatz). dailyNetGain (Reveal-Bilanz) wird bewusst
+    // NICHT angefasst — das Feld gehört dem Reveal-Screen.
+    recomputeDailyGains: async () => {
+      const { markets, bets, players } = get();
+      const usDayKey = (ms: number) => new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(ms));
+      const resolvedWm = markets.filter(
+        m => m.marketSubtype === 'wm-match' && m.status === 'resolved' && typeof m.kickoffAt === 'number',
+      );
+      if (resolvedWm.length === 0) return { day: null, updated: 0 };
+      // Aktueller US-Spieltag = US-Tag des zuletzt angepfiffenen aufgelösten Spiels.
+      const latest = Math.max(...resolvedWm.map(m => m.kickoffAt as number));
+      const targetKey = usDayKey(latest);
+      const todayIds = new Set(
+        resolvedWm.filter(m => usDayKey(m.kickoffAt as number) === targetKey).map(m => m.id),
+      );
+      // Tages-Netto je Spieler aus den Bets dieser Spiele (payout − Einsatz).
+      const gain: Record<string, number> = {};
+      for (const b of bets) {
+        if (!todayIds.has(b.marketId)) continue;
+        gain[b.playerId] = (gain[b.playerId] ?? 0) + ((b.payout ?? 0) - (b.amount ?? 0));
+      }
+      // Alle Spieler schreiben (auch 0 — überschreibt Altwerte). Nur bei Differenz.
+      let updated = 0;
+      for (const p of players) {
+        const net = Math.round(gain[p.id] ?? 0);
+        if ((p.matchdayNetGain ?? 0) === net) continue;
+        set(s => ({ players: s.players.map(pl => pl.id === p.id ? { ...pl, matchdayNetGain: net } : pl) }));
+        if (db) {
+          try {
+            await updateDoc(doc(db, 'players', p.id), { matchdayNetGain: net });
+            updated++;
+          } catch (err) {
+            console.error('[Store] recomputeDailyGains Fehler:', err);
+          }
+        }
+      }
+      return { day: targetKey, updated };
+    },
+
+    // Höhere Limits ab dem Anpfiff des Grenz-Spiels (cutoffMarketId) auf alle
+    // offenen WM-Spiele AB diesem Anpfiff setzen (min/max/Auto-Abzug frei
+    // wählbar). Spiele DAVOR bleiben unangetastet (kein Clobbern bereits
+    // gesetzter Limits). Zusätzlich wird die Einstellung in appState.raisedLimits
+    // gespeichert, damit der Cron-Tick auch später öffnende Spiele derselben
+    // Runde automatisch mit diesen Limits stempelt ("ganze Runde").
+    applyLimitsFromMatch: async (cutoffMarketId, minBet, maxBet, autoDeduct) => {
+      const { markets } = get();
+      const cutoffMarket = markets.find(m => m.id === cutoffMarketId);
+      const cutoff = cutoffMarket?.kickoffAt;
+      if (typeof cutoff !== 'number') return { high: 0, standard: 0 };
+      const cutoffPhase = cutoffMarket?.phase;
+      const t = { minBet, maxBet, autoDeductAmount: autoDeduct };
+      let high = 0, standard = 0;
+      for (const m of markets) {
+        if (m.marketSubtype !== 'wm-match' || m.status !== 'open' || typeof m.kickoffAt !== 'number') continue;
+        if (cutoffPhase && m.phase !== cutoffPhase) continue; // nur dieselbe Phase (z.B. Gruppen-Bump)
+        if (m.kickoffAt < cutoff) { standard++; continue; } // vor dem Grenz-Spiel: unverändert
+        if (m.minBet === t.minBet && m.maxBet === t.maxBet && m.autoDeductAmount === t.autoDeductAmount) { high++; continue; }
+        set(s => ({ markets: s.markets.map(mk => mk.id === m.id ? { ...mk, ...t } : mk) }));
+        if (db) {
+          try {
+            await updateDoc(doc(db, 'markets', m.id), t);
+            high++;
+          } catch (err) {
+            console.error('[Store] applyLimitsFromMatch Fehler:', err);
+          }
+        }
+      }
+      // Einstellung speichern → Tick stempelt später öffnende Spiele der Runde.
+      if (db) {
+        try {
+          await setDoc(doc(db, 'appState', 'global'), {
+            raisedLimits: {
+              fromKickoffAt: cutoff,
+              fromPhase: cutoffMarket?.phase ?? null,
+              fromMatchLabel: `${cutoffMarket?.teamA ?? ''} vs ${cutoffMarket?.teamB ?? ''}`.trim(),
+              minBet, maxBet, autoDeduct,
+              announced: false,
+            },
+          }, { merge: true });
+        } catch (err) {
+          console.error('[Store] raisedLimits speichern Fehler:', err);
+        }
+      }
+      return { high, standard };
+    },
+
+    giveTokens: async (playerId, amount) => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] giveTokens: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/admin-grant', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, tokens: amount }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] giveTokens Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        set(s => ({
+          players: s.players.map(p => p.id === playerId ? { ...p, tokens: (p.tokens ?? 0) + amount } : p),
+        }));
+      } catch (err) {
+        console.error('[Store] giveTokens Fehler:', err);
+      }
+    },
+
+    executeBuyback: async (playerId) => {
+      const state = get();
+      const player = state.players.find(p => p.id === playerId);
+      if (!player || player.buybackUsed) return;
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] executeBuyback: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/buyback', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(playerId !== state.currentUser ? { playerId } : {}),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] executeBuyback Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        const data = await res.json();
+        const newTokens = Number(data?.newTokens ?? (800 + (player.tokens ?? 0)));
+        set(s => ({
+          players: s.players.map(p => p.id === playerId ? { ...p, tokens: newTokens, buybackUsed: true } : p),
+        }));
+      } catch (err) {
+        console.error('[Store] executeBuyback Fehler:', err);
+      }
+    },
+
+    setAdminMessage: async (msg) => {
+      set({ adminMessage: msg });
+      if (db) await setDoc(doc(db, 'appState', 'global'), { adminMessage: msg }, { merge: true });
+    },
+
+    setExchangeRate: async (rate) => {
+      const v = Math.max(0, Math.round(rate * 100) / 100); // auf 2 Nachkommastellen
+      set({ exchangeRate: v });
+      if (db) {
+        try { await setDoc(doc(db, 'appState', 'global'), { exchangeRate: v }, { merge: true }); }
+        catch (err) { console.error('[Store] setExchangeRate Fehler:', err); }
+      }
+    },
+
+    setWhatsappGroupLink: async (url) => {
+      set({ whatsappGroupLink: url });
+      if (db) await setDoc(doc(db, 'appState', 'global'), { whatsappGroupLink: url }, { merge: true });
+    },
+
+    // Hausbank/Jackpot manuell auf einen exakten Wert setzen (Admin-Korrektur).
+    setJackpot: async (value) => {
+      const prev = get().jackpot;
+      const v = Math.max(0, Math.floor(value));
+      set({ jackpot: v });
+      if (db) {
+        try {
+          await setDoc(doc(db, 'appState', 'global'), { jackpot: v }, { merge: true });
+          // Manuelle Korrektur ins Bewegungslog (Diagnose), nur bei echter Änderung.
+          if (v !== prev) {
+            await addDoc(collection(db, 'jackpotLedger'), {
+              delta: v - prev,
+              kind: 'manual-set',
+              reason: `Manuell gesetzt: ${prev} → ${v}`,
+              ts: serverTimestamp(),
+            });
+          }
+        } catch (err) {
+          console.error('[Store] setJackpot Fehler:', err);
+        }
+      }
+    },
+
+    // Admin: Boni-Rückerstattung berechnen (apply=false) oder anwenden (apply=true).
+    auditJackpotRefund: async () => callJackpotRefund(false),
+    applyJackpotRefund: async () => callJackpotRefund(true),
+
+    // Admin-Diagnose: die letzten n Jackpot-/Hausbank-Bewegungen laden.
+    fetchJackpotLedger: async (n = 60) => {
+      if (!db) return [];
+      try {
+        const q = query(collection(db, 'jackpotLedger'), orderBy('ts', 'desc'), limit(n));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => {
+          const x = d.data() as any;
+          const ts = x.ts?.toMillis ? x.ts.toMillis() : (typeof x.ts === 'number' ? x.ts : 0);
+          return {
+            id: d.id,
+            delta: Number(x.delta ?? 0),
+            kind: String(x.kind ?? ''),
+            reason: String(x.reason ?? ''),
+            marketId: x.marketId ?? null,
+            playerId: x.playerId ?? null,
+            ts,
+          } as JackpotLedgerEntry;
+        });
+      } catch (err) {
+        console.error('[Store] fetchJackpotLedger Fehler:', err);
+        return [];
+      }
+    },
+
+    // Test: setzt die Tagesbilanz des aktuellen Admins + markiert „ungesehen",
+    // damit der Reveal-Screen beim nächsten Dashboard-Besuch abspielt.
+    simulateReveal: async (net) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      // arrayUnion statt direkter Überschreibung — sonst würde der Test-Reveal
+      // echte ausstehende Resolutions des Admins überschreiben (und beim
+      // Wegklicken mitlöschen). 'sim-reveal' wird vom RevealScreen sauber via
+      // arrayRemove(...marketIds) wieder entfernt.
+      const player = get().players.find(p => p.id === uid);
+      const localUnseen = Array.from(new Set([...(player?.unseenResolutions ?? []), 'sim-reveal']));
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, dailyNetGain: net, unseenResolutions: localUnseen } : p) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'players', uid), {
+            dailyNetGain: net,
+            unseenResolutions: arrayUnion('sim-reveal'),
+          });
+        } catch (err) { console.error('[Store] simulateReveal Fehler:', err); }
+      }
+    },
+
+    // Accessoire eines Slots beim aktuellen Spieler an-/abwählen (rein kosmetisch).
+    setActiveAccessory: async (slot, accessoryId) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      set(s => ({
+        players: s.players.map(p => p.id === uid
+          ? { ...p, activeAccessories: { ...(p.activeAccessories ?? {}), [slot]: accessoryId } }
+          : p),
+      }));
+      const p = get().players.find(pl => pl.id === uid);
+      if (db && p) {
+        try { await updateDoc(doc(db, 'players', uid), { activeAccessories: p.activeAccessories ?? {} }); }
+        catch (err) { console.error('[Store] setActiveAccessory Fehler:', err); }
+      }
+    },
+
+    // Accessoire freischalten (Auto-Vergabe oder Admin/Test).
+    grantAccessory: async (playerId, accessoryId) => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) { console.warn('[Store] grantAccessory: kein Auth-Token.'); return; }
+        const res = await fetch('/.netlify/functions/admin-grant', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, accessoryId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('[Store] grantAccessory Server-Fehler:', data?.error ?? res.status);
+          return;
+        }
+        set(s => ({
+          players: s.players.map(p => p.id === playerId
+            ? { ...p, unlockedOverlays: Array.from(new Set([...(p.unlockedOverlays ?? []), accessoryId])) }
+            : p),
+        }));
+      } catch (err) { console.error('[Store] grantAccessory Fehler:', err); }
+    },
+
+    // Admin: nur das Login-Passwort eines Spielers neu setzen. Greift NICHT in
+    // den lokalen State ein (Passwort ist kein State) und ändert serverseitig
+    // ausschließlich das Auth-Passwort — kein Touch an Tokens/Fortschritt/UID.
+    setPlayerPassword: async (playerId, newPassword) => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Kein Admin-Token.' };
+        const res = await fetch('/.netlify/functions/admin-set-password', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, newPassword }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+        return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
+      }
+    },
+
+    // Negative Token-Guthaben (Alt-Bug) serverseitig auf 0 korrigieren.
+    fixNegativeBalances: async () => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Kein Admin-Token.' };
+        const res = await fetch('/.netlify/functions/admin-fix-negatives', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+        // Optimistisch lokale Negativwerte auf 0 ziehen.
+        set(s => ({ players: s.players.map(p => (p.tokens ?? 0) < 0 ? { ...p, tokens: 0 } : p) }));
+        return { ok: true, fixed: (data as any)?.fixed ?? 0, restored: (data as any)?.restored ?? 0 };
+      } catch (err: any) {
+        return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
+      }
+    },
+
+    // Setzt das `active`-Flag an allen Tipps anhand des Markt-Status (Fundament
+    // für den künftig eingegrenzten bets-Listener). Reine Datenpflege, keine
+    // sichtbare Auswirkung — der Listener lädt weiterhin alle Tipps.
+    backfillBetActive: async () => {
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Kein Admin-Token.' };
+        const res = await fetch('/.netlify/functions/admin-backfill-bet-active', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: (data as any)?.error ?? `Fehler ${res.status}` };
+        return {
+          ok: true,
+          total: (data as any)?.total ?? 0,
+          updated: (data as any)?.updated ?? 0,
+          active: (data as any)?.active ?? 0,
+          inactive: (data as any)?.inactive ?? 0,
+        };
+      } catch (err: any) {
+        return { ok: false, error: err?.message ?? 'Unbekannter Fehler.' };
+      }
+    },
+
+    // Block-Sieger küren: Spieler mit den meisten richtigen Tipps im jeweiligen
+    // Gratis-Block erhalten alle Block-Preis-Accessoires (z.B. Österreich-Trikot).
+    awardBlockWinner: async (block) => {
+      const { markets, bets, players } = get();
+      const prizeIds = ACCESSORIES.filter(a => a.block === block).map(a => a.id);
+      if (prizeIds.length === 0) return { winners: [] };
+      const blockMarkets = markets.filter(m =>
+        m.marketSubtype === 'jackpot' && m.jackpotBlock === block &&
+        m.status === 'resolved' && m.winningOptionId);
+      const correct: Record<string, number> = {};
+      for (const m of blockMarkets) {
+        bets.filter(b => b.marketId === m.id && b.optionId === m.winningOptionId)
+          .forEach(b => { correct[b.playerId] = (correct[b.playerId] || 0) + 1; });
+      }
+      const vals = Object.values(correct);
+      const max = vals.length ? Math.max(...vals) : 0;
+      if (max === 0) return { winners: [] };
+      const winnerIds = Object.keys(correct).filter(pid => correct[pid] === max);
+      for (const pid of winnerIds) {
+        for (const aid of prizeIds) await get().grantAccessory(pid, aid);
+      }
+      return { winners: winnerIds.map(pid => players.find(p => p.id === pid)?.name ?? pid) };
+    },
+
+    // ── Shop: kaufen ─────────────────────────────────────────────────────────
+    // Atomare Firestore-Transaktion: prüft Verfügbarkeit + Token-Stand, zieht
+    // Preis ab und legt das Item ins Inventar. Doppelkäufe & negative Salden
+    // sind dadurch ausgeschlossen.
+    purchaseShopItem: async (itemId) => {
+      const uid = get().currentUser;
+      if (!uid) return { ok: false, error: 'Nicht eingeloggt.' };
+      const item = get().shopItems.find(i => i.id === itemId);
+      if (!item) return { ok: false, error: 'Item nicht gefunden.' };
+      // Spielplan-Freischaltung clientseitig prüfen (sinnloser Server-Roundtrip
+      // sonst). Server prüft availableFrom nochmal.
+      const unlockAt = shopUnlockAt(item, get().schedule);
+      if (unlockAt != null && unlockAt > Date.now()) {
+        return { ok: false, error: item.unlockLabel ? `Freischaltung: ${item.unlockLabel}.` : 'Noch nicht freigeschaltet.' };
+      }
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Nicht authentifiziert.' };
+        const res = await fetch('/.netlify/functions/purchase-shop-item', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: data?.error ?? 'Kauf fehlgeschlagen.' };
+        const cost = Number(data?.cost ?? item.price);
+        // Optimistic local update — Server hat schon geschrieben, onSnapshot syncs gleich.
+        set(s => ({
+          players: s.players.map(p => p.id === uid
+            ? { ...p, tokens: (p.tokens ?? 0) - cost, shopInventory: [...(p.shopInventory ?? []), itemId] }
+            : p),
+        }));
+        return { ok: true };
+      } catch (err: any) {
+        console.error('[Store] purchaseShopItem Fehler:', err);
+        return { ok: false, error: err?.message ?? 'Kauf fehlgeschlagen.' };
+      }
+    },
+
+    // ── Shop: Item in einem Slot tragen/ablegen ─────────────────────────────
+    setActiveShopItem: async (slot, itemId) => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      set(s => ({
+        players: s.players.map(p => p.id === uid
+          ? { ...p, activeShopItems: { ...(p.activeShopItems ?? {}), [slot]: itemId } }
+          : p),
+      }));
+      const p = get().players.find(pl => pl.id === uid);
+      if (db && p) {
+        try { await updateDoc(doc(db, 'players', uid), { activeShopItems: p.activeShopItems ?? {} }); }
+        catch (err) { console.error('[Store] setActiveShopItem Fehler:', err); }
+      }
+    },
+
+    // ── Shop: „besucht"-Zeitstempel setzen (löscht den Neu-Punkt) ───────────
+    markShopVisited: async () => {
+      const uid = get().currentUser;
+      if (!uid) return;
+      const ts = Date.now();
+      set(s => ({ players: s.players.map(p => p.id === uid ? { ...p, lastShopVisitTs: ts } : p) }));
+      if (db) {
+        try { await updateDoc(doc(db, 'players', uid), { lastShopVisitTs: ts }); }
+        catch (err) { console.error('[Store] markShopVisited Fehler:', err); }
+      }
+    },
+
+    // ── Shop: Item anlegen (Admin) ──────────────────────────────────────────
+    // Schreibt das Item, aktualisiert appState.shopLastDropTs und legt einen
+    // Feed-Eintrag an, damit alle Spieler informiert werden.
+    createShopItem: async (data) => {
+      if (!db) return;
+      const now = Date.now();
+      const payload: ShopItem = { ...data, createdAt: now };
+      try {
+        await setDoc(doc(db, 'shopItems', data.id), payload);
+        await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        await addDoc(collection(db, 'feed'), {
+          type: 'shop_drop',
+          text: `Neu im Shop: „${data.label}" 🛒`,
+          ts: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error('[Store] createShopItem Fehler:', err);
+      }
+    },
+
+    updateShopItem: async (id, patch) => {
+      if (!db) return;
+      try { await updateDoc(doc(db, 'shopItems', id), patch as any); }
+      catch (err) { console.error('[Store] updateShopItem Fehler:', err); }
+    },
+
+    deleteShopItem: async (id) => {
+      if (!db) return;
+      try { await deleteDoc(doc(db, 'shopItems', id)); }
+      catch (err) { console.error('[Store] deleteShopItem Fehler:', err); }
+    },
+
+    // ── Shop: Beispiel-Items anlegen (einmaliger Seed) ──────────────────────
+    seedShopExamples: async () => {
+      if (!db) return { added: 0 };
+      const existing = new Set(get().shopItems.map(i => i.id));
+      const now = Date.now();
+      let added = 0;
+      try {
+        for (const ex of SHOP_EXAMPLE_ITEMS) {
+          if (existing.has(ex.id)) continue;
+          await setDoc(doc(db, 'shopItems', ex.id), { ...ex, createdAt: now });
+          added++;
+        }
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
+      } catch (err) {
+        console.error('[Store] seedShopExamples Fehler:', err);
+      }
+      return { added };
+    },
+
+    // ── Shop: erste echte Item-Charge anlegen (Schwechi, …) ──────────────────
+    // Additive: NUR neue Items werden angelegt. Bereits existierende Items
+    // bleiben UNANGETASTET (Preis, Beschreibung, unlockRule, sold etc. —
+    // alles vom Admin editierte ueberlebt).
+    seedShopFirstItems: async () => {
+      if (!db) return { added: 0 };
+      const existing = new Map(get().shopItems.map(i => [i.id, i]));
+      const now = Date.now();
+      let added = 0;
+      try {
+        for (const it of SHOP_FIRST_ITEMS) {
+          if (existing.has(it.id)) continue; // existierendes Item nicht ueberschreiben
+          await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
+          added++;
+        }
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
+      } catch (err) {
+        console.error('[Store] seedShopFirstItems Fehler:', err);
+      }
+      return { added };
+    },
+
+    // ── Shop: Trikot-Items anlegen (asv_retro, kapitn_zrce, ferko) ───────────
+    // Gleiche additive Logik: neue Items werden gesetzt, bereits vorhandene
+    // bleiben unangetastet.
+    seedShopTorsoItems: async () => {
+      if (!db) return { added: 0 };
+      const existing = new Map(get().shopItems.map(i => [i.id, i]));
+      const now = Date.now();
+      let added = 0;
+      try {
+        for (const it of SHOP_TORSO_ITEMS) {
+          if (existing.has(it.id)) continue; // existierendes Item nicht ueberschreiben
+          await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
+          added++;
+        }
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
+      } catch (err) {
+        console.error('[Store] seedShopTorsoItems Fehler:', err);
+      }
+      return { added };
+    },
+
     resetState: () => {
       clearSessionCookie();
-      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], jackpot: 0, currentUser: null });
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], shopItems: [], shopLastDropTs: 0, jackpot: 0, currentPhase: 'gruppenphase', testMode: true, adminMessage: '', currentUser: null });
+    },
+
+    // Erfundener Mitspieler (nur Testmodus). Wird in Firestore gespeichert, damit
+    // er bei Wetten/Pools/Auflösung wie ein echter Spieler mitzählt.
+    createTestPlayer: async (name) => {
+      const id = `test-${crypto.randomUUID()}`;
+      const finalName = name?.trim() || `${TEST_NAMES[Math.floor(Math.random() * TEST_NAMES.length)]} ${Math.floor(Math.random() * 90 + 10)}`;
+      const color = TEST_COLORS[Math.floor(Math.random() * TEST_COLORS.length)];
+      const player: Player = {
+        id, name: finalName, avatar: '', avatarId: '', avatarColor: color,
+        loggedIn: false, tokens: 1000, comboMalus: false, badges: [],
+        currentStreak: 0, bestStreak: 0, streakLevel: 'none', isTestPlayer: true,
+      };
+      set(s => ({ players: [...s.players, player] }));
+      if (db) {
+        try {
+          await setDoc(doc(db, 'players', id), player);
+        } catch (err) {
+          console.error('[Store] createTestPlayer Fehler:', err);
+        }
+      }
+    },
+
+    // Verteilt für alle Test-Spieler zufällige Wetten/Tipps auf offene Märkte,
+    // die sie noch nicht getippt haben. Füllt Pools für realistische Tests.
+    autoBetTestPlayers: async () => {
+      const { players, markets } = get();
+      const testPlayers = players.filter(p => p.isTestPlayer);
+      const openMarkets = markets.filter(m => m.status === 'open');
+      for (const tp of testPlayers) {
+        for (const m of openMarkets) {
+          if (m.expiresAt && Date.now() > m.expiresAt) continue;
+          if (!m.options.length) continue;
+          const opt = m.options[Math.floor(Math.random() * m.options.length)];
+          if (m.marketSubtype === 'jackpot' || m.noStake) {
+            await get().placeTipAs(tp.id, m.id, opt.id, opt.label);
+          } else {
+            const amount = Math.floor(Math.random() * 5 + 1) * 20; // 20–100 TKN
+            await get().placeBetAs(tp.id, m.id, opt.id, opt.label, amount);
+          }
+        }
+      }
+    },
+
+    setCurrentUser: (uid) => set({ currentUser: uid }),
+    setCurrentEmail: (email) => set({ currentEmail: email }),
+
+    registerPlayer: async (uid, data) => {
+      const player: Player = { id: uid, ...data };
+      set(s => ({
+        players: [...s.players.filter(p => p.id !== uid), player],
+        currentUser: uid,
+      }));
+      if (db) {
+        // Fehler MÜSSEN hochbubbeln — sonst denkt Register.tsx, alles ist gut
+        // und der User landet profil-los im Dashboard ("Spielerprofil nicht
+        // gefunden"). Bei PERMISSION_DENIED durch Rules muss der User es
+        // sehen, damit wir Probleme erkennen.
+        await setDoc(doc(db, 'players', uid), { id: uid, ...data });
+      }
+    },
+
+    logoutAuth: async () => {
+      set({ currentUser: null });
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.error('[Store] logoutAuth Fehler:', err);
+      }
     },
   };
 });

@@ -12,8 +12,8 @@
   --color-purple: #8B3DFF;
   --color-purple2: #A855F7;
   --color-cyan: #00E5FF;
-  --color-green: #00D68F;
-  --color-green2: #00FF9F;
+  --color-green: #E6B43C;
+  --color-green2: #FFD477;
   --color-yellow: #FFD447;
   --color-orange: #FF7A00;
   --color-red: #FF3D5A;
@@ -36,8 +36,8 @@
 
 /* Custom Animations */
 @keyframes breathe {
-  0%, 100% { box-shadow: 0 0 40px rgba(0,214,143,.55), 0 0 80px rgba(0,214,143,.2); }
-  50% { box-shadow: 0 0 60px rgba(0,214,143,.8), 0 0 120px rgba(0,214,143,.35); }
+  0%, 100% { box-shadow: 0 0 40px rgba(230,180,60,.55), 0 0 80px rgba(230,180,60,.2); }
+  50% { box-shadow: 0 0 60px rgba(230,180,60,.8), 0 0 120px rgba(230,180,60,.35); }
 }
 @keyframes float {
   0%, 100% { transform: translateY(0) scale(1); }
@@ -56,6 +56,11 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
 }
+@keyframes tokenPop {
+  0%   { transform: scale(0.3); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
 @keyframes gradMove {
   0% { background-position: 0% 50%; }
   100% { background-position: 200% 50%; }
@@ -72,6 +77,10 @@
   from { background-position: 0%; }
   to { background-position: 200%; }
 }
+@keyframes rotateHint {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  20%, 40%      { transform: rotate(-90deg); }
+}
 @keyframes blnk {
   0%, 100% { opacity: 1; }
   50% { opacity: .2; }
@@ -85,6 +94,42 @@
   0%, 100% { transform: scale(1) translate(0, 0); }
   33% { transform: scale(1.15) translate(15px, 20px); }
   66% { transform: scale(1.05) translate(-15px, -10px); }
+}
+
+/* ── Zauberer-Theme: Lade- & Aura-Effekte ─────────────────────────── */
+/* Rotierender Magie-Sternkreis (Loader) */
+@keyframes magicSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+/* Funkeln einzelner Sterne (versetzt via animation-delay) */
+@keyframes sparkle {
+  0%, 100% { opacity: .25; transform: scale(.7); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+/* Mystische Aura: pulsierender Glow um das Logo (starr, ohne Bewegung) */
+@keyframes auraGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 12px rgba(167,123,255,.55)) drop-shadow(0 0 24px rgba(230,180,60,.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 22px rgba(167,123,255,.9)) drop-shadow(0 0 44px rgba(230,180,60,.55));
+  }
+}
+/* Mystischer Funken-Hintergrund: langsam driftende, pulsierende Sternenfelder */
+@keyframes mythicDrift {
+  0%   { transform: translate(0,0) rotate(0deg); opacity: .5; }
+  50%  { opacity: .9; }
+  100% { transform: translate(-40px,-30px) rotate(8deg); opacity: .5; }
+}
+@keyframes mythicTwinkle {
+  0%, 100% { opacity: 0; transform: scale(.4); }
+  50%      { opacity: 1; transform: scale(1); }
+}
+/* Funken-Spinner-Punkt am Button */
+@keyframes runeSpin {
+  0% { transform: rotate(0deg); opacity: 1; }
+  100% { transform: rotate(360deg); opacity: 1; }
 }
 
 /* Hide scrollbar */

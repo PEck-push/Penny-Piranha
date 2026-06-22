@@ -1,15 +1,23 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
-// Firebase Konfiguration — Zugang nur für dein privates Gaming-Netz
 const firebaseConfig = {
-  apiKey: "AIzaSyCQyd5Bd7-Wfo1lMVTtrUurR35_wVjZ61E",
-  authDomain: "gaming-abend.firebaseapp.com",
-  projectId: "gaming-abend",
-  storageBucket: "gaming-abend.firebasestorage.app",
-  messagingSenderId: "1063117923757",
-  appId: "1:1063117923757:web:4db03e206cace4ab932d24"
+  apiKey: "AIzaSyAo4zgCP3zM5DGHKoVw5n9RSVzNpqpB5Mw",
+  authDomain: "wm-tippspiel-2026-5c401.firebaseapp.com",
+  projectId: "wm-tippspiel-2026-5c401",
+  storageBucket: "wm-tippspiel-2026-5c401.firebasestorage.app",
+  messagingSenderId: "303045684830",
+  appId: "1:303045684830:web:a8e03430f3f0b6ca498ecf"
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Offline-Persistenz: IndexedDB-Cache. Beim App-Start/Reload kommt der erste
+// Snapshot aus dem lokalen Cache (kostenlos), nur Änderungen seit dem letzten
+// Sync werden abgerechnet — spart die teuren Voll-Neuladungen. Live-Listener
+// (onSnapshot) bleiben unverändert aktiv: Echtzeit-Updates kommen wie bisher.
+// persistentMultipleTabManager: mehrere offene Tabs teilen sich den Cache sauber.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
+export const auth = getAuth(app);
