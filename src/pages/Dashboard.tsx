@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useStore, Market, Bet, getMarketTotal, buildSelectionKey } from '../store';
 import { calcMarketPayoutPreview as calcPayout, calcWinnerPayout, getTotalWealth } from '../utils/credits';
 import { ACCESSORY_BY_ID } from '../data/accessories';
@@ -217,9 +217,13 @@ export default function Dashboard() {
   const markets = useStore(s => s.markets);
   const schedule = useStore(s => s.schedule);
   const bets = useStore(s => s.bets);
+  const historyBets = useStore(s => s.historyBets);
+  const loadHistoryBets = useStore(s => s.loadHistoryBets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
   const adminMessage = useStore(s => s.adminMessage);
+  const hideOthersBets = useStore(s => s.hideOthersBets);
+  const hideOthersBetsFrom = useStore(s => s.hideOthersBetsFrom);
   const placeBet  = useStore(s => s.placeBet);
   const placeTip  = useStore(s => s.placeTip);
   const changeBet = useStore(s => s.changeBet);
@@ -230,6 +234,22 @@ export default function Dashboard() {
   const me = players.find(p => p.id === currentUser);
   const isAdmin = me?.isAdmin || isAdminEmail(me?.email);
   const [revealDone, setRevealDone] = useState(false);
+
+  // Live-aktive Tipps + nachgeladene Historie zusammenführen (dedupliziert nach
+  // id, Live gewinnt). Nur für Verlaufs-/Statistik-Anzeigen verwenden — Pools/
+  // Rangliste rechnen weiterhin mit den aktiven `bets`.
+  const allBets = useMemo(() => {
+    const map = new Map(historyBets.map(b => [b.id, b]));
+    for (const b of bets) map.set(b.id, b);
+    return [...map.values()];
+  }, [bets, historyBets]);
+
+  // Eigene Historie direkt nach Login im Hintergrund laden, damit „Meine Wetten
+  // → Abgeschlossen" und das eigene Profil ohne spürbare Verzögerung bereitstehen.
+  useEffect(() => { if (me?.id) loadHistoryBets(me.id); }, [me?.id, loadHistoryBets]);
+  // Beim Öffnen eines fremden Profils dessen ausgewertete Tipps nachladen
+  // (für Trefferquote / Wettenzahl).
+  useEffect(() => { if (profilePlayer?.id) loadHistoryBets(profilePlayer.id); }, [profilePlayer?.id, loadHistoryBets]);
 
   const { expired: selectedExpired } = useCountdown(selectedMarket?.expiresAt);
 
@@ -772,7 +792,9 @@ export default function Dashboard() {
     const byCloseTime = (a: Bet, b: Bet) =>
       closeTime(markets.find(m => m.id === a.marketId)) - closeTime(markets.find(m => m.id === b.marketId));
 
-    const myBets = bets.filter(b => b.playerId === me.id);
+    // allBets = aktive Tipps + nachgeladene Historie → „Abgeschlossen" bleibt
+    // vollständig, obwohl settled bets nicht mehr live gestreamt werden.
+    const myBets = allBets.filter(b => b.playerId === me.id);
     const active = myBets
       .filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'open' || m.status === 'locked'); })
       .sort(byCloseTime);
@@ -1052,7 +1074,7 @@ export default function Dashboard() {
           const p = profilePlayer;
           const total = playerTotal(p);
           const rank = sorted.findIndex(x => x.id === p.id) + 1;
-          const pBets = bets.filter(b => b.playerId === p.id && b.amount > 0);
+          const pBets = allBets.filter(b => b.playerId === p.id && b.amount > 0);
           const pResolved = pBets.filter(b => {
             const m = markets.find(mk => mk.id === b.marketId);
             return m?.status === 'resolved' && m.winningOptionId != null;
@@ -1365,25 +1387,45 @@ export default function Dashboard() {
                   <div className="p-3.5 px-5 border-b border-border flex-1 min-h-0 flex flex-col">
                     <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5 shrink-0">Einsätze</div>
                     <div className="flex-1 overflow-y-auto no-scrollbar">
-                    {bets.filter(b => b.marketId === selectedMarket.id).map(b => {
-                      const p = players.find(pl => pl.id === b.playerId);
-                      const foundIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
-                      const optIdx = foundIdx >= 0 ? foundIdx : 0;
-                      if (!p) return null;
+                    {(() => {
+                      // Tipps der ANDEREN Spieler ausblenden, wenn der Schalter aktiv
+                      // ist — gilt für ALLE (auch Admins spielen mit). Eigener Tipp bleibt.
+                      // Optionale Grenze: nur für Spiele ab dem eingestellten Anstoß.
+                      const afterCutoff = hideOthersBetsFrom == null
+                        || (selectedMarket.kickoffAt != null && selectedMarket.kickoffAt >= hideOthersBetsFrom);
+                      const hideOthers = hideOthersBets && afterCutoff;
+                      const allMarketBets = bets.filter(b => b.marketId === selectedMarket.id);
+                      const visibleBets = hideOthers ? allMarketBets.filter(b => b.playerId === me.id) : allMarketBets;
+                      const hiddenCount = allMarketBets.length - visibleBets.length;
                       return (
-                        <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
-                          <div className="w-[30px] h-[30px] rounded-lg bg-card flex items-center justify-center shrink-0 overflow-hidden">
-                            <CharacterAvatar player={p} size="sm" className="w-full h-full" />
-                          </div>
-                          <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
-                          <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
-                          {!isJackpotTip && <span className="font-mono text-[12px] text-muted">{b.amount}</span>}
-                        </div>
+                        <>
+                          {visibleBets.map(b => {
+                            const p = players.find(pl => pl.id === b.playerId);
+                            const foundIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                            const optIdx = foundIdx >= 0 ? foundIdx : 0;
+                            if (!p) return null;
+                            return (
+                              <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
+                                <div className="w-[30px] h-[30px] rounded-lg bg-card flex items-center justify-center shrink-0 overflow-hidden">
+                                  <CharacterAvatar player={p} size="sm" className="w-full h-full" />
+                                </div>
+                                <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
+                                <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
+                                {!isJackpotTip && <span className="font-mono text-[12px] text-muted">{b.amount}</span>}
+                              </div>
+                            );
+                          })}
+                          {hideOthers && hiddenCount > 0 && (
+                            <div className="text-[12px] text-muted text-center py-2 flex items-center justify-center gap-1.5">
+                              🙈 {hiddenCount} {hiddenCount === 1 ? 'weiterer Tipp ist' : 'weitere Tipps sind'} ausgeblendet
+                            </div>
+                          )}
+                          {allMarketBets.length === 0 && (
+                            <div className="text-[12px] text-muted text-center py-2">Noch keine Einsätze</div>
+                          )}
+                        </>
                       );
-                    })}
-                    {bets.filter(b => b.marketId === selectedMarket.id).length === 0 && (
-                      <div className="text-[12px] text-muted text-center py-2">Noch keine Einsätze</div>
-                    )}
+                    })()}
                     </div>
                   </div>
 

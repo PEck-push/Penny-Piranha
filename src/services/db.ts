@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, orderBy, limit, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useStore, Player, Market, Bet, Answer, FeedEvent, ScheduleMatch } from '../store';
 import { withShopPresentation, type ShopItem } from '../data/shopItems';
@@ -57,7 +57,12 @@ export const initFirebaseSync = () => {
     useStore.setState({ markets });
   }, err => console.error('[Firebase] markets Fehler:', err)));
 
-  sub(onSnapshot(collection(db, 'bets'), snap => {
+  // READ-OPTIMIERUNG: nur noch AKTIVE Tipps (active == true → Markt offen/gesperrt)
+  // live streamen. Ausgewertete Tipps (active == false) wachsen übers Turnier
+  // unbegrenzt und werden NICHT mehr an jeden Client gestreamt — sie werden bei
+  // Bedarf gezielt nachgeladen (store.loadHistoryBets: eigene Historie nach Login,
+  // fremde Profile/Admin on demand). Dadurch hört die Lesemenge auf zu wachsen.
+  sub(onSnapshot(query(collection(db, 'bets'), where('active', '==', true)), snap => {
     // optionLabel wird beim Tippen gespeichert und kann bei Alt-Wetten englisch
     // sein (z. B. Heim/Auswärts-Team). deName ist idempotent — deutsche Labels
     // und Nicht-Team-Optionen (JA/NEIN, Unentschieden) bleiben unverändert.
@@ -80,6 +85,8 @@ export const initFirebaseSync = () => {
         jackpot: data.jackpot ?? data.hausbank ?? 0,
         currentPhase: data.currentPhase ?? 'gruppenphase',
         testMode: data.testMode ?? true,
+        hideOthersBets: data.hideOthersBets ?? false,
+        hideOthersBetsFrom: data.hideOthersBetsFrom ?? null,
         adminMessage: data.adminMessage ?? '',
         whatsappGroupLink: data.whatsappGroupLink ?? '',
         exchangeRate: data.exchangeRate ?? 1,

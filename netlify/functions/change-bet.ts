@@ -110,6 +110,10 @@ export default async (req: Request, _ctx: Context) => {
         optionLabel: newOptionLabel,
         amount: newAmount,
         timestamp: now,
+        // Geänderte Wette liegt per Definition auf einem offenen Markt → muss
+        // active bleiben, sonst fällt sie aus dem (auf active==true gefilterten)
+        // Live-Listener. (tx.set überschreibt das Dokument vollständig.)
+        active: true,
       });
 
       // Audit-Log der Änderung — rein additiv, beeinflusst Token-/Pool-Logik
