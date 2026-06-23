@@ -222,6 +222,7 @@ export default function Dashboard() {
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
   const adminMessage = useStore(s => s.adminMessage);
+  const hideOthersBets = useStore(s => s.hideOthersBets);
   const placeBet  = useStore(s => s.placeBet);
   const placeTip  = useStore(s => s.placeTip);
   const changeBet = useStore(s => s.changeBet);
@@ -1385,25 +1386,42 @@ export default function Dashboard() {
                   <div className="p-3.5 px-5 border-b border-border flex-1 min-h-0 flex flex-col">
                     <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5 shrink-0">Einsätze</div>
                     <div className="flex-1 overflow-y-auto no-scrollbar">
-                    {bets.filter(b => b.marketId === selectedMarket.id).map(b => {
-                      const p = players.find(pl => pl.id === b.playerId);
-                      const foundIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
-                      const optIdx = foundIdx >= 0 ? foundIdx : 0;
-                      if (!p) return null;
+                    {(() => {
+                      // Tipps der ANDEREN Spieler ausblenden, wenn der Admin-Schalter
+                      // aktiv ist (Admins sehen weiterhin alles). Der eigene Tipp bleibt.
+                      const hideOthers = hideOthersBets && !isAdmin;
+                      const allMarketBets = bets.filter(b => b.marketId === selectedMarket.id);
+                      const visibleBets = hideOthers ? allMarketBets.filter(b => b.playerId === me.id) : allMarketBets;
+                      const hiddenCount = allMarketBets.length - visibleBets.length;
                       return (
-                        <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
-                          <div className="w-[30px] h-[30px] rounded-lg bg-card flex items-center justify-center shrink-0 overflow-hidden">
-                            <CharacterAvatar player={p} size="sm" className="w-full h-full" />
-                          </div>
-                          <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
-                          <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
-                          {!isJackpotTip && <span className="font-mono text-[12px] text-muted">{b.amount}</span>}
-                        </div>
+                        <>
+                          {visibleBets.map(b => {
+                            const p = players.find(pl => pl.id === b.playerId);
+                            const foundIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                            const optIdx = foundIdx >= 0 ? foundIdx : 0;
+                            if (!p) return null;
+                            return (
+                              <div key={b.id} className="flex items-center gap-2.5 py-2 border-b border-border last:border-0">
+                                <div className="w-[30px] h-[30px] rounded-lg bg-card flex items-center justify-center shrink-0 overflow-hidden">
+                                  <CharacterAvatar player={p} size="sm" className="w-full h-full" />
+                                </div>
+                                <span className="flex-1 text-[13px] font-extrabold text-white">{p.name}</span>
+                                <span className={clsx('text-[11px] font-black rounded-lg px-2 py-0.5 border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>{b.optionLabel}</span>
+                                {!isJackpotTip && <span className="font-mono text-[12px] text-muted">{b.amount}</span>}
+                              </div>
+                            );
+                          })}
+                          {hideOthers && hiddenCount > 0 && (
+                            <div className="text-[12px] text-muted text-center py-2 flex items-center justify-center gap-1.5">
+                              🙈 {hiddenCount} {hiddenCount === 1 ? 'weiterer Tipp ist' : 'weitere Tipps sind'} ausgeblendet
+                            </div>
+                          )}
+                          {allMarketBets.length === 0 && (
+                            <div className="text-[12px] text-muted text-center py-2">Noch keine Einsätze</div>
+                          )}
+                        </>
                       );
-                    })}
-                    {bets.filter(b => b.marketId === selectedMarket.id).length === 0 && (
-                      <div className="text-[12px] text-muted text-center py-2">Noch keine Einsätze</div>
-                    )}
+                    })()}
                     </div>
                   </div>
 

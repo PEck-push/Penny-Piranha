@@ -85,6 +85,7 @@ export const initFirebaseSync = () => {
         jackpot: data.jackpot ?? data.hausbank ?? 0,
         currentPhase: data.currentPhase ?? 'gruppenphase',
         testMode: data.testMode ?? true,
+        hideOthersBets: data.hideOthersBets ?? false,
         adminMessage: data.adminMessage ?? '',
         whatsappGroupLink: data.whatsappGroupLink ?? '',
         exchangeRate: data.exchangeRate ?? 1,

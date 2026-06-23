@@ -350,6 +350,10 @@ interface AppState {
   jackpot: number;
   currentPhase: string; // Phase string from appState/global
   testMode: boolean; // per Default true; via "Live gehen" deaktiviert
+  // Wenn true: Spieler sehen die EINZELNEN Tipps der ANDEREN Spieler nicht mehr
+  // (eigener Tipp + aggregierte Pool-Anzeige bleiben). Admin-Schalter; greift ab
+  // dem 3. Spieltag. Default false = bisheriges Verhalten. Admins sehen immer alles.
+  hideOthersBets: boolean;
   adminMessage: string; // optionale Ticker-Nachricht des Admins
   whatsappGroupLink: string; // Beitrittslink zur WhatsApp-Gruppe (angezeigt nach Registrierung)
   exchangeRate: number; // Cashout-Wechselkurs: 100 TKN = X € (geteilt & persistiert)
@@ -409,6 +413,8 @@ interface AppState {
   setAdminMessage: (msg: string) => Promise<void>;
   setWhatsappGroupLink: (url: string) => Promise<void>;
   setExchangeRate: (rate: number) => Promise<void>;
+  // Admin: Sichtbarkeit der fremden Einzel-Tipps global umschalten.
+  setHideOthersBets: (on: boolean) => Promise<void>;
   setJackpot: (value: number) => Promise<void>;
   setActiveAccessory: (slot: 'head' | 'hand' | 'torso', accessoryId: string | null) => Promise<void>;
   grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
@@ -480,6 +486,7 @@ export const useStore = create<AppState>()((set, get) => {
     jackpot: 0,
     currentPhase: 'gruppenphase',
     testMode: true,
+    hideOthersBets: false,
     adminMessage: '',
     whatsappGroupLink: '',
     exchangeRate: 1,
@@ -1082,6 +1089,14 @@ export const useStore = create<AppState>()((set, get) => {
       if (db) {
         try { await setDoc(doc(db, 'appState', 'global'), { exchangeRate: v }, { merge: true }); }
         catch (err) { console.error('[Store] setExchangeRate Fehler:', err); }
+      }
+    },
+
+    setHideOthersBets: async (on) => {
+      set({ hideOthersBets: on });
+      if (db) {
+        try { await setDoc(doc(db, 'appState', 'global'), { hideOthersBets: on }, { merge: true }); }
+        catch (err) { console.error('[Store] setHideOthersBets Fehler:', err); }
       }
     },
 

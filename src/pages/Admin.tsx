@@ -230,6 +230,8 @@ export default function Admin() {
   const setPlayerApproved = useStore(s => s.setPlayerApproved);
   const resetPlayerCharacter = useStore(s => s.resetPlayerCharacter);
   const setAdminMessage = useStore(s => s.setAdminMessage);
+  const hideOthersBets = useStore(s => s.hideOthersBets);
+  const setHideOthersBets = useStore(s => s.setHideOthersBets);
   const setJackpot = useStore(s => s.setJackpot);
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
@@ -2963,6 +2965,40 @@ export default function Admin() {
             >
               {waTestStatus === 'loading' ? 'Sendet…' : '🧪 WhatsApp testen'}
             </button>
+          </div>
+
+          {/* ── FREMDE TIPPS AUSBLENDEN ─────────────────────────── */}
+          <div className="bg-card border border-purple2/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[18px]">🙈</span>
+                  <div className="text-[11px] font-black text-purple2 tracking-[0.15em] uppercase">Fremde Tipps ausblenden</div>
+                </div>
+                <div className="text-[10px] text-muted leading-relaxed">
+                  Wenn aktiv, sehen Spieler die einzelnen Tipps der anderen nicht mehr
+                  (eigener Tipp + Pool-Verteilung bleiben). Für ab dem 3. Spieltag gedacht.
+                  Admins sehen weiterhin alles.
+                </div>
+              </div>
+              <button
+                onClick={() => setHideOthersBets(!hideOthersBets)}
+                role="switch"
+                aria-checked={hideOthersBets}
+                className={clsx(
+                  'relative w-[52px] h-[30px] rounded-full border transition-colors shrink-0 cursor-pointer',
+                  hideOthersBets ? 'bg-purple2/30 border-purple2/60' : 'bg-white/5 border-border',
+                )}
+              >
+                <span className={clsx(
+                  'absolute top-[3px] w-[22px] h-[22px] rounded-full transition-all',
+                  hideOthersBets ? 'left-[26px] bg-purple2' : 'left-[3px] bg-muted',
+                )} />
+              </button>
+            </div>
+            <div className={clsx('mt-2 text-[11px] font-black', hideOthersBets ? 'text-purple2' : 'text-muted')}>
+              Status: {hideOthersBets ? '🙈 Fremde Tipps sind AUSGEBLENDET' : '👀 Fremde Tipps sind SICHTBAR'}
+            </div>
           </div>
 
           {/* ── TICKER-NACHRICHT ────────────────────────────────── */}

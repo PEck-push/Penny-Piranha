@@ -6,6 +6,7 @@ import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import { flag, deName, isAustriaTeam, toCEST } from '../utils/teams';
 import CharacterAvatar from './CharacterAvatar';
 import CoinIcon from './CoinIcon';
+import { isAdminEmail } from '../config/admins';
 
 type WmMatch = ScheduleMatch;
 
@@ -47,6 +48,19 @@ export default function SpielplanTab() {
     for (const b of liveBets) map.set(b.id, b);
     return [...map.values()];
   }, [liveBets, historyBets]);
+
+  // Admin-Schalter: fremde Einzel-Tipps ausblenden (Admins sehen alles, eigener
+  // Tipp bleibt). Liefert sichtbare Tipps + Anzahl der ausgeblendeten.
+  const hideOthersBets = useStore(s => s.hideOthersBets);
+  const isAdmin = me?.isAdmin || isAdminEmail(me?.email);
+  const visibleBetsFor = (marketId: string) => {
+    const all = bets.filter(b => b.marketId === marketId);
+    if (hideOthersBets && !isAdmin) {
+      const visible = all.filter(b => b.playerId === currentUser);
+      return { visible, hidden: all.length - visible.length, total: all.length };
+    }
+    return { visible: all, hidden: 0, total: all.length };
+  };
 
   const now = Date.now();
 
@@ -470,28 +484,39 @@ export default function SpielplanTab() {
                 <div className="p-4 border-b border-border flex-1 min-h-0 flex flex-col">
                   <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2 shrink-0">Einsätze</div>
                   <div className="flex-1 overflow-y-auto no-scrollbar">
-                    {bets.filter(b => b.marketId === selectedMarket.id).length === 0 ? (
-                      <div className="text-[12px] text-muted text-center py-3">Noch keine weiteren Einsätze.</div>
-                    ) : bets.filter(b => b.marketId === selectedMarket.id).map(b => {
-                      const p = players.find(pl => pl.id === b.playerId);
-                      const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
-                      const isMine = b.playerId === me.id;
+                    {(() => {
+                      const { visible, hidden, total } = visibleBetsFor(selectedMarket.id);
+                      if (total === 0) return <div className="text-[12px] text-muted text-center py-3">Noch keine weiteren Einsätze.</div>;
                       return (
-                        <div key={b.id} className={clsx('flex items-center gap-2 py-2 border-b border-border/60 last:border-0',
-                          isMine && 'bg-yellow/5 -mx-2 px-2 rounded-md')}>
-                          <div className="w-8 h-8 rounded-md bg-white/5 overflow-hidden shrink-0">
-                            {p && <CharacterAvatar player={p} size="sm" className="w-full h-full" />}
-                          </div>
-                          <span className="flex-1 text-[12px] font-bold text-white truncate">
-                            {p?.name ?? '?'}{isMine && ' (du)'}
-                          </span>
-                          <span className={clsx('text-[10px] font-black px-1.5 py-0.5 rounded-md border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>
-                            {b.optionLabel}
-                          </span>
-                          <span className="font-mono text-[11px] text-muted">{b.amount}</span>
-                        </div>
+                        <>
+                          {visible.map(b => {
+                            const p = players.find(pl => pl.id === b.playerId);
+                            const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                            const isMine = b.playerId === me.id;
+                            return (
+                              <div key={b.id} className={clsx('flex items-center gap-2 py-2 border-b border-border/60 last:border-0',
+                                isMine && 'bg-yellow/5 -mx-2 px-2 rounded-md')}>
+                                <div className="w-8 h-8 rounded-md bg-white/5 overflow-hidden shrink-0">
+                                  {p && <CharacterAvatar player={p} size="sm" className="w-full h-full" />}
+                                </div>
+                                <span className="flex-1 text-[12px] font-bold text-white truncate">
+                                  {p?.name ?? '?'}{isMine && ' (du)'}
+                                </span>
+                                <span className={clsx('text-[10px] font-black px-1.5 py-0.5 rounded-md border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>
+                                  {b.optionLabel}
+                                </span>
+                                <span className="font-mono text-[11px] text-muted">{b.amount}</span>
+                              </div>
+                            );
+                          })}
+                          {hidden > 0 && (
+                            <div className="text-[12px] text-muted text-center py-2 flex items-center justify-center gap-1.5">
+                              🙈 {hidden} {hidden === 1 ? 'weiterer Tipp ist' : 'weitere Tipps sind'} ausgeblendet
+                            </div>
+                          )}
+                        </>
                       );
-                    })}
+                    })()}
                   </div>
                 </div>
 
@@ -573,24 +598,37 @@ export default function SpielplanTab() {
                 <div className="p-4 border-b border-border flex-1 min-h-0 flex flex-col">
                   <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-2 shrink-0">Einsätze</div>
                   <div className="flex-1 overflow-y-auto no-scrollbar">
-                    {bets.filter(b => b.marketId === selectedMarket.id).length === 0 ? (
-                      <div className="text-[12px] text-muted text-center py-3">Noch keine Einsätze — sei der/die Erste!</div>
-                    ) : bets.filter(b => b.marketId === selectedMarket.id).map(b => {
-                      const p = players.find(pl => pl.id === b.playerId);
-                      const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                    {(() => {
+                      const { visible, hidden, total } = visibleBetsFor(selectedMarket.id);
+                      if (total === 0) return <div className="text-[12px] text-muted text-center py-3">Noch keine Einsätze — sei der/die Erste!</div>;
                       return (
-                        <div key={b.id} className="flex items-center gap-2 py-2 border-b border-border/60 last:border-0">
-                          <div className="w-8 h-8 rounded-md bg-white/5 overflow-hidden shrink-0">
-                            {p && <CharacterAvatar player={p} size="sm" className="w-full h-full" />}
-                          </div>
-                          <span className="flex-1 text-[12px] font-bold text-white truncate">{p?.name ?? '?'}</span>
-                          <span className={clsx('text-[10px] font-black px-1.5 py-0.5 rounded-md border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>
-                            {b.optionLabel}
-                          </span>
-                          <span className="font-mono text-[11px] text-muted">{b.amount}</span>
-                        </div>
+                        <>
+                          {visible.map(b => {
+                            const p = players.find(pl => pl.id === b.playerId);
+                            const optIdx = selectedMarket.options.findIndex(o => o.id === b.optionId);
+                            const isMine = b.playerId === me.id;
+                            return (
+                              <div key={b.id} className={clsx('flex items-center gap-2 py-2 border-b border-border/60 last:border-0',
+                                isMine && 'bg-yellow/5 -mx-2 px-2 rounded-md')}>
+                                <div className="w-8 h-8 rounded-md bg-white/5 overflow-hidden shrink-0">
+                                  {p && <CharacterAvatar player={p} size="sm" className="w-full h-full" />}
+                                </div>
+                                <span className="flex-1 text-[12px] font-bold text-white truncate">{p?.name ?? '?'}{isMine && ' (du)'}</span>
+                                <span className={clsx('text-[10px] font-black px-1.5 py-0.5 rounded-md border', OPT_BG[optIdx], OPT_TEXT[optIdx], OPT_BORDER[optIdx])}>
+                                  {b.optionLabel}
+                                </span>
+                                <span className="font-mono text-[11px] text-muted">{b.amount}</span>
+                              </div>
+                            );
+                          })}
+                          {hidden > 0 && (
+                            <div className="text-[12px] text-muted text-center py-2 flex items-center justify-center gap-1.5">
+                              🙈 {hidden} {hidden === 1 ? 'weiterer Tipp ist' : 'weitere Tipps sind'} ausgeblendet
+                            </div>
+                          )}
+                        </>
                       );
-                    })}
+                    })()}
                   </div>
                 </div>
 
