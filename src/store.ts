@@ -181,6 +181,11 @@ export interface Market {
   jackpotBlock?: string;       // 'block1' | 'block2' | 'finale'
   jackpotBlockLabel?: string;  // z.B. "🏁 Ende Gruppenphase"
   fixedPrize?: number;         // fester Token-Preis dieser Frage (vom Haus)
+  // Garantierter Mindestgewinn PRO Gewinner (harte Untergrenze). Greift, wenn der
+  // gleichmäßige Pot-Anteil (floor(pot/n)) darunter läge → jeder Gewinner bekommt
+  // mindestens diesen Betrag. Wird NICHT addiert (max, nicht +); die etwaige
+  // Differenz zum Pot deckt das Haus (Jackpot).
+  minPrizePerWinner?: number;
   absorbsJackpotPot?: boolean; // Finale-Headline: schluckt angesparten jackpot
   allowMultiWinner?: boolean;  // mehrere Optionen koennen gleichzeitig richtig sein
                                // (z. B. Surprise-Out, wenn zwei Favoriten in derselben Runde rausfliegen)
