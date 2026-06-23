@@ -175,7 +175,12 @@ export async function resolveMarketAdmin(
       const fixedPrize = Number(market.fixedPrize ?? 0);
       const prize = fixedPrize + (market.absorbsJackpotPot ? currentJackpot : 0);
       const n = winBets.length;
-      const each = n > 0 ? Math.floor(prize / n) : 0;
+      // Garantierter Mindestgewinn pro Gewinner (harte Untergrenze, NICHT addiert):
+      // jeder bekommt max(gleichmäßiger Anteil, minPerWinner). Wenn die Garantie
+      // greift (Anteil < min), übersteigt die Summe den Pot — die Differenz deckt
+      // das Haus (jackpot sinkt entsprechend über fixedPrize − paid unten).
+      const minPerWinner = Math.max(0, Number(market.minPrizePerWinner ?? 0));
+      const each = n > 0 ? Math.max(Math.floor(prize / n), minPerWinner) : 0;
       const paid = each * n;
 
       const batch = db.batch();

@@ -137,6 +137,7 @@ export default function Admin() {
   const [freeBetFormat, setFreeBetFormat] = useState<'binary' | 'single' | 'multi'>('binary');
   const [freeBetOptions, setFreeBetOptions] = useState<string[]>(['', '']);
   const [freeBetPrize, setFreeBetPrize] = useState('0');
+  const [freeBetMinWin, setFreeBetMinWin] = useState('0');
   const [freeBetMsg, setFreeBetMsg] = useState('');
 
   // Open question resolution
@@ -844,6 +845,7 @@ export default function Admin() {
       noStake: true,
       multiSelect: freeBetFormat === 'multi',
       fixedPrize: parseInt(freeBetPrize) || 0,
+      minPrizePerWinner: parseInt(freeBetMinWin) || 0,
       absorbsJackpotPot: false,
       jackpotBlock: 'special',
       jackpotBlockLabel: JACKPOT_BLOCK_LABELS.special,
@@ -857,6 +859,7 @@ export default function Admin() {
     setFreeBetFormat('binary');
     setFreeBetOptions(['', '']);
     setFreeBetPrize('0');
+    setFreeBetMinWin('0');
     setTimeout(() => setFreeBetMsg(''), 4000);
   };
 
@@ -1617,6 +1620,17 @@ export default function Admin() {
               <input type="number" min="0" value={freeBetPrize} onChange={e => setFreeBetPrize(e.target.value)}
                 className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-yellow/60" />
               <div className="text-[10px] text-muted mt-1.5">0 = reiner Gratis-Spaß-Tipp ohne Auszahlung.</div>
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Mindestgewinn pro Gewinner (TKN)</label>
+              <input type="number" min="0" value={freeBetMinWin} onChange={e => setFreeBetMinWin(e.target.value)}
+                className="w-full bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-yellow/60" />
+              <div className="text-[10px] text-muted mt-1.5">
+                Harte Untergrenze: Jeder Gewinner bekommt <b>mindestens</b> diesen Betrag — auch wenn
+                der Pot-Anteil darunter läge (wird <b>nicht</b> addiert). Greift die Garantie, deckt
+                das Haus die Differenz. 0 = keine Untergrenze (reiner Pot-Split).
+              </div>
             </div>
 
             <button onClick={createFreeBet} disabled={!canCreateFreeBet}
