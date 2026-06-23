@@ -1388,12 +1388,12 @@ export default function Dashboard() {
                     <div className="text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-2.5 shrink-0">Einsätze</div>
                     <div className="flex-1 overflow-y-auto no-scrollbar">
                     {(() => {
-                      // Tipps der ANDEREN Spieler ausblenden, wenn der Admin-Schalter
-                      // aktiv ist (Admins sehen weiterhin alles). Der eigene Tipp bleibt.
+                      // Tipps der ANDEREN Spieler ausblenden, wenn der Schalter aktiv
+                      // ist — gilt für ALLE (auch Admins spielen mit). Eigener Tipp bleibt.
                       // Optionale Grenze: nur für Spiele ab dem eingestellten Anstoß.
                       const afterCutoff = hideOthersBetsFrom == null
                         || (selectedMarket.kickoffAt != null && selectedMarket.kickoffAt >= hideOthersBetsFrom);
-                      const hideOthers = hideOthersBets && !isAdmin && afterCutoff;
+                      const hideOthers = hideOthersBets && afterCutoff;
                       const allMarketBets = bets.filter(b => b.marketId === selectedMarket.id);
                       const visibleBets = hideOthers ? allMarketBets.filter(b => b.playerId === me.id) : allMarketBets;
                       const hiddenCount = allMarketBets.length - visibleBets.length;

@@ -6,7 +6,6 @@ import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import { flag, deName, isAustriaTeam, toCEST } from '../utils/teams';
 import CharacterAvatar from './CharacterAvatar';
 import CoinIcon from './CoinIcon';
-import { isAdminEmail } from '../config/admins';
 
 type WmMatch = ScheduleMatch;
 
@@ -49,18 +48,17 @@ export default function SpielplanTab() {
     return [...map.values()];
   }, [liveBets, historyBets]);
 
-  // Admin-Schalter: fremde Einzel-Tipps ausblenden (Admins sehen alles, eigener
-  // Tipp bleibt). Liefert sichtbare Tipps + Anzahl der ausgeblendeten.
+  // Admin-Schalter: fremde Einzel-Tipps ausblenden — gilt für ALLE (auch Admins
+  // spielen mit). Eigener Tipp bleibt. Liefert sichtbare Tipps + Anzahl ausgeblendeter.
   const hideOthersBets = useStore(s => s.hideOthersBets);
   const hideOthersBetsFrom = useStore(s => s.hideOthersBetsFrom);
-  const isAdmin = me?.isAdmin || isAdminEmail(me?.email);
   const visibleBetsFor = (marketId: string) => {
     const all = bets.filter(b => b.marketId === marketId);
     // Grenze: nur Spiele ab dem eingestellten Anstoß ausblenden (null = alle).
     const mkt = markets.find(m => m.id === marketId);
     const afterCutoff = hideOthersBetsFrom == null
       || (mkt?.kickoffAt != null && mkt.kickoffAt >= hideOthersBetsFrom);
-    if (hideOthersBets && !isAdmin && afterCutoff) {
+    if (hideOthersBets && afterCutoff) {
       const visible = all.filter(b => b.playerId === currentUser);
       return { visible, hidden: all.length - visible.length, total: all.length };
     }

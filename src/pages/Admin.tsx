@@ -3049,10 +3049,10 @@ export default function Admin() {
                   <div className="text-[11px] font-black text-purple2 tracking-[0.15em] uppercase">Fremde Tipps ausblenden</div>
                 </div>
                 <div className="text-[10px] text-muted leading-relaxed">
-                  Wenn aktiv, sehen Spieler die einzelnen Tipps der anderen nicht mehr
-                  (eigener Tipp + Pool-Verteilung bleiben). Admins sehen weiterhin alles.
-                  Unten optional ein Grenz-Spiel wählen — dann wird nur ab dessen Anstoß
-                  ausgeblendet (frühere Spieltage bleiben sichtbar).
+                  Wenn aktiv, sehen alle Spieler die einzelnen Tipps der anderen nicht
+                  mehr — auch du als Admin (eigener Tipp + Pool-Verteilung bleiben). Im
+                  Admin-Panel selbst (Auflösen) bleibt alles sichtbar. Unten optional ein
+                  Grenz-Spiel wählen — dann wird nur ab dessen Anstoß ausgeblendet.
                 </div>
               </div>
               <button
