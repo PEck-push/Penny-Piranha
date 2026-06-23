@@ -86,6 +86,7 @@ export const initFirebaseSync = () => {
         currentPhase: data.currentPhase ?? 'gruppenphase',
         testMode: data.testMode ?? true,
         hideOthersBets: data.hideOthersBets ?? false,
+        hideOthersBetsFrom: data.hideOthersBetsFrom ?? null,
         adminMessage: data.adminMessage ?? '',
         whatsappGroupLink: data.whatsappGroupLink ?? '',
         exchangeRate: data.exchangeRate ?? 1,

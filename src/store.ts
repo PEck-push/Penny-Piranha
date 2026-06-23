@@ -354,6 +354,9 @@ interface AppState {
   // (eigener Tipp + aggregierte Pool-Anzeige bleiben). Admin-Schalter; greift ab
   // dem 3. Spieltag. Default false = bisheriges Verhalten. Admins sehen immer alles.
   hideOthersBets: boolean;
+  // Optionale Grenze: nur Tipps für Spiele AB diesem Anstoß (UTC ms) ausblenden.
+  // null = keine Grenze (alle Spiele). Greift nur, wenn hideOthersBets aktiv ist.
+  hideOthersBetsFrom: number | null;
   adminMessage: string; // optionale Ticker-Nachricht des Admins
   whatsappGroupLink: string; // Beitrittslink zur WhatsApp-Gruppe (angezeigt nach Registrierung)
   exchangeRate: number; // Cashout-Wechselkurs: 100 TKN = X € (geteilt & persistiert)
@@ -415,6 +418,7 @@ interface AppState {
   setExchangeRate: (rate: number) => Promise<void>;
   // Admin: Sichtbarkeit der fremden Einzel-Tipps global umschalten.
   setHideOthersBets: (on: boolean) => Promise<void>;
+  setHideOthersBetsFrom: (ts: number | null) => Promise<void>;
   setJackpot: (value: number) => Promise<void>;
   setActiveAccessory: (slot: 'head' | 'hand' | 'torso', accessoryId: string | null) => Promise<void>;
   grantAccessory: (playerId: string, accessoryId: string) => Promise<void>;
@@ -487,6 +491,7 @@ export const useStore = create<AppState>()((set, get) => {
     currentPhase: 'gruppenphase',
     testMode: true,
     hideOthersBets: false,
+    hideOthersBetsFrom: null,
     adminMessage: '',
     whatsappGroupLink: '',
     exchangeRate: 1,
@@ -1097,6 +1102,14 @@ export const useStore = create<AppState>()((set, get) => {
       if (db) {
         try { await setDoc(doc(db, 'appState', 'global'), { hideOthersBets: on }, { merge: true }); }
         catch (err) { console.error('[Store] setHideOthersBets Fehler:', err); }
+      }
+    },
+
+    setHideOthersBetsFrom: async (ts) => {
+      set({ hideOthersBetsFrom: ts });
+      if (db) {
+        try { await setDoc(doc(db, 'appState', 'global'), { hideOthersBetsFrom: ts }, { merge: true }); }
+        catch (err) { console.error('[Store] setHideOthersBetsFrom Fehler:', err); }
       }
     },
 

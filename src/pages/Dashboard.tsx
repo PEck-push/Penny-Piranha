@@ -223,6 +223,7 @@ export default function Dashboard() {
   const jackpot = useStore(s => s.jackpot);
   const adminMessage = useStore(s => s.adminMessage);
   const hideOthersBets = useStore(s => s.hideOthersBets);
+  const hideOthersBetsFrom = useStore(s => s.hideOthersBetsFrom);
   const placeBet  = useStore(s => s.placeBet);
   const placeTip  = useStore(s => s.placeTip);
   const changeBet = useStore(s => s.changeBet);
@@ -1389,7 +1390,10 @@ export default function Dashboard() {
                     {(() => {
                       // Tipps der ANDEREN Spieler ausblenden, wenn der Admin-Schalter
                       // aktiv ist (Admins sehen weiterhin alles). Der eigene Tipp bleibt.
-                      const hideOthers = hideOthersBets && !isAdmin;
+                      // Optionale Grenze: nur für Spiele ab dem eingestellten Anstoß.
+                      const afterCutoff = hideOthersBetsFrom == null
+                        || (selectedMarket.kickoffAt != null && selectedMarket.kickoffAt >= hideOthersBetsFrom);
+                      const hideOthers = hideOthersBets && !isAdmin && afterCutoff;
                       const allMarketBets = bets.filter(b => b.marketId === selectedMarket.id);
                       const visibleBets = hideOthers ? allMarketBets.filter(b => b.playerId === me.id) : allMarketBets;
                       const hiddenCount = allMarketBets.length - visibleBets.length;

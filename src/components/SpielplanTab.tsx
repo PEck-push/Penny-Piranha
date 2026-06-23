@@ -52,10 +52,15 @@ export default function SpielplanTab() {
   // Admin-Schalter: fremde Einzel-Tipps ausblenden (Admins sehen alles, eigener
   // Tipp bleibt). Liefert sichtbare Tipps + Anzahl der ausgeblendeten.
   const hideOthersBets = useStore(s => s.hideOthersBets);
+  const hideOthersBetsFrom = useStore(s => s.hideOthersBetsFrom);
   const isAdmin = me?.isAdmin || isAdminEmail(me?.email);
   const visibleBetsFor = (marketId: string) => {
     const all = bets.filter(b => b.marketId === marketId);
-    if (hideOthersBets && !isAdmin) {
+    // Grenze: nur Spiele ab dem eingestellten Anstoß ausblenden (null = alle).
+    const mkt = markets.find(m => m.id === marketId);
+    const afterCutoff = hideOthersBetsFrom == null
+      || (mkt?.kickoffAt != null && mkt.kickoffAt >= hideOthersBetsFrom);
+    if (hideOthersBets && !isAdmin && afterCutoff) {
       const visible = all.filter(b => b.playerId === currentUser);
       return { visible, hidden: all.length - visible.length, total: all.length };
     }

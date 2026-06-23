@@ -232,6 +232,8 @@ export default function Admin() {
   const setAdminMessage = useStore(s => s.setAdminMessage);
   const hideOthersBets = useStore(s => s.hideOthersBets);
   const setHideOthersBets = useStore(s => s.setHideOthersBets);
+  const hideOthersBetsFrom = useStore(s => s.hideOthersBetsFrom);
+  const setHideOthersBetsFrom = useStore(s => s.setHideOthersBetsFrom);
   const setJackpot = useStore(s => s.setJackpot);
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
@@ -3048,8 +3050,9 @@ export default function Admin() {
                 </div>
                 <div className="text-[10px] text-muted leading-relaxed">
                   Wenn aktiv, sehen Spieler die einzelnen Tipps der anderen nicht mehr
-                  (eigener Tipp + Pool-Verteilung bleiben). Für ab dem 3. Spieltag gedacht.
-                  Admins sehen weiterhin alles.
+                  (eigener Tipp + Pool-Verteilung bleiben). Admins sehen weiterhin alles.
+                  Unten optional ein Grenz-Spiel wählen — dann wird nur ab dessen Anstoß
+                  ausgeblendet (frühere Spieltage bleiben sichtbar).
                 </div>
               </div>
               <button
@@ -3069,6 +3072,32 @@ export default function Admin() {
             </div>
             <div className={clsx('mt-2 text-[11px] font-black', hideOthersBets ? 'text-purple2' : 'text-muted')}>
               Status: {hideOthersBets ? '🙈 Fremde Tipps sind AUSGEBLENDET' : '👀 Fremde Tipps sind SICHTBAR'}
+            </div>
+
+            {/* Grenz-Spiel: ab welchem Anstoß ausgeblendet wird (optional) */}
+            <div className="mt-3 pt-3 border-t border-border/60">
+              <div className="text-[10px] font-black text-muted uppercase tracking-[0.1em] mb-1.5">
+                Ausblenden ab Spiel
+              </div>
+              <select
+                value={hideOthersBetsFrom ?? ''}
+                onChange={e => setHideOthersBetsFrom(e.target.value ? Number(e.target.value) : null)}
+                className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-[12px] font-bold text-white outline-none focus:border-purple2/50"
+              >
+                <option value="">Alle Spiele (keine Begrenzung)</option>
+                {[...scheduleSource]
+                  .sort((a, b) => a.kickoffAt - b.kickoffAt)
+                  .map(m => (
+                    <option key={m.matchId} value={m.kickoffAt}>
+                      {m.matchday ? `Sp.${m.matchday} · ` : ''}{deName(m.teamA)} – {deName(m.teamB)} · {toCEST(m.kickoffAt)}
+                    </option>
+                  ))}
+              </select>
+              <div className="mt-1.5 text-[10px] text-muted">
+                {hideOthersBetsFrom == null
+                  ? 'Aktuell: alle Spiele betroffen (sobald der Schalter aktiv ist).'
+                  : `Aktuell: nur Spiele ab ${toCEST(hideOthersBetsFrom)} — frühere Spieltage bleiben sichtbar.`}
+              </div>
             </div>
           </div>
 
