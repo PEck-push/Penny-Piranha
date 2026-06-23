@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { clsx } from 'clsx';
 import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
 import { calcMarketPayoutPreview } from '../utils/credits';
@@ -31,13 +31,22 @@ export default function SpielplanTab() {
   const [isChangingBet, setIsChangingBet] = useState(false);
 
   const markets     = useStore(s => s.markets);
-  const bets        = useStore(s => s.bets);
+  const liveBets    = useStore(s => s.bets);
+  const historyBets = useStore(s => s.historyBets);
+  const loadHistoryBetsForMarket = useStore(s => s.loadHistoryBetsForMarket);
   const players     = useStore(s => s.players);
   const currentUser = useStore(s => s.currentUser);
   const placeBet    = useStore(s => s.placeBet);
   const changeBet   = useStore(s => s.changeBet);
   const liveSchedule = useStore(s => s.schedule);
   const me          = players.find(p => p.id === currentUser);
+
+  // Aktive Tipps live + bei Bedarf nachgeladene Historie eines aufgelösten Spiels.
+  const bets = useMemo(() => {
+    const map = new Map(historyBets.map(b => [b.id, b]));
+    for (const b of liveBets) map.set(b.id, b);
+    return [...map.values()];
+  }, [liveBets, historyBets]);
 
   const now = Date.now();
 
@@ -68,6 +77,13 @@ export default function SpielplanTab() {
     bets.find(b => b.marketId === marketId && b.playerId === currentUser);
 
   const selectedMarket = selectedMatch ? getMarket(selectedMatch) : undefined;
+  // Detailansicht eines bereits aufgelösten/stornierten Spiels → dessen
+  // ausgewertete Tipps gezielt nachladen (sie sind nicht mehr live im Store).
+  useEffect(() => {
+    if (selectedMarket && (selectedMarket.status === 'resolved' || selectedMarket.status === 'cancelled')) {
+      loadHistoryBetsForMarket(selectedMarket.id);
+    }
+  }, [selectedMarket?.id, selectedMarket?.status, loadHistoryBetsForMarket]);
   const selectedMyBet  = selectedMarket ? getMyBet(selectedMarket.id) : undefined;
   const selectedTotal  = selectedMarket ? getMarketTotal(selectedMarket) : 0;
 

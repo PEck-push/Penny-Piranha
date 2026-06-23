@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useStore, type Market, type Bet, type Player } from '../store';
 
 // Admin-only Audit-Komponente: Liste der zuletzt aufgelösten Märkte.
@@ -7,10 +7,21 @@ import { useStore, type Market, type Bet, type Player } from '../store';
 // Auszahlung. Quelle = bets-Collection (payout-Feld), kein extra Backend-Call.
 export default function ResolvedMarketsInspector() {
   const markets = useStore(s => s.markets);
-  const bets = useStore(s => s.bets);
+  const liveBets = useStore(s => s.bets);
+  const historyBets = useStore(s => s.historyBets);
+  const loadHistoryBets = useStore(s => s.loadHistoryBets);
   const players = useStore(s => s.players);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [limit, setLimit] = useState(20);
+
+  // Aufgelöste Märkte zeigen ausgewertete Tipps (active == false) → die werden
+  // nicht mehr live gestreamt. Einmalig die komplette Historie nachladen.
+  useEffect(() => { loadHistoryBets(); }, [loadHistoryBets]);
+  const bets = useMemo(() => {
+    const map = new Map(historyBets.map(b => [b.id, b]));
+    for (const b of liveBets) map.set(b.id, b);
+    return [...map.values()];
+  }, [liveBets, historyBets]);
 
   const resolved = useMemo(
     () => markets

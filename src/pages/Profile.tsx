@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
 import CoinIcon from '../components/CoinIcon';
@@ -26,12 +26,23 @@ export default function Profile() {
   const navigate  = useNavigate();
   const me        = useStore(s => s.players.find(p => p.id === s.currentUser));
   const players   = useStore(s => s.players);
-  const bets      = useStore(s => s.bets);
+  const liveBets  = useStore(s => s.bets);
+  const historyBets = useStore(s => s.historyBets);
+  const loadHistoryBets = useStore(s => s.loadHistoryBets);
   const markets   = useStore(s => s.markets);
   const logoutAuth = useStore(s => s.logoutAuth);
   const setActiveAccessory = useStore(s => s.setActiveAccessory);
   const shopItems = useStore(s => s.shopItems);
   const setActiveShopItem = useStore(s => s.setActiveShopItem);
+  // Aktive Tipps + nachgeladene Historie zusammenführen (settled bets werden
+  // nicht mehr live gestreamt). Eigene Historie nach Mount im Hintergrund laden.
+  const bets = useMemo(() => {
+    const map = new Map(historyBets.map(b => [b.id, b]));
+    for (const b of liveBets) map.set(b.id, b);
+    return [...map.values()];
+  }, [liveBets, historyBets]);
+  const myId = useStore(s => s.currentUser);
+  useEffect(() => { if (myId) loadHistoryBets(myId); }, [myId, loadHistoryBets]);
   // Hinweis, wenn beim Anziehen ein anderes Item desselben Slots abgelegt wird.
   const [equipHint, setEquipHint] = useState<string | null>(null);
   const handleEquip = async (slot: ShopSlot, itemId: string | null) => {

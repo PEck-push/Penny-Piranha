@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useStore, Market, Bet, getMarketTotal, buildSelectionKey } from '../store';
 import { calcMarketPayoutPreview as calcPayout, calcWinnerPayout, getTotalWealth } from '../utils/credits';
 import { ACCESSORY_BY_ID } from '../data/accessories';
@@ -217,6 +217,8 @@ export default function Dashboard() {
   const markets = useStore(s => s.markets);
   const schedule = useStore(s => s.schedule);
   const bets = useStore(s => s.bets);
+  const historyBets = useStore(s => s.historyBets);
+  const loadHistoryBets = useStore(s => s.loadHistoryBets);
   const answers = useStore(s => s.answers);
   const jackpot = useStore(s => s.jackpot);
   const adminMessage = useStore(s => s.adminMessage);
@@ -230,6 +232,22 @@ export default function Dashboard() {
   const me = players.find(p => p.id === currentUser);
   const isAdmin = me?.isAdmin || isAdminEmail(me?.email);
   const [revealDone, setRevealDone] = useState(false);
+
+  // Live-aktive Tipps + nachgeladene Historie zusammenführen (dedupliziert nach
+  // id, Live gewinnt). Nur für Verlaufs-/Statistik-Anzeigen verwenden — Pools/
+  // Rangliste rechnen weiterhin mit den aktiven `bets`.
+  const allBets = useMemo(() => {
+    const map = new Map(historyBets.map(b => [b.id, b]));
+    for (const b of bets) map.set(b.id, b);
+    return [...map.values()];
+  }, [bets, historyBets]);
+
+  // Eigene Historie direkt nach Login im Hintergrund laden, damit „Meine Wetten
+  // → Abgeschlossen" und das eigene Profil ohne spürbare Verzögerung bereitstehen.
+  useEffect(() => { if (me?.id) loadHistoryBets(me.id); }, [me?.id, loadHistoryBets]);
+  // Beim Öffnen eines fremden Profils dessen ausgewertete Tipps nachladen
+  // (für Trefferquote / Wettenzahl).
+  useEffect(() => { if (profilePlayer?.id) loadHistoryBets(profilePlayer.id); }, [profilePlayer?.id, loadHistoryBets]);
 
   const { expired: selectedExpired } = useCountdown(selectedMarket?.expiresAt);
 
@@ -772,7 +790,9 @@ export default function Dashboard() {
     const byCloseTime = (a: Bet, b: Bet) =>
       closeTime(markets.find(m => m.id === a.marketId)) - closeTime(markets.find(m => m.id === b.marketId));
 
-    const myBets = bets.filter(b => b.playerId === me.id);
+    // allBets = aktive Tipps + nachgeladene Historie → „Abgeschlossen" bleibt
+    // vollständig, obwohl settled bets nicht mehr live gestreamt werden.
+    const myBets = allBets.filter(b => b.playerId === me.id);
     const active = myBets
       .filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'open' || m.status === 'locked'); })
       .sort(byCloseTime);
@@ -1052,7 +1072,7 @@ export default function Dashboard() {
           const p = profilePlayer;
           const total = playerTotal(p);
           const rank = sorted.findIndex(x => x.id === p.id) + 1;
-          const pBets = bets.filter(b => b.playerId === p.id && b.amount > 0);
+          const pBets = allBets.filter(b => b.playerId === p.id && b.amount > 0);
           const pResolved = pBets.filter(b => {
             const m = markets.find(mk => mk.id === b.marketId);
             return m?.status === 'resolved' && m.winningOptionId != null;

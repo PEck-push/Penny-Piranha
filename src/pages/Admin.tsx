@@ -234,6 +234,7 @@ export default function Admin() {
   const adminMessage = useStore(s => s.adminMessage);
   const players = useStore(s => s.players);
   const bets = useStore(s => s.bets);
+  const loadHistoryBets = useStore(s => s.loadHistoryBets);
 
   // Annahmeschluss-Helfer: ms <-> datetime-local-String (lokale Zeitzone).
   const toLocalInput = (ms?: number) => {
@@ -278,8 +279,11 @@ export default function Admin() {
     try {
       const events: typeof auditEvents = [];
 
-      // 1) Bets dieses Spielers (aus live store — kein extra fetch noetig)
-      for (const b of bets.filter(b => b.playerId === playerId)) {
+      // 1) Bets dieses Spielers. Aktive Tipps sind live im Store; ausgewertete
+      // (active == false) werden gezielt nachgeladen und zusammengeführt.
+      await loadHistoryBets(playerId);
+      const allBets = [...useStore.getState().bets, ...useStore.getState().historyBets];
+      for (const b of allBets.filter(b => b.playerId === playerId)) {
         const mk = markets.find(m => m.id === b.marketId);
         const isFree = mk?.marketSubtype === 'jackpot' || (mk as any)?.noStake;
         events.push({

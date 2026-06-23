@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
 import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
-import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField, query, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField, query, where, orderBy, limit } from 'firebase/firestore';
+import { deName } from './utils/teams';
 import { signOut } from 'firebase/auth';
 
 export type FeedEventType =
@@ -216,6 +217,10 @@ export interface Bet {
   // verteilt; Rollover: 50%; Storno: 100%). Streak-Boni hängen am Spieler und
   // zählen NICHT in payout. 0 = verloren. Fehlt = noch nicht aufgelöst.
   payout?: number;
+  // true = Markt offen/gesperrt (Tipp läuft) → wird live gestreamt.
+  // false = Markt aufgelöst/storniert (ausgewertet) → nur on-demand nachgeladen.
+  // Vom Server gesetzt (place-bet/change-bet: true, resolve: false).
+  active?: boolean;
 }
 
 export interface Answer {
@@ -333,6 +338,10 @@ interface AppState {
   players: Player[];
   markets: Market[];
   bets: Bet[];
+  // Ausgewertete Tipps (active == false), die NICHT live gestreamt werden.
+  // Werden bei Bedarf via loadHistoryBets nachgeladen (eigene Historie, fremde
+  // Profile, Admin) und für die Anzeige mit `bets` zusammengeführt.
+  historyBets: Bet[];
   answers: Answer[];
   feed: FeedEvent[];
   schedule: ScheduleMatch[];
@@ -409,6 +418,14 @@ interface AppState {
   // Admin: negative Token-Guthaben (Alt-Bug Doppel-Abzug) auf 0 korrigieren.
   fixNegativeBalances: () => Promise<{ ok: boolean; fixed?: number; restored?: number; error?: string }>;
   backfillBetActive: () => Promise<{ ok: boolean; total?: number; updated?: number; active?: number; inactive?: number; error?: string }>;
+  // Lädt ausgewertete Tipps (active == false) gezielt nach und legt sie in
+  // `historyBets` ab. Ohne playerId: ALLE settled bets (Admin-Audit). Mit
+  // playerId: nur die eines Spielers (eigene Historie / fremdes Profil).
+  // Idempotent — bereits geladene Spieler/„alle" werden nicht erneut gezogen.
+  loadHistoryBets: (playerId?: string) => Promise<void>;
+  // Lädt ausgewertete Tipps eines einzelnen Markts nach (für die Detail-/Einsätze-
+  // Ansicht eines bereits aufgelösten Spiels). Idempotent pro marketId.
+  loadHistoryBetsForMarket: (marketId: string) => Promise<void>;
   // Admin-Diagnose: letzte Jackpot-/Hausbank-Bewegungen (neueste zuerst).
   fetchJackpotLedger: (n?: number) => Promise<JackpotLedgerEntry[]>;
   // Admin: historisch aus dem Jackpot bezahlte Boni nachrechnen (audit) bzw.
@@ -435,6 +452,12 @@ interface AppState {
 // sich gegenseitig überschrieben. Beim Refresh hat Firebase die leeren
 // Collections zurückgeliefert und alles aus dem localStorage gelöscht.
 // Jetzt: Firebase ist die einzige Wahrheit. Daten überleben jeden Refresh.
+// Dedup-Tracking für loadHistoryBets (Modul-Singleton, lebt so lange wie die
+// App-Session). Verhindert wiederholte Reads derselben Historie.
+let historyLoadedAll = false;
+const historyLoadedPlayers = new Set<string>();
+const historyLoadedMarkets = new Set<string>();
+
 export const useStore = create<AppState>()((set, get) => {
   // ── Hinweis: Client-seitige Resolver wurden entfernt ────────────────────────
   // Die Auflösung lebt seit der Server-Migration ausschliesslich in der
@@ -448,6 +471,7 @@ export const useStore = create<AppState>()((set, get) => {
     players: INITIAL_PLAYERS,
     markets: [],
     bets: [],
+    historyBets: [],
     answers: [],
     feed: [],
     schedule: [],
@@ -540,7 +564,7 @@ export const useStore = create<AppState>()((set, get) => {
         }
         // Optimistic local update — onSnapshot überschreibt das gleich mit Server-Truth.
         const betId = `${marketId}__${playerId}`;
-        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount, timestamp: Date.now() };
+        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount, timestamp: Date.now() , active: true };
         set(s => ({
           bets: [...s.bets.filter(b => b.id !== betId), bet],
           players: amount > 0
@@ -589,7 +613,7 @@ export const useStore = create<AppState>()((set, get) => {
           return;
         }
         const betId = `${marketId}__${playerId}`;
-        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount: 0, timestamp: Date.now() };
+        const bet: Bet = { id: betId, marketId, playerId, optionId, optionLabel, amount: 0, timestamp: Date.now() , active: true };
         set(s => ({ bets: [...s.bets.filter(b => b.id !== betId), bet] }));
       } catch (err) {
         console.error('[Store] placeTipAs Fehler:', err);
@@ -621,7 +645,7 @@ export const useStore = create<AppState>()((set, get) => {
           return;
         }
         const betId = `${marketId}__${uid}`;
-        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() };
+        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: newAmount, timestamp: Date.now() , active: true };
         set(s => ({
           bets: [...s.bets.filter(b => b.id !== oldBet.id && b.id !== betId), newBet],
           players: s.players.map(p => p.id === uid ? { ...p, tokens: p.tokens + oldBet.amount - newAmount } : p),
@@ -662,7 +686,7 @@ export const useStore = create<AppState>()((set, get) => {
           return;
         }
         const betId = `${marketId}__${uid}`;
-        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() };
+        const newBet: Bet = { id: betId, marketId, playerId: uid, optionId: newOptionId, optionLabel: newOptionLabel, amount: 0, timestamp: Date.now() , active: true };
         set(s => ({ bets: [...s.bets.filter(b => b.id !== oldBet.id && b.id !== betId), newBet] }));
       } catch (err) { console.error('[Store] changeTip Fehler:', err); }
     },
@@ -908,7 +932,11 @@ export const useStore = create<AppState>()((set, get) => {
     // der Bets (payout − Einsatz). dailyNetGain (Reveal-Bilanz) wird bewusst
     // NICHT angefasst — das Feld gehört dem Reveal-Screen.
     recomputeDailyGains: async () => {
-      const { markets, bets, players } = get();
+      // Settled bets sind nicht mehr live im Store → für die Neuberechnung
+      // (payout-basiert) die Historie sicherstellen.
+      await get().loadHistoryBets();
+      const { markets, players } = get();
+      const bets = [...get().bets, ...get().historyBets];
       const usDayKey = (ms: number) => new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
       }).format(new Date(ms));
@@ -1239,10 +1267,68 @@ export const useStore = create<AppState>()((set, get) => {
       }
     },
 
+    loadHistoryBets: async (playerId) => {
+      if (!db) return;
+      // Schon geladen? (alles, oder dieser Spieler, oder bereits per „alles" abgedeckt)
+      if (playerId ? (historyLoadedPlayers.has(playerId) || historyLoadedAll) : historyLoadedAll) return;
+      try {
+        // Einzelfeld-Queries (auto-indexiert → kein Composite-Index/Deploy nötig).
+        // Bei playerId zusätzlich client-seitig auf settled (active==false) filtern;
+        // die Tippmenge EINES Spielers ist klein und beschränkt.
+        const q = playerId
+          ? query(collection(db, 'bets'), where('playerId', '==', playerId))
+          : query(collection(db, 'bets'), where('active', '==', false));
+        const snap = await getDocs(q);
+        const loaded = snap.docs
+          .map(d => {
+            const b = { id: d.id, ...d.data() } as Bet;
+            // Gleiche Team-Namen-Normalisierung wie der Live-Listener (db.ts).
+            return b.optionLabel ? { ...b, optionLabel: deName(b.optionLabel) } : b;
+          })
+          .filter(b => b.active === false);
+        // Merge dedupliziert nach id (vorhandene historyBets behalten, neue dazu).
+        set(s => {
+          const map = new Map(s.historyBets.map(b => [b.id, b]));
+          for (const b of loaded) map.set(b.id, b);
+          return { historyBets: [...map.values()] };
+        });
+        if (playerId) historyLoadedPlayers.add(playerId);
+        else historyLoadedAll = true;
+      } catch (err) {
+        console.error('[Store] loadHistoryBets Fehler:', err);
+      }
+    },
+
+    loadHistoryBetsForMarket: async (marketId) => {
+      if (!db || !marketId) return;
+      if (historyLoadedMarkets.has(marketId) || historyLoadedAll) return;
+      try {
+        // Einzelfeld-Query (auto-indexiert); settled client-seitig filtern.
+        const snap = await getDocs(query(collection(db, 'bets'), where('marketId', '==', marketId)));
+        const loaded = snap.docs
+          .map(d => {
+            const b = { id: d.id, ...d.data() } as Bet;
+            return b.optionLabel ? { ...b, optionLabel: deName(b.optionLabel) } : b;
+          })
+          .filter(b => b.active === false);
+        set(s => {
+          const map = new Map(s.historyBets.map(b => [b.id, b]));
+          for (const b of loaded) map.set(b.id, b);
+          return { historyBets: [...map.values()] };
+        });
+        historyLoadedMarkets.add(marketId);
+      } catch (err) {
+        console.error('[Store] loadHistoryBetsForMarket Fehler:', err);
+      }
+    },
+
     // Block-Sieger küren: Spieler mit den meisten richtigen Tipps im jeweiligen
     // Gratis-Block erhalten alle Block-Preis-Accessoires (z.B. Österreich-Trikot).
     awardBlockWinner: async (block) => {
-      const { markets, bets, players } = get();
+      // Block-Märkte sind aufgelöst → ihre Tipps liegen in der Historie.
+      await get().loadHistoryBets();
+      const { markets, players } = get();
+      const bets = [...get().bets, ...get().historyBets];
       const prizeIds = ACCESSORIES.filter(a => a.block === block).map(a => a.id);
       if (prizeIds.length === 0) return { winners: [] };
       const blockMarkets = markets.filter(m =>
@@ -1432,7 +1518,8 @@ export const useStore = create<AppState>()((set, get) => {
 
     resetState: () => {
       clearSessionCookie();
-      set({ players: INITIAL_PLAYERS, markets: [], bets: [], answers: [], feed: [], schedule: [], shopItems: [], shopLastDropTs: 0, jackpot: 0, currentPhase: 'gruppenphase', testMode: true, adminMessage: '', currentUser: null });
+      historyLoadedAll = false; historyLoadedPlayers.clear(); historyLoadedMarkets.clear();
+      set({ players: INITIAL_PLAYERS, markets: [], bets: [], historyBets: [], answers: [], feed: [], schedule: [], shopItems: [], shopLastDropTs: 0, jackpot: 0, currentPhase: 'gruppenphase', testMode: true, adminMessage: '', currentUser: null });
     },
 
     // Erfundener Mitspieler (nur Testmodus). Wird in Firestore gespeichert, damit
