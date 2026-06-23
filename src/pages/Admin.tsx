@@ -3071,7 +3071,7 @@ export default function Admin() {
               </button>
             </div>
             <div className={clsx('mt-2 text-[11px] font-black', hideOthersBets ? 'text-purple2' : 'text-muted')}>
-              Status: {hideOthersBets ? '🙈 Fremde Tipps sind AUSGEBLENDET' : '👀 Fremde Tipps sind SICHTBAR'}
+              Status: {hideOthersBets ? '⛔ Fremde Tipps sind AUSGEBLENDET ⛔' : '👀 Fremde Tipps sind SICHTBAR'}
             </div>
 
             {/* Grenz-Spiel: ab welchem Anstoß ausgeblendet wird (optional) */}
