@@ -3098,6 +3098,20 @@ export default function Admin() {
                   ? 'Aktuell: alle Spiele betroffen (sobald der Schalter aktiv ist).'
                   : `Aktuell: nur Spiele ab ${toCEST(hideOthersBetsFrom)} — frühere Spieltage bleiben sichtbar.`}
               </div>
+              {(() => {
+                const affected = markets.filter(m =>
+                  m.marketSubtype === 'wm-match'
+                  && (m.status === 'open' || m.status === 'locked')
+                  && typeof m.kickoffAt === 'number'
+                  && (hideOthersBetsFrom == null || (m.kickoffAt as number) >= hideOthersBetsFrom));
+                return (
+                  <div className={clsx('mt-1 text-[10px] font-black', affected.length ? 'text-purple2' : 'text-orange')}>
+                    Betrifft aktuell {affected.length} offene{affected.length === 1 ? 's Spiel' : ' Spiele'}
+                    {affected.length > 0 && ': ' + affected.slice(0, 6).map(m => `${deName(m.teamA ?? '')}–${deName(m.teamB ?? '')}`).join(', ') + (affected.length > 6 ? ' …' : '')}
+                    {affected.length === 0 && hideOthersBetsFrom != null && ' — Grenz-Spiel evtl. zu spät (K.o.-Spiel?)'}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
