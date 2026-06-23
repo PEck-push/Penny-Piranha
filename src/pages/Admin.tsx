@@ -162,7 +162,7 @@ export default function Admin() {
   const [betAsAmount, setBetAsAmount] = useState('50');
 
   // Admin submenus
-  const [adminTab, setAdminTab] = useState<'maerkte' | 'wetten' | 'spieler' | 'system'>('maerkte');
+  const [adminTab, setAdminTab] = useState<'maerkte' | 'aktionen' | 'oekonomie' | 'spieler' | 'live' | 'wartung'>('maerkte');
   // Ticker-Nachricht
   const [tickerMsg, setTickerMsg] = useState('');
   // API check
@@ -1042,17 +1042,19 @@ export default function Admin() {
           <div className="text-[10px] font-black tracking-[0.1em] text-red bg-red/10 border border-red/30 rounded-lg px-2.5 py-1">HOST ONLY</div>
         </div>
 
-        {/* ── TAB NAVIGATION ─────────────────────────────────────────── */}
-        <div className="flex gap-1 px-3 py-2 border-b border-border shrink-0">
+        {/* ── TAB NAVIGATION (horizontal scrollbar — 6 Tabs) ───────────── */}
+        <div className="flex gap-1 px-3 py-2 border-b border-border shrink-0 overflow-x-auto no-scrollbar">
           {([
-            ['maerkte', '⚽', 'Märkte'],
-            ['wetten',  '🎰', 'Wetten'],
-            ['spieler', '👤', 'Spieler'],
-            ['system',  '⚙️', 'System'],
+            ['maerkte',   '⚽', 'Märkte'],
+            ['aktionen',  '🎁', 'Aktionen'],
+            ['oekonomie', '💰', 'Ökonomie'],
+            ['spieler',   '👤', 'Spieler'],
+            ['live',      '📣', 'Live'],
+            ['wartung',   '🔧', 'Wartung'],
           ] as const).map(([id, icon, label]) => (
             <button key={id} onClick={() => setAdminTab(id)}
               className={clsx(
-                'flex-1 py-2 rounded-xl text-[11px] font-black transition-all border',
+                'shrink-0 px-3 py-2 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap',
                 adminTab === id
                   ? 'bg-white/10 text-white border-white/15'
                   : 'text-muted hover:text-white border-transparent',
@@ -1065,8 +1067,8 @@ export default function Admin() {
         <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 px-4 pb-safe">
 
           {/* ── SYSTEM TAB ─────────────────────────────────────────── */}
-          {adminTab === 'system' && <>
 
+          {adminTab === 'wartung' && (<>
           {/* ── REVEAL TESTEN (nur im Testmodus) ───────────────────── */}
           {testMode && (
           <div className="bg-card border border-purple2/25 rounded-2xl p-4 mb-2.5">
@@ -1107,6 +1109,9 @@ export default function Admin() {
           </div>
           )}
 
+          </>)}
+
+          {adminTab === 'live' && (<>
           {/* ── TESTMODUS / LIVE GEHEN ─────────────────────────────── */}
           <div className={clsx(
             'border rounded-2xl p-4 mb-2.5',
@@ -1154,6 +1159,9 @@ export default function Admin() {
             )}
           </div>
 
+          </>)}
+
+          {adminTab === 'maerkte' && (<>
           {/* ── SPIELPLAN-IMPORT (API) ─────────────────────────────── */}
           <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -1182,6 +1190,9 @@ export default function Admin() {
             </button>
           </div>
 
+          </>)}
+
+          {adminTab === 'maerkte' && (<>
           {/* ── API PRÜFEN ───────────────────────────────────────── */}
           <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -1206,6 +1217,9 @@ export default function Admin() {
             </button>
           </div>
 
+          </>)}
+
+          {adminTab === 'wartung' && (<>
           {/* ── FORCE-OPEN MARKET (testMode only) ──────────────── */}
           {testMode && liveSchedule.length > 0 && (
             <div className="bg-card border border-yellow/20 rounded-2xl p-4 mb-2.5">
@@ -1249,11 +1263,12 @@ export default function Admin() {
             </div>
           )}
 
-          </>}
 
           {/* ── MÄRKTE TAB ─────────────────────────────────────────── */}
-          {adminTab === 'maerkte' && <>
 
+          </>)}
+
+          {adminTab === 'maerkte' && (<>
           {/* ── WM MATCH MARKT ────────────────────────────────────── */}
           <div className="bg-card border border-[#E6B43C]/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-3.5">
@@ -1325,6 +1340,9 @@ export default function Admin() {
             </button>
           </div>
 
+          </>)}
+
+          {adminTab === 'maerkte' && (<>
           {/* ── MASSEN-FREIGABE ───────────────────────────────────── */}
           <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -1438,11 +1456,12 @@ export default function Admin() {
             </div>
           </div>
 
-          </>}
 
           {/* ── WETTEN TAB ─────────────────────────────────────────── */}
-          {adminTab === 'wetten' && <>
 
+          </>)}
+
+          {adminTab === 'aktionen' && (<>
           {/* ── SPEZIALWETTEN ─────────────────────────────────────── */}
           <div className="bg-card border border-purple2/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -1477,6 +1496,9 @@ export default function Admin() {
             </div>
           </div>
 
+          </>)}
+
+          {adminTab === 'aktionen' && (<>
           {/* ── JACKPOT-SONDERRUNDEN ──────────────────────────────── */}
           <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -1517,6 +1539,9 @@ export default function Admin() {
             ))}
           </div>
 
+          </>)}
+
+          {adminTab === 'aktionen' && (<>
           {/* ── EIGENE GRATIS-WETTE ───────────────────────────────── */}
           <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -1598,10 +1623,11 @@ export default function Admin() {
             </button>
           </div>
 
-          </>}
 
-          {adminTab === 'maerkte' && <>
 
+          </>)}
+
+          {adminTab === 'maerkte' && (<>
           {/* ── CREATE MARKET ─────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Neuen Markt erstellen</div>
@@ -1781,6 +1807,9 @@ export default function Admin() {
             </button>
           </div>
 
+          </>)}
+
+          {adminTab === 'maerkte' && (<>
           {/* ── MANAGE MARKETS ──────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">Märkte verwalten</div>
@@ -2064,6 +2093,9 @@ export default function Admin() {
             )}
           </div>
 
+          </>)}
+
+          {adminTab === 'wartung' && (<>
           {/* ── AUFLÖSUNGS-INSPEKTOR ─────────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-1.5">📊 Auszahlungs-Inspektor</div>
@@ -2075,11 +2107,12 @@ export default function Admin() {
             <ResolvedMarketsInspector />
           </div>
 
-          </>}
 
           {/* ── SPIELER TAB ────────────────────────────────────────── */}
-          {adminTab === 'spieler' && <>
 
+          </>)}
+
+          {adminTab === 'spieler' && (<>
           {/* ── SPIELER-FREIGABE (Pending) ─────────────────────────── */}
           <div className="bg-card border border-green/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -2120,6 +2153,9 @@ export default function Admin() {
             })()}
           </div>
 
+          </>)}
+
+          {adminTab === 'spieler' && (<>
           {/* ── CHARAKTER-RESET ────────────────────────────────────
               Harmlose Aktion: setzt nur Kopf/Outfit/Avatar-Felder zurueck
               (Spieler durchlaeuft Charakter-Auswahl erneut). Tokens,
@@ -2159,6 +2195,9 @@ export default function Admin() {
             </div>
           </div>
 
+          </>)}
+
+          {adminTab === 'spieler' && (<>
           {/* ── ACCESSOIRES & BLOCK-PREISE ─────────────────────────── */}
           <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -2223,6 +2262,9 @@ export default function Admin() {
             </div>
           </div>
 
+          </>)}
+
+          {adminTab === 'spieler' && (<>
           {/* ── PASSWORT SETZEN ─────────────────────────────────── */}
           <div className="bg-card border border-blue2/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -2268,6 +2310,9 @@ export default function Admin() {
             </div>
           </div>
 
+          </>)}
+
+          {adminTab === 'wartung' && (<>
           {/* ── NEGATIVE GUTHABEN KORRIGIEREN ────────────────────── */}
           <div className="bg-card border border-red/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -2294,6 +2339,9 @@ export default function Admin() {
             {negMsg && <div className="mt-2 text-[11px] font-bold text-red">{negMsg}</div>}
           </div>
 
+          </>)}
+
+          {adminTab === 'wartung' && (<>
           {/* ── TIPP-AKTIV-MARKIERUNG (BACKFILL) ─────────────────── */}
           <div className="bg-card border border-blue/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -2320,6 +2368,9 @@ export default function Admin() {
             {backfillMsg && <div className="mt-2 text-[11px] font-bold text-blue">{backfillMsg}</div>}
           </div>
 
+          </>)}
+
+          {adminTab === 'oekonomie' && (<>
           {/* ── SHOP-VERWALTUNG ─────────────────────────────────── */}
           <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center justify-between mb-2">
@@ -2583,6 +2634,9 @@ export default function Admin() {
             )}
           </div>
 
+          </>)}
+
+          {adminTab === 'oekonomie' && (<>
           {/* ── BUYBACK ─────────────────────────────────────────── */}
           {(() => {
             // Schwelle = Gesamtvermoegen (verfuegbar + gebundene Einsaetze).
@@ -2619,6 +2673,9 @@ export default function Admin() {
             );
           })()}
 
+          </>)}
+
+          {adminTab === 'oekonomie' && (<>
           {/* ── GIVE TOKENS ─────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Token vergeben</div>
@@ -2629,6 +2686,9 @@ export default function Admin() {
             <button onClick={handleGiveTokens} className="w-full p-3.5 border-none rounded-xl bg-gradient-to-br from-green to-[#B8860B] font-sans text-[14px] font-black text-bg cursor-pointer shadow-[0_6px_24px_rgba(230,180,60,0.3)] transition-all hover:-translate-y-px inline-flex items-center justify-center gap-2"><CoinIcon size={14} /> Tokens vergeben</button>
           </div>
 
+          </>)}
+
+          {adminTab === 'spieler' && (<>
           {/* ── ADMIN-ROLLEN ────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-2">🔑 Admin-Rechte</div>
@@ -2677,10 +2737,11 @@ export default function Admin() {
             )}
           </div>
 
-          </>}
 
-          {adminTab === 'wetten' && <>
 
+          </>)}
+
+          {adminTab === 'oekonomie' && (<>
           {/* ── JACKPOT ─────────────────────────────────────────── */}
           {(() => {
             const openJpPrizes = markets
@@ -2794,6 +2855,9 @@ export default function Admin() {
             );
           })()}
 
+          </>)}
+
+          {adminTab === 'oekonomie' && (<>
           {/* ── JACKPOT-BEWEGUNGEN (DIAGNOSE) ───────────────────── */}
           {(() => {
             const KIND_META: Record<string, { emoji: string; label: string }> = {
@@ -2880,10 +2944,11 @@ export default function Admin() {
             );
           })()}
 
-          </>}
 
-          {adminTab === 'system' && <>
 
+          </>)}
+
+          {adminTab === 'live' && (<>
           {/* ── EINLADUNGSCODE ──────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3">Einladungscode</div>
@@ -2922,6 +2987,9 @@ export default function Admin() {
             )}
           </div>
 
+          </>)}
+
+          {adminTab === 'live' && (<>
           {/* ── WHATSAPP GRUPPE ─────────────────────────────────── */}
           <div className="bg-card border border-green/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -2967,6 +3035,9 @@ export default function Admin() {
             </button>
           </div>
 
+          </>)}
+
+          {adminTab === 'live' && (<>
           {/* ── FREMDE TIPPS AUSBLENDEN ─────────────────────────── */}
           <div className="bg-card border border-purple2/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center justify-between gap-3">
@@ -3001,6 +3072,9 @@ export default function Admin() {
             </div>
           </div>
 
+          </>)}
+
+          {adminTab === 'live' && (<>
           {/* ── TICKER-NACHRICHT ────────────────────────────────── */}
           <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
             <div className="flex items-center gap-2 mb-2">
@@ -3042,11 +3116,12 @@ export default function Admin() {
             )}
           </div>
 
-          </>}
 
           {/* ── SPIELER TAB (Test-Spieler) ──────────────────────────── */}
-          {adminTab === 'spieler' && <>
 
+          </>)}
+
+          {adminTab === 'wartung' && (<>
           {/* ── TEST-SPIELER ────────────────────────────────────── */}
           {testMode && (
             <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
@@ -3158,6 +3233,9 @@ export default function Admin() {
             </div>
           )}
 
+          </>)}
+
+          {adminTab === 'wartung' && (<>
           {/* ── TOKEN-HISTORIE ────────────────────────────────────────────────
               Read-Only Audit-Trail pro Spieler: zeigt chronologisch alle
               Events, die seinen Token-Stand beeinflusst haben (Wetten, Auto-
@@ -3229,10 +3307,11 @@ export default function Admin() {
             )}
           </div>
 
-          </>}
 
-          {adminTab === 'system' && <>
 
+          </>)}
+
+          {adminTab === 'wartung' && (<>
           {/* ── SESSION ─────────────────────────────────────────── */}
           <div className="bg-card border border-border rounded-2xl p-4 mb-2.5">
             <div className="text-[11px] font-black text-muted tracking-[0.15em] uppercase mb-3.5">Session</div>
@@ -3280,10 +3359,10 @@ export default function Admin() {
             <button onClick={() => navigate('/dashboard')} className="text-muted text-[12px] underline">Zurück zum Dashboard</button>
           </div>
 
-          </>}
+          </>)}
 
           {/* ── BACK BUTTON (alle anderen Tabs) ─────────────────────── */}
-          {adminTab !== 'system' && (
+          {adminTab !== 'wartung' && (
             <div className="mt-8 text-center mb-6">
               <button onClick={() => navigate('/dashboard')} className="text-muted text-[12px] underline">Zurück zum Dashboard</button>
             </div>
