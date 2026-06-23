@@ -1417,7 +1417,7 @@ export default function Dashboard() {
                           })}
                           {hideOthers && hiddenCount > 0 && (
                             <div className="text-[12px] text-muted text-center py-2 flex items-center justify-center gap-1.5">
-                              🙈 {hiddenCount} {hiddenCount === 1 ? 'weiterer Tipp ist' : 'weitere Tipps sind'} ausgeblendet
+                              ⛔ {hiddenCount} {hiddenCount === 1 ? 'weiterer Tipp ist' : 'weitere Tipps sind'} ausgeblendet ⛔
                             </div>
                           )}
                           {allMarketBets.length === 0 && (
