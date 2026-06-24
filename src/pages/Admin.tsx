@@ -1645,7 +1645,7 @@ export default function Admin() {
                       )}
                     </div>
                   ))}
-                  {freeBetOptions.length < 8 && (
+                  {freeBetOptions.length < 16 && (
                     <button onClick={() => setFreeBetOptions([...freeBetOptions, ''])}
                       className="mt-1 w-full p-2 border border-dashed border-white/15 rounded-xl text-[11px] font-black text-muted hover:text-white hover:border-yellow/40 transition-colors">
                       + Option hinzufügen
@@ -1867,7 +1867,7 @@ export default function Admin() {
                         )}
                       </div>
                     ))}
-                    {customOptions.length < 5 && (
+                    {customOptions.length < 16 && (
                       <button onClick={() => setCustomOptions([...customOptions,''])}
                         className="mt-1 w-full p-2 border border-dashed border-white/15 rounded-xl text-[11px] font-black text-muted hover:text-white hover:border-blue/40 transition-colors">
                         + Option hinzufügen
