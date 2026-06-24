@@ -139,6 +139,7 @@ export default function Admin() {
   const [freeBetPrize, setFreeBetPrize] = useState('0');
   const [freeBetMinWin, setFreeBetMinWin] = useState('0');
   const [freeBetMultiWinner, setFreeBetMultiWinner] = useState(false);
+  const [freeBetCloseAt, setFreeBetCloseAt] = useState('');
   const [freeBetMsg, setFreeBetMsg] = useState('');
 
   // Open question resolution
@@ -837,6 +838,7 @@ export default function Admin() {
       setTimeout(() => setFreeBetMsg(''), 3000);
       return;
     }
+    const closeMs = parseLocalInput(freeBetCloseAt);
     createMarket({
       question: freeBetQuestion.trim(),
       type: 'standard',
@@ -853,6 +855,9 @@ export default function Admin() {
       allowMultiWinner: freeBetFormat !== 'multi' && freeBetMultiWinner,
       fixedPrize: parseInt(freeBetPrize) || 0,
       minPrizePerWinner: parseInt(freeBetMinWin) || 0,
+      // Optionaler Annahmeschluss: ab dann sperrt der Cron-Tick die Wette
+      // automatisch (Tippen + Ändern nicht mehr möglich). Leer = kein Schluss.
+      ...(closeMs != null ? { betCloseAt: closeMs } : {}),
       absorbsJackpotPot: false,
       jackpotBlock: 'special',
       jackpotBlockLabel: JACKPOT_BLOCK_LABELS.special,
@@ -868,6 +873,7 @@ export default function Admin() {
     setFreeBetPrize('0');
     setFreeBetMinWin('0');
     setFreeBetMultiWinner(false);
+    setFreeBetCloseAt('');
     setTimeout(() => setFreeBetMsg(''), 4000);
   };
 
@@ -1691,6 +1697,22 @@ export default function Admin() {
                 Harte Untergrenze: Jeder Gewinner bekommt <b>mindestens</b> diesen Betrag — auch wenn
                 der Pot-Anteil darunter läge (wird <b>nicht</b> addiert). Greift die Garantie, deckt
                 das Haus die Differenz. 0 = keine Untergrenze (reiner Pot-Split).
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">⏰ Annahmeschluss (optional)</label>
+              <div className="flex items-center gap-2">
+                <input type="datetime-local" value={freeBetCloseAt} onChange={e => setFreeBetCloseAt(e.target.value)}
+                  className="flex-1 bg-input border border-border rounded-xl p-3 px-3.5 text-white font-sans text-[14px] font-bold outline-none focus:border-yellow/60" />
+                {freeBetCloseAt && (
+                  <button onClick={() => setFreeBetCloseAt('')}
+                    className="text-[11px] font-black rounded-lg px-2.5 py-2.5 border cursor-pointer bg-transparent font-sans text-muted border-muted/35 hover:bg-white/5 shrink-0">✕</button>
+                )}
+              </div>
+              <div className="text-[10px] text-muted mt-1.5">
+                Bis zu diesem Zeitpunkt können Spieler tippen <b>und</b> ändern — danach sperrt die Wette
+                automatisch. Leer = kein Schluss (jederzeit bis zur Auflösung). Später im Tab „Märkte" änderbar.
               </div>
             </div>
 
