@@ -199,6 +199,7 @@ export default function Admin() {
   const reopenMarket = useStore(s => s.reopenMarket);
   const setMarketBetClose = useStore(s => s.setMarketBetClose);
   const updateFreeBetPrize = useStore(s => s.setFreeBetPrize);
+  const applyJackpotTemplateValues = useStore(s => s.applyJackpotTemplateValues);
   const linkWmMarketsToApi = useStore(s => s.linkWmMarketsToApi);
   const recomputeDailyGains = useStore(s => s.recomputeDailyGains);
   const applyLimitsFromMatch = useStore(s => s.applyLimitsFromMatch);
@@ -748,6 +749,8 @@ export default function Admin() {
 
   // Spezialwetten aus Vorlagen erstellen (Plan §5).
   const [specialMsg, setSpecialMsg] = useState('');
+  const [applyTplMsg, setApplyTplMsg] = useState('');
+  const [applyTplBusy, setApplyTplBusy] = useState(false);
   const createSpecialBet = (tpl: SpecialBetTemplate) => {
     if (markets.some(m => m.question === tpl.title)) {
       setSpecialMsg('Diese Spezialwette existiert bereits.');
@@ -862,6 +865,24 @@ export default function Admin() {
     setFreeBetPrize('0');
     setFreeBetMinWin('0');
     setTimeout(() => setFreeBetMsg(''), 4000);
+  };
+
+  // Neue Vorlagen-Preise + Mindestgewinne auf bereits ERSTELLTE Jackpot-Wetten
+  // anwenden (einmaliger Klick, idempotent).
+  const handleApplyJackpotTemplateValues = async () => {
+    setApplyTplBusy(true);
+    setApplyTplMsg('');
+    try {
+      const r = await applyJackpotTemplateValues();
+      const parts = [`${r.updated} aktualisiert`, `${r.unchanged} unverändert`];
+      if (r.notFound.length > 0) parts.push(`${r.notFound.length} noch nicht angelegt`);
+      setApplyTplMsg(`✓ ${parts.join(' · ')}.`);
+    } catch {
+      setApplyTplMsg('Fehler beim Anwenden — bitte erneut versuchen.');
+    } finally {
+      setApplyTplBusy(false);
+      setTimeout(() => setApplyTplMsg(''), 8000);
+    }
   };
 
   const handleSetJackpot = () => {
@@ -1544,6 +1565,19 @@ export default function Admin() {
                 </div>
               </div>
             ))}
+
+            {/* Preise + Mindestgewinne auf BESTEHENDE Wetten anwenden */}
+            <div className="mt-3 pt-3 border-t border-border">
+              <button onClick={handleApplyJackpotTemplateValues} disabled={applyTplBusy}
+                className="w-full p-2.5 rounded-xl border border-yellow/40 bg-yellow/10 text-yellow text-[12px] font-black cursor-pointer transition-all hover:bg-yellow/15 disabled:opacity-40 disabled:cursor-not-allowed">
+                {applyTplBusy ? '… wird angewendet' : '🔄 Preise & Mindestgewinne auf bestehende Wetten anwenden'}
+              </button>
+              <div className="text-[10px] text-muted mt-1.5">
+                Schreibt die oben gezeigten Preise <b>und</b> Mindestgewinne auf bereits erstellte
+                Wetten (gematcht über den Titel). Idempotent — mehrfaches Klicken schadet nicht.
+              </div>
+              {applyTplMsg && <div className="text-[11px] font-bold text-green mt-1.5">{applyTplMsg}</div>}
+            </div>
           </div>
 
           </>)}
