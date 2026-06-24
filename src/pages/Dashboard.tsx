@@ -585,14 +585,19 @@ export default function Dashboard() {
                           <span className="text-[13px] font-black text-white flex-1 leading-tight">{m.question}</span>
                         </div>
                         {/* Preis-Info */}
-                        <div className="flex items-center gap-2 mb-2.5">
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mb-2.5">
                           <span className={clsx('text-[11px] font-black rounded-md px-2 py-0.5',
                             aut ? 'text-[#EF3340] bg-[#EF3340]/10 border border-[#EF3340]/25' : 'text-yellow bg-yellow/10 border border-yellow/25')}>
                             🏆 {totalPrize} TKN
                           </span>
+                          {(m.minPrizePerWinner ?? 0) > 0 && (
+                            <span className="text-[10px] font-black rounded-md px-2 py-0.5 text-green bg-green/10 border border-green/25">
+                              🛡️ min. {m.minPrizePerWinner} TKN/Gewinner
+                            </span>
+                          )}
                           {tippers > 0 && (
                             <span className="text-[10px] text-muted">
-                              ≈ {Math.floor(totalPrize / tippers)} TKN pro Tipper ({tippers})
+                              ≈ {Math.max(Math.floor(totalPrize / tippers), m.minPrizePerWinner ?? 0)} TKN pro Tipper ({tippers})
                             </span>
                           )}
                         </div>
@@ -866,7 +871,7 @@ export default function Dashboard() {
                 {isJackpot ? (
                   <>
                     <span className="text-green font-bold">Gratis-Tipp</span>
-                    <span>Preistopf: <b className="text-yellow">{m.absorbsJackpotPot ? `${m.fixedPrize ?? 0} + Jackpot` : `${m.fixedPrize ?? 0}`} TKN</b></span>
+                    <span>Preistopf: <b className="text-yellow">{m.absorbsJackpotPot ? `${m.fixedPrize ?? 0} + Jackpot` : `${m.fixedPrize ?? 0}`} TKN</b>{(m.minPrizePerWinner ?? 0) > 0 && <> · min. <b className="text-green">{m.minPrizePerWinner}</b>/Gew.</>}</span>
                   </>
                 ) : (
                   <>
@@ -954,7 +959,7 @@ export default function Dashboard() {
                   </div>
                   <div className="text-[12px] text-muted flex justify-between">
                     <span className="text-green font-bold">Gratis-Tipp</span>
-                    <span>Preistopf: <b className="text-yellow">{m.absorbsJackpotPot ? `${m.fixedPrize ?? 0} + Jackpot` : `${m.fixedPrize ?? 0}`} TKN</b></span>
+                    <span>Preistopf: <b className="text-yellow">{m.absorbsJackpotPot ? `${m.fixedPrize ?? 0} + Jackpot` : `${m.fixedPrize ?? 0}`} TKN</b>{(m.minPrizePerWinner ?? 0) > 0 && <> · min. <b className="text-green">{m.minPrizePerWinner}</b>/Gew.</>}</span>
                   </div>
                 </div>
               );
@@ -1465,8 +1470,8 @@ export default function Dashboard() {
                   {/* Gratis-Hinweis bei Jackpot-Sonderrunden */}
                   {!selectedExpired && isJackpotTip && (
                     <div className="px-5 py-3 border-b border-border shrink-0 text-center">
-                      <div className="text-[12px] font-black text-yellow">🎰 Gratis-Tipp · Festpreis: {selectedMarket.fixedPrize ?? 0} TKN</div>
-                      <div className="text-[10px] text-muted mt-0.5">Kein Einsatz — richtige Tipper teilen den Preis.</div>
+                      <div className="text-[12px] font-black text-yellow">🎰 Gratis-Tipp · Festpreis: {selectedMarket.fixedPrize ?? 0} TKN{(selectedMarket.minPrizePerWinner ?? 0) > 0 && <span className="text-green"> · min. {selectedMarket.minPrizePerWinner} TKN/Gewinner</span>}</div>
+                      <div className="text-[10px] text-muted mt-0.5">Kein Einsatz — richtige Tipper teilen den Preis.{(selectedMarket.minPrizePerWinner ?? 0) > 0 && ` Jeder Gewinner erhält mindestens ${selectedMarket.minPrizePerWinner} TKN.`}</div>
                     </div>
                   )}
 
