@@ -3204,6 +3204,10 @@ export default function Admin() {
                   mehr — auch du als Admin (eigener Tipp + Pool-Verteilung bleiben). Im
                   Admin-Panel selbst (Auflösen) bleibt alles sichtbar. Unten optional ein
                   Grenz-Spiel wählen — dann wird nur ab dessen Anstoß ausgeblendet.
+                  <br />
+                  <b className="text-purple2">Wichtig:</b> Pro Spiel werden die Tipps mit
+                  Sperre der Tippabgabe (Anpfiff bzw. Annahmeschluss) automatisch wieder
+                  sichtbar — Diskussionsstoff für die Gruppe.
                 </div>
               </div>
               <button
