@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
 import { JACKPOT_TEMPLATES } from './data/specialBets';
-import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
+import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, SHOP_HEAD_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField, query, where, orderBy, limit } from 'firebase/firestore';
 import { deName } from './utils/teams';
@@ -463,6 +463,7 @@ interface AppState {
   seedShopExamples: () => Promise<{ added: number }>;
   seedShopFirstItems: () => Promise<{ added: number }>;
   seedShopTorsoItems: () => Promise<{ added: number }>;
+  seedShopHeadItems: () => Promise<{ added: number }>;
   resetState: () => void;
 }
 
@@ -1586,6 +1587,29 @@ export const useStore = create<AppState>()((set, get) => {
         }
       } catch (err) {
         console.error('[Store] seedShopTorsoItems Fehler:', err);
+      }
+      return { added };
+    },
+
+    // ── Shop: Kopf-Items anlegen (rainer, mundl, franke) ─────────────────────
+    // Gleiche additive Logik: neue Items werden gesetzt, bereits vorhandene
+    // bleiben unangetastet. Kopf-Items ersetzen beim Tragen den Builder-Kopf.
+    seedShopHeadItems: async () => {
+      if (!db) return { added: 0 };
+      const existing = new Map(get().shopItems.map(i => [i.id, i]));
+      const now = Date.now();
+      let added = 0;
+      try {
+        for (const it of SHOP_HEAD_ITEMS) {
+          if (existing.has(it.id)) continue; // existierendes Item nicht ueberschreiben
+          await setDoc(doc(db, 'shopItems', it.id), { ...it, createdAt: now });
+          added++;
+        }
+        if (added > 0) {
+          await setDoc(doc(db, 'appState', 'global'), { shopLastDropTs: now }, { merge: true });
+        }
+      } catch (err) {
+        console.error('[Store] seedShopHeadItems Fehler:', err);
       }
       return { added };
     },

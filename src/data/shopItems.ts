@@ -50,11 +50,13 @@ export const SHOP_SLOT_LABELS: Record<ShopSlot, string> = {
   background: 'Hintergrund',
 };
 
-// Im UI angebotene Slots. Bewusst auf die drei Shop-Kategorien beschränkt
-// (Hand, Trikot, Hintergrund) — Admin-Anlage, Filter und Inventar-Sektionen
-// richten sich danach. `ShopSlot` und `SHOP_SLOT_LABELS` behalten weitere
-// Keys (head/effect) als Backward-Kompatibilität für bestehende Avatar-Layer.
+// Im UI angebotene Slots (Admin-Anlage, Filter und Inventar-Sektionen richten
+// sich danach). `head` (Kopf-Austausch) ersetzt den Builder-Kopf komplett —
+// analog zum Trikot, das den Default-Körper ersetzt (siehe CharacterAvatar).
+// `ShopSlot` und `SHOP_SLOT_LABELS` behalten weitere Keys (effect) als
+// Backward-Kompatibilität für bestehende Avatar-Layer.
 export const SHOP_SLOTS: { slot: ShopSlot; label: string }[] = [
+  { slot: 'head',       label: 'Kopf' },
   { slot: 'hand',       label: 'Hand' },
   { slot: 'torso',      label: 'Trikot' },
   { slot: 'background', label: 'Hintergrund' },
@@ -230,6 +232,45 @@ export const SHOP_TORSO_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
   },
 ];
 
+// ── Kopf-Charge (Köpfe / Kopf-Austausch) ──────────────────────────────────────
+// Drei Köpfe, alle Slot „head". Anders als ein Accessoire ERSETZT ein Shop-Kopf
+// den Builder-Kopf des Spielers komplett (siehe CharacterAvatar, z-20) — daher
+// „Austausch des Kopfes". Grafiken als transparente WebP (1080×1080,
+// deckungsgleich zum Charakter, Kopf an der richtigen Stelle) unter
+// public/shop/<id>.webp ablegen: rainer.webp, mundl.webp, franke.webp.
+export const SHOP_HEAD_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
+  {
+    id: 'rainer',
+    label: 'Rainer',
+    description: 'Tausch deinen Kopf gegen den vom Rainer. Sitzt wie angegossen.',
+    slot: 'head',
+    icon: '🧔',
+    price: 300,
+    available: true,
+    sortOrder: 200,
+  },
+  {
+    id: 'mundl',
+    label: 'Mundl',
+    description: 'Der echte Wiener Kopf für deinen Charakter. „Wos waaast denn du!"',
+    slot: 'head',
+    icon: '👨',
+    price: 300,
+    available: true,
+    sortOrder: 210,
+  },
+  {
+    id: 'franke',
+    label: 'Franke',
+    description: 'Setz dem Charakter den Franke-Kopf auf. Original und unverwechselbar.',
+    slot: 'head',
+    icon: '🥸',
+    price: 300,
+    available: true,
+    sortOrder: 220,
+  },
+];
+
 // ── Hintergrund-Charge ────────────────────────────────────────────────────────
 // (entfernt — neue Hintergrund-Items werden via Admin-Formular angelegt, sobald
 // die WebPs verfuegbar sind. Bei Bedarf hier neue SHOP_BG_ITEMS-Konstante +
@@ -343,7 +384,7 @@ export const shopItemImagePath = (item: Pick<ShopItem, 'id' | 'imagePath'>): str
 // Bewusst NICHT enthalten: icon/label/preis/… — die darf der Admin pflegen.
 const SHOP_IMAGE_BY_ID: Record<string, Pick<ShopItem, 'imagePath' | 'imageTransform'>> =
   Object.fromEntries(
-    [...SHOP_EXAMPLE_ITEMS, ...SHOP_FIRST_ITEMS, ...SHOP_TORSO_ITEMS].map(i => [
+    [...SHOP_EXAMPLE_ITEMS, ...SHOP_FIRST_ITEMS, ...SHOP_TORSO_ITEMS, ...SHOP_HEAD_ITEMS].map(i => [
       i.id,
       { imagePath: i.imagePath, imageTransform: i.imageTransform },
     ]),

@@ -227,6 +227,7 @@ export default function Admin() {
   const seedShopExamples = useStore(s => s.seedShopExamples);
   const seedShopFirstItems = useStore(s => s.seedShopFirstItems);
   const seedShopTorsoItems = useStore(s => s.seedShopTorsoItems);
+  const seedShopHeadItems = useStore(s => s.seedShopHeadItems);
   const simulateReveal = useStore(s => s.simulateReveal);
   const placeBetAs = useStore(s => s.placeBetAs);
   const placeTipAs = useStore(s => s.placeTipAs);
@@ -2545,6 +2546,15 @@ export default function Admin() {
                 🎽 Trikot-Items anlegen
               </button>
             </div>
+            <button
+              onClick={async () => {
+                const { added } = await seedShopHeadItems();
+                setShopMsg(added > 0 ? `✓ ${added} neue Kopf-Items angelegt.` : '✓ Alle Kopf-Items aus dem Katalog sind bereits vorhanden.');
+                setTimeout(() => setShopMsg(''), 4000);
+              }}
+              className="w-full p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors mb-2">
+              🗣️ Kopf-Items anlegen (Rainer · Mundl · Franke)
+            </button>
             <button
               onClick={() => { setShopFormOpen(o => !o); setShopForm({ id: '', label: '', description: '', slot: 'hand', icon: '👑', price: 100, available: true, phase: '', sortOrder: (shopItems.length + 1) * 10, stock: '', unlockPreset: 'none' }); }}
               className="w-full p-2.5 rounded-xl bg-yellow/15 border border-yellow/40 text-yellow text-[11px] font-black hover:bg-yellow/25 transition-colors mb-2">
