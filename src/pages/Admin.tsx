@@ -803,6 +803,7 @@ export default function Admin() {
       jackpotBlock: tpl.block,
       jackpotBlockLabel: tpl.block ? JACKPOT_BLOCK_LABELS[tpl.block] : undefined,
       fixedPrize: tpl.fixedPrize ?? 0,
+      minPrizePerWinner: tpl.minPrizePerWinner ?? 0,
       absorbsJackpotPot: !!tpl.absorbsJackpotPot,
       allowMultiWinner: !!tpl.allowMultiWinner,
       minBet: 0,
@@ -1533,8 +1534,9 @@ export default function Admin() {
                                  : aut ? 'border-[#EF3340]/30 bg-[#EF3340]/5 text-white hover:border-[#EF3340]/60 cursor-pointer'
                                        : 'border-yellow/25 bg-yellow/5 text-white hover:border-yellow/50 cursor-pointer')}>
                         <span>{exists ? '✓ ' : '+ '}{tpl.title}</span>
-                        <span className={clsx('text-[10px] font-black shrink-0', aut ? 'text-[#EF3340]' : 'text-yellow')}>
+                        <span className={clsx('text-[10px] font-black shrink-0 text-right', aut ? 'text-[#EF3340]' : 'text-yellow')}>
                           {tpl.absorbsJackpotPot ? `${tpl.fixedPrize}+Pot` : `${tpl.fixedPrize}`}
+                          {tpl.minPrizePerWinner ? <span className="block text-[8px] font-bold text-muted">min {tpl.minPrizePerWinner}/Gew.</span> : null}
                         </span>
                       </button>
                     );
