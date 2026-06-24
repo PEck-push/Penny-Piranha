@@ -23,6 +23,14 @@ Die `id` kommt aus dem Admin-Panel beim Anlegen eines Shop-Items (a-z0-9_).
 Shop-Items werden parallel zu den event-vergebenen Accessoires gerendert, sodass
 beide gleichzeitig sichtbar getragen werden können.
 
+## Paket-Items (Kopf + Körper)
+
+Ein Kopf-Item kann einen **Begleit-Körper** mitbringen (`bundleBodyImage` im
+Katalog, z. B. Mundl → `mundl_body.webp`). Wird der Kopf getragen, erscheint der
+Körper am Body-Layer (z-10) und ersetzt den Builder-Körper; ein explizit
+getragenes Shop-Trikot hat Vorrang. Der Körper ist ebenfalls 1080×1080,
+deckungsgleich, transparent.
+
 ## Fehlt eine Grafik
 
 Solange die Datei fehlt, blendet `CharacterAvatar` die Ebene per `onError` aus.

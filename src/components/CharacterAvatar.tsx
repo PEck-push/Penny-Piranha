@@ -116,6 +116,14 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
     const it = shopItems.find(s => s.id === id);
     return it ? shopItemImagePath(it) : `/shop/${id}.webp`;
   };
+  // Paket-Körper: trägt der Spieler einen Kopf, der einen eigenen Körper mitbringt
+  // (z. B. Mundl-Paket), wird dieser Körper am Body-Layer (z-10) gezeigt. Ein
+  // explizit getragenes Shop-Trikot hat Vorrang.
+  const bundleBody = (() => {
+    if (!shop.head || shop.torso) return null;
+    const headItem = shopItems.find(s => s.id === shop.head);
+    return headItem?.bundleBodyImage ?? null;
+  })();
 
   return (
     <div className={`relative ${DIM[size]} ${className}`}>
@@ -139,8 +147,12 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {/* z-10/20: Charakter-Basis — Körper und Kopf unabhängig (Kopf optional).
           Shop-Trikot ersetzt den Default-Körper komplett (bodyId wird dann nicht
           gerendert), damit das Trikot-Asset den ganzen Rumpf abdecken kann. */}
-      {player.bodyId && !shop.torso && (
+      {player.bodyId && !shop.torso && !bundleBody && (
         <img src={`/characters/outfits/${enc(player.bodyId)}.webp`} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
+      )}
+      {/* z-10: Paket-Körper (z. B. Mundl) ersetzt den Builder-Körper. */}
+      {bundleBody && (
+        <img src={bundleBody} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
       )}
       {/* Builder-Kopf — entfällt, sobald ein Shop-Kopf getragen wird (Austausch). */}
       {player.headId && !shop.head && (
@@ -150,7 +162,7 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {shop.head && (
         <img src={shopSrc(shop.head)} alt={player.name} onError={hideOnError} className={`${overlay} z-20`} />
       )}
-      {!player.bodyId && !player.headId && !shop.head && (
+      {!player.bodyId && !player.headId && !shop.head && !bundleBody && (
         player.avatar
           ? <img src={player.avatar} alt={player.name} referrerPolicy="no-referrer" className={`${overlay} z-[10]`} />
           : <div className="absolute inset-0 w-full h-full rounded-full bg-white/5" />
