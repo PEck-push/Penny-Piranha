@@ -83,10 +83,9 @@ function computeDailyWinnerId(players: Player[]): string {
 //   10 Unterkörper / Outfit  (bzw. Fallback-Avatar = ganzer Charakter)
 //   13 Shop-Trikot (kaufbar)
 //   15 Trikot-Accessoire (event-vergeben)
-//   20 Kopf (nur Builder-Modus)
+//   20 Kopf (Builder-Kopf ODER gekaufter Shop-Kopf — Austausch, nie beide)
 //   28 Shop-Hand (kaufbar)
 //   30 Hand-Accessoire (event-vergeben)
-//   38 Shop-Kopf (kaufbar)
 //   40 Kopf-Accessoire (event-vergeben)
 //   45 Leader-Krone (automatisch: Ranglisten-Erster)
 //   50 Tagessieger-Medaille (automatisch: höchster Tagesgewinn)
@@ -143,10 +142,15 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {player.bodyId && !shop.torso && (
         <img src={`/characters/outfits/${enc(player.bodyId)}.webp`} alt="" onError={hideOnError} className={`${overlay} z-[10]`} />
       )}
-      {player.headId && (
+      {/* Builder-Kopf — entfällt, sobald ein Shop-Kopf getragen wird (Austausch). */}
+      {player.headId && !shop.head && (
         <img src={`/characters/heads/${enc(player.headId)}.webp`} alt={player.name} onError={hideOnError} className={`${overlay} z-20`} />
       )}
-      {!player.bodyId && !player.headId && (
+      {/* z-20: Shop-Kopf ersetzt den Builder-Kopf (gleiche Ebene, „Kopf-Austausch"). */}
+      {shop.head && (
+        <img src={shopSrc(shop.head)} alt={player.name} onError={hideOnError} className={`${overlay} z-20`} />
+      )}
+      {!player.bodyId && !player.headId && !shop.head && (
         player.avatar
           ? <img src={player.avatar} alt={player.name} referrerPolicy="no-referrer" className={`${overlay} z-[10]`} />
           : <div className="absolute inset-0 w-full h-full rounded-full bg-white/5" />
@@ -176,10 +180,6 @@ export default function CharacterAvatar({ player, size = 'md', className = '' }:
       {!!player.underdogBadgeAt && (Date.now() - player.underdogBadgeAt) < 86_400_000 && (
         <img src="/overlays/accessories/underdog_medal.webp" alt="" onError={hideOnError}
           className={`${overlay} z-[33]`} />
-      )}
-      {/* z-38: Shop-Kopf */}
-      {shop.head && (
-        <img src={shopSrc(shop.head)} alt="" onError={hideOnError} className={`${overlay} z-[38]`} />
       )}
       {/* z-40: Kopf-Accessoire */}
       {acc.head && (
