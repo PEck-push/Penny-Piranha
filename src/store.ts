@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ACCESSORIES } from './data/accessories';
+import { JACKPOT_TEMPLATES } from './data/specialBets';
 import { SHOP_EXAMPLE_ITEMS, SHOP_FIRST_ITEMS, SHOP_TORSO_ITEMS, shopUnlockAt, type ShopItem, type ShopSlot } from './data/shopItems';
 import { db, auth } from './firebase';
 import { doc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc, runTransaction, serverTimestamp, addDoc, arrayUnion, deleteField, query, where, orderBy, limit } from 'firebase/firestore';
@@ -405,6 +406,9 @@ interface AppState {
   setMarketBetClose: (marketId: string, betCloseAt: number | null) => Promise<void>;
   // Preistopf (fixedPrize) einer Gratis-/Jackpot-Wette nachträglich setzen.
   setFreeBetPrize: (marketId: string, fixedPrize: number) => Promise<void>;
+  // Wendet die in den Jackpot-Vorlagen definierten Preise + Mindestgewinne auf
+  // BESTEHENDE Wetten an (gematcht über die Frage/den Titel). Idempotent.
+  applyJackpotTemplateValues: () => Promise<{ updated: number; unchanged: number; notFound: string[] }>;
   // Bestehende WM-Märkte ohne footballDataOrgId nachträglich mit der API-ID aus
   // dem Spielplan verknüpfen (Voraussetzung für die automatische Auflösung).
   linkWmMarketsToApi: () => Promise<{ linked: number; unmatched: number }>;
@@ -905,6 +909,43 @@ export const useStore = create<AppState>()((set, get) => {
           console.error('[Store] setFreeBetPrize Fehler:', err);
         }
       }
+    },
+
+    // Wendet die in den Jackpot-Vorlagen (specialBets.ts) hinterlegten Preise UND
+    // Mindestgewinne auf bereits ERSTELLTE Wetten an. Match über die Frage/den
+    // Titel (Vorlagen-Wetten werden 1:1 mit tpl.title als question angelegt).
+    // Idempotent: schreibt nur, wo sich ein Wert tatsächlich ändert. Einsatzfrei,
+    // daher fair — niemand hat Token gesetzt. Nur bis zur Auflösung sinnvoll.
+    applyJackpotTemplateValues: async () => {
+      const { markets } = get();
+      let updated = 0;
+      let unchanged = 0;
+      const notFound: string[] = [];
+      const batch = db ? writeBatch(db) : null;
+      const localPatches = new Map<string, { fixedPrize: number; minPrizePerWinner: number }>();
+
+      for (const tpl of JACKPOT_TEMPLATES) {
+        const mkt = markets.find(m => m.question === tpl.title);
+        if (!mkt) { notFound.push(tpl.title); continue; }
+        const desiredPrize = Math.max(0, Math.round(tpl.fixedPrize ?? 0));
+        const desiredMin = Math.max(0, Math.round(tpl.minPrizePerWinner ?? 0));
+        if ((mkt.fixedPrize ?? 0) === desiredPrize && (mkt.minPrizePerWinner ?? 0) === desiredMin) {
+          unchanged++;
+          continue;
+        }
+        if (batch) batch.update(doc(db, 'markets', mkt.id), { fixedPrize: desiredPrize, minPrizePerWinner: desiredMin });
+        localPatches.set(mkt.id, { fixedPrize: desiredPrize, minPrizePerWinner: desiredMin });
+        updated++;
+      }
+
+      if (batch && updated > 0) {
+        try { await batch.commit(); }
+        catch (err) { console.error('[Store] applyJackpotTemplateValues Fehler:', err); throw err; }
+      }
+      if (localPatches.size > 0) {
+        set(s => ({ markets: s.markets.map(mk => localPatches.has(mk.id) ? { ...mk, ...localPatches.get(mk.id)! } : mk) }));
+      }
+      return { updated, unchanged, notFound };
     },
 
     // Nachträgliches Verknüpfen: WM-Märkte, die ohne footballDataOrgId angelegt
