@@ -12,7 +12,7 @@ import { deName } from '../utils/teams';
 import { getLimits, type Phase } from '../utils/phase';
 import { INTERNATIONAL_SPECIALS, JACKPOT_TEMPLATES, JACKPOT_BLOCK_LABELS, type SpecialBetTemplate } from '../data/specialBets';
 import { ACCESSORIES } from '../data/accessories';
-import { SHOP_SLOTS, SHOP_SLOT_LABELS, type ShopSlot, type ShopUnlockRule } from '../data/shopItems';
+import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemOnSale, type ShopSlot, type ShopUnlockRule } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 import ResolvedMarketsInspector from '../components/ResolvedMarketsInspector';
 import { isAdminEmail } from '../config/admins';
@@ -111,6 +111,7 @@ export default function Admin() {
   const [shopFormOpen, setShopFormOpen] = useState(false);
   const [priceEdit, setPriceEdit] = useState<Record<string, string>>({}); // Item-ID → eingegebener Preis
   const [descEdit, setDescEdit] = useState<Record<string, string>>({});   // Item-ID → eingegebene Beschreibung
+  const [saleEdit, setSaleEdit] = useState<Record<string, string>>({});   // Item-ID → eingegebener Aktionspreis (24h)
   const [shopForm, setShopForm] = useState({
     id: '', label: '', description: '', slot: 'head' as ShopSlot, icon: '👑',
     price: 100, available: true, phase: '', sortOrder: 100,
@@ -2737,6 +2738,49 @@ export default function Admin() {
                       }}
                       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                       className="w-full bg-white/5 border border-border rounded-lg px-2.5 py-1.5 text-[11px] text-muted outline-none focus:border-yellow/60" />
+                    {/* Rabattaktion (24 h) */}
+                    {isShopItemOnSale(it) ? (
+                      <div className="flex items-center gap-2 bg-red/10 border border-red/30 rounded-lg px-2.5 py-1.5">
+                        <span className="flex-1 text-[11px] font-black text-red leading-tight">
+                          🔥 Aktion: <span className="line-through opacity-60">{it.price}</span> → {it.salePrice} TKN
+                          <span className="block text-[9px] font-bold text-red/70">endet {it.saleUntil ? toCEST(it.saleUntil) : ''}</span>
+                        </span>
+                        <button
+                          onClick={async () => {
+                            await updateShopItem(it.id, { salePrice: null as any, saleUntil: null as any });
+                            setShopMsg(`✓ Rabatt für „${it.label}" beendet.`);
+                            setTimeout(() => setShopMsg(''), 3000);
+                          }}
+                          className="shrink-0 text-[10px] font-black rounded-lg px-2 py-1 border border-white/15 bg-white/5 text-muted hover:text-white">
+                          Beenden
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={saleEdit[it.id] ?? ''}
+                          placeholder="Aktionspreis (TKN)"
+                          onChange={e => setSaleEdit(p => ({ ...p, [it.id]: e.target.value }))}
+                          className="flex-1 bg-white/5 border border-border rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none focus:border-red/60" />
+                        <button
+                          onClick={async () => {
+                            const n = parseInt(saleEdit[it.id] ?? '');
+                            if (!Number.isFinite(n) || n < 0 || n >= it.price) {
+                              setShopMsg(`Aktionspreis muss ≥ 0 und kleiner als ${it.price} sein.`);
+                              setTimeout(() => setShopMsg(''), 3500);
+                              return;
+                            }
+                            await updateShopItem(it.id, { salePrice: n, saleUntil: Date.now() + 24 * 60 * 60 * 1000 });
+                            setSaleEdit(p => { const c = { ...p }; delete c[it.id]; return c; });
+                            setShopMsg(`✓ 24 h-Rabatt „${it.label}": ${it.price} → ${n} TKN.`);
+                            setTimeout(() => setShopMsg(''), 4000);
+                          }}
+                          className="shrink-0 text-[10px] font-black rounded-lg px-2.5 py-1.5 border border-red/40 bg-red/10 text-red hover:bg-red/20">
+                          🔥 Rabatt 24h
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

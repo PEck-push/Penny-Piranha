@@ -60,8 +60,14 @@ export default async (req: Request, _ctx: Context) => {
 
       const tokens = Number(p.tokens ?? 0);
       const price = Number(i.price ?? 0);
-      if (tokens < price) throw new Error('insufficient_tokens');
-      cost = price;
+      // Rabattaktion: solange saleUntil in der Zukunft liegt und ein echter
+      // (niedrigerer) salePrice gesetzt ist, gilt der Aktionspreis.
+      const saleUntil = Number(i.saleUntil ?? 0);
+      const salePrice = Number(i.salePrice);
+      const onSale = saleUntil > now && Number.isFinite(salePrice) && salePrice >= 0 && salePrice < price;
+      const effPrice = onSale ? salePrice : price;
+      if (tokens < effPrice) throw new Error('insufficient_tokens');
+      cost = effPrice;
 
       tx.update(playerRef, {
         tokens: tokens - cost,

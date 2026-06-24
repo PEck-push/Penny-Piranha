@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store';
 import CoinIcon from '../components/CoinIcon';
-import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemListed, isShopItemSoldOut, shopItemStockLeft, shopItemImagePath, shopUnlockAt, type ShopSlot } from '../data/shopItems';
+import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemListed, isShopItemSoldOut, shopItemStockLeft, shopItemImagePath, shopUnlockAt, isShopItemOnSale, shopItemEffectivePrice, type ShopSlot } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 
 export default function Shop() {
@@ -204,7 +204,10 @@ export default function Shop() {
               const owned = inventory.has(item.id);
               const equipped = (me.activeShopItems ?? {})[item.slot] === item.id;
               const tryingOn = effectiveSlot(item.slot) === item.id;
-              const canAfford = me.tokens >= item.price;
+              // Rabattaktion (zeitlich befristet) → effektiver Preis.
+              const onSale = isShopItemOnSale(item, now);
+              const effPrice = shopItemEffectivePrice(item, now);
+              const canAfford = me.tokens >= effPrice;
               // Status
               const stockLeft = shopItemStockLeft(item);
               const soldOut = !owned && isShopItemSoldOut(item);
@@ -253,6 +256,12 @@ export default function Shop() {
                         👀 Anprobiert
                       </span>
                     )}
+                    {/* Rabattaktion: 🔥-Badge mit Countdown (nur wenn kaufbar/nicht owned) */}
+                    {!owned && onSale && item.saleUntil && (
+                      <span className="absolute bottom-1 right-1 text-[8px] font-black tracking-wider uppercase text-red bg-red/20 border border-red/40 rounded-full px-1.5 py-0.5 whitespace-nowrap">
+                        🔥 noch {countdown(item.saleUntil)}
+                      </span>
+                    )}
                   </button>
                   {/* Titel + Preis */}
                   <div className="flex flex-col gap-0.5">
@@ -281,12 +290,17 @@ export default function Shop() {
                     </div>
                   ) : (
                     <button onClick={() => setConfirmId(item.id)} disabled={!canAfford || busyId === item.id}
-                      className={clsx('w-full py-2 rounded-xl text-[11px] font-black border transition-all',
+                      className={clsx('w-full py-2 rounded-xl text-[11px] font-black border transition-all inline-flex items-center justify-center gap-1',
                         canAfford
-                          ? 'bg-yellow/15 border-yellow/40 text-yellow hover:bg-yellow/25'
+                          ? onSale
+                            ? 'bg-red/15 border-red/40 text-red hover:bg-red/25'
+                            : 'bg-yellow/15 border-yellow/40 text-yellow hover:bg-yellow/25'
                           : 'bg-white/5 border-white/10 text-muted/50 cursor-not-allowed',
                       )}>
-                      <CoinIcon size={12} /> {item.price} {canAfford ? 'Kaufen' : 'Zu teuer'}
+                      <CoinIcon size={12} />
+                      {onSale && <span className="line-through opacity-60 font-bold">{item.price}</span>}
+                      <span>{effPrice}</span>
+                      <span>{canAfford ? 'Kaufen' : 'Zu teuer'}</span>
                     </button>
                   )}
                 </div>
@@ -311,10 +325,23 @@ export default function Shop() {
             </div>
             <div className="text-[16px] font-black text-white mb-1">{confirmItem.label}</div>
             <div className="text-[11px] text-muted mb-4">{confirmItem.description}</div>
-            <div className="bg-yellow/10 border border-yellow/25 rounded-xl px-4 py-2 mb-4">
-              <span className="text-[11px] text-muted">Preis</span>
-              <div className="text-[18px] font-black text-yellow flex items-center gap-1.5"><CoinIcon size={18} /> {confirmItem.price}</div>
-            </div>
+            {(() => {
+              const cOnSale = isShopItemOnSale(confirmItem, now);
+              const cPrice = shopItemEffectivePrice(confirmItem, now);
+              return (
+                <div className={clsx('rounded-xl px-4 py-2 mb-4 border', cOnSale ? 'bg-red/10 border-red/30' : 'bg-yellow/10 border-yellow/25')}>
+                  <span className="text-[11px] text-muted">{cOnSale ? '🔥 Aktionspreis' : 'Preis'}</span>
+                  <div className={clsx('text-[18px] font-black flex items-center gap-1.5', cOnSale ? 'text-red' : 'text-yellow')}>
+                    <CoinIcon size={18} />
+                    {cOnSale && <span className="text-[13px] line-through opacity-60 text-muted">{confirmItem.price}</span>}
+                    {cPrice}
+                  </div>
+                  {cOnSale && confirmItem.saleUntil && (
+                    <div className="text-[10px] font-bold text-red/80 mt-0.5">Aktion endet in {countdown(confirmItem.saleUntil)}</div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="text-[10px] text-muted mb-4">
               Nach dem Kauf bleibt das Item dauerhaft in deinem Inventar — auch bei Charakter-Reset.
             </div>

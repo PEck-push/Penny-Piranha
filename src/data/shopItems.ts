@@ -29,6 +29,8 @@ export interface ShopItem {
   available: boolean;      // Wird sofort als kaufbar angezeigt
   availableFrom?: number;  // Optional: fester Drop-Zeitpunkt (Unix ms). Hat Vorrang.
   availableUntil?: number; // Optional: Ablauf (Unix ms)
+  salePrice?: number;      // Optional: Rabatt-Preis während einer Aktion (Unix-befristet)
+  saleUntil?: number;      // Optional: Ende der Rabattaktion (Unix ms). Danach gilt wieder `price`.
   unlockRule?: ShopUnlockRule; // Automatische Freischaltung aus dem Spielplan
   unlockLabel?: string;    // Anzeigetext, solange gesperrt (z.B. „Ab dem 1. Spieltag")
   stock?: number;          // Globale Stückzahl (Knappheit). Fehlt = unbegrenzt.
@@ -245,8 +247,10 @@ export const SHOP_HEAD_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     description: 'Tausch deinen Kopf gegen den vom Rainer. Sitzt wie angegossen.',
     slot: 'head',
     icon: '🧔',
-    price: 300,
+    price: 80,
     available: true,
+    stock: 1,
+    sold: 0,
     sortOrder: 200,
   },
   {
@@ -255,8 +259,10 @@ export const SHOP_HEAD_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     description: 'Der echte Wiener Kopf für deinen Charakter. „Wos waaast denn du!"',
     slot: 'head',
     icon: '👨',
-    price: 300,
+    price: 80,
     available: true,
+    stock: 1,
+    sold: 0,
     sortOrder: 210,
   },
   {
@@ -265,8 +271,10 @@ export const SHOP_HEAD_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     description: 'Setz dem Charakter den Franke-Kopf auf. Original und unverwechselbar.',
     slot: 'head',
     icon: '🥸',
-    price: 300,
+    price: 80,
     available: true,
+    stock: 1,
+    sold: 0,
     sortOrder: 220,
   },
 ];
@@ -275,6 +283,18 @@ export const SHOP_HEAD_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
 // (entfernt — neue Hintergrund-Items werden via Admin-Formular angelegt, sobald
 // die WebPs verfuegbar sind. Bei Bedarf hier neue SHOP_BG_ITEMS-Konstante +
 // seedShopBgItems-Aktion wieder aktivieren.)
+
+// ── Rabattaktionen (zeitlich befristet, je Item) ──────────────────────────────
+// Ein Item ist „im Angebot", solange saleUntil in der Zukunft liegt UND ein
+// echter (niedrigerer) salePrice gesetzt ist. Sonst gilt immer der reguläre
+// Preis. Crash-sicher gegen fehlende/ungültige Werte.
+export const isShopItemOnSale = (item: Pick<ShopItem, 'price' | 'salePrice' | 'saleUntil'>, now = Date.now()): boolean =>
+  typeof item.saleUntil === 'number' && item.saleUntil > now
+  && typeof item.salePrice === 'number' && item.salePrice >= 0 && item.salePrice < item.price;
+
+// Aktuell zu zahlender Preis (Rabatt berücksichtigt).
+export const shopItemEffectivePrice = (item: Pick<ShopItem, 'price' | 'salePrice' | 'saleUntil'>, now = Date.now()): number =>
+  isShopItemOnSale(item, now) ? (item.salePrice as number) : item.price;
 
 export const isShopItemAvailable = (item: ShopItem, now = Date.now()): boolean => {
   if (!item.available) return false;
