@@ -261,9 +261,13 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, []);
 
+  // Tippabgabe für den geöffneten Markt gesperrt? Hot-Take-Ablauf ODER der
+  // Annahmeschluss/Anpfiff ist erreicht (auch wenn der Cron noch nicht gesperrt hat).
+  const selectedClosed = selectedExpired || isBettingClosed(selectedMarket, now);
+
 
   const handleBet = (optionId: string, optionLabel: string) => {
-    if (!selectedMarket || !me || selectedExpired) return;
+    if (!selectedMarket || !me || selectedClosed) return;
     // Auf gültiges Intervall klemmen, bevor bestätigt wird — der Mindesteinsatz
     // gilt auch dann, wenn der Regler nie bewegt wurde.
     const min = selectedMarket.minBet ?? 1;
@@ -580,6 +584,9 @@ export default function Dashboard() {
                     const totalPrize = (m.fixedPrize ?? 0) + (m.absorbsJackpotPot ? jackpot : 0);
                     const tippers = bets.filter(b => b.marketId === m.id).length;
                     const isChangingTip = changingTipMarket === m.id;
+                    // Annahmeschluss erreicht → kein Tippen/Ändern mehr (auch wenn
+                    // der Cron den Markt noch nicht auf 'locked' gesetzt hat).
+                    const closed = isBettingClosed(m, now);
                     return (
                       <div key={m.id} className={clsx('p-3.5 px-4', idx < blockMarkets.length - 1 && (aut ? 'border-b border-[#EF3340]/15' : 'border-b border-yellow/15'))}>
                         <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -608,13 +615,17 @@ export default function Dashboard() {
                             <div className="text-[11px] font-black text-green bg-green/10 border border-green/20 rounded-lg px-2 py-1.5">
                               ✓ Dein Tipp: {myTip.optionLabel}
                             </div>
-                            {m.status === 'open' && (
+                            {m.status === 'open' && !closed && (
                               <button onClick={() => setChangingTipMarket(m.id)}
                                 className={clsx('text-[10px] font-black rounded-lg px-2 py-1.5 border transition-colors cursor-pointer',
                                   aut ? 'text-[#EF3340] border-[#EF3340]/30 bg-[#EF3340]/5 hover:bg-[#EF3340]/15' : 'text-yellow border-yellow/30 bg-yellow/5 hover:bg-yellow/15')}>
                                 ✏️ Ändern
                               </button>
                             )}
+                          </div>
+                        ) : closed ? (
+                          <div className="text-[11px] font-black text-muted bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 inline-flex items-center gap-1.5">
+                            🔒 Annahmeschluss erreicht — Tipps gesperrt
                           </div>
                         ) : m.multiSelect ? (
                           (() => {
@@ -1438,7 +1449,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* Slider — nur bei stake-basierten Wetten, NICHT bei Jackpot/gratis */}
-                  {!selectedExpired && !isJackpotTip && (() => {
+                  {!selectedClosed && !isJackpotTip && (() => {
                     // Beim Ändern einer Wette wird der bestehende Einsatz zurückerstattet —
                     // das verfügbare Budget ist daher freie Token + bisheriger Einsatz.
                     // Ohne das blieb der Slider bei wenig Guthaben hängen (Max < bisheriger
@@ -1471,23 +1482,23 @@ export default function Dashboard() {
                     );
                   })()}
                   {/* Gratis-Hinweis bei Jackpot-Sonderrunden */}
-                  {!selectedExpired && isJackpotTip && (
+                  {!selectedClosed && isJackpotTip && (
                     <div className="px-5 py-3 border-b border-border shrink-0 text-center">
                       <div className="text-[12px] font-black text-yellow">🎰 Gratis-Tipp · Festpreis: {selectedMarket.fixedPrize ?? 0} TKN{(selectedMarket.minPrizePerWinner ?? 0) > 0 && <span className="text-green"> · min. {selectedMarket.minPrizePerWinner} TKN/Gewinner</span>}</div>
                       <div className="text-[10px] text-muted mt-0.5">Kein Einsatz — richtige Tipper teilen den Preis.{(selectedMarket.minPrizePerWinner ?? 0) > 0 && ` Jeder Gewinner erhält mindestens ${selectedMarket.minPrizePerWinner} TKN.`}</div>
                     </div>
                   )}
 
-                  {/* Expired notice */}
-                  {selectedExpired && (
+                  {/* Closed notice (Hot-Take abgelaufen ODER Annahmeschluss/Anpfiff erreicht) */}
+                  {selectedClosed && (
                     <div className="p-4 text-center shrink-0">
-                      <div className="text-red font-black text-[14px]">🔒 Hot Take abgelaufen</div>
-                      <div className="text-muted text-[12px] mt-1">Keine Wetten mehr möglich</div>
+                      <div className="text-red font-black text-[14px]">🔒 {selectedExpired ? 'Hot Take abgelaufen' : 'Annahmeschluss erreicht'}</div>
+                      <div className="text-muted text-[12px] mt-1">Keine Tipps mehr möglich</div>
                     </div>
                   )}
 
                   {/* Bet Buttons */}
-                  {!selectedExpired && (() => {
+                  {!selectedClosed && (() => {
                     const myBet = bets.find(b => b.marketId === selectedMarket.id && b.playerId === me.id);
                     const isChanging = isJackpotTip ? (changingTipMarket === selectedMarket.id) : (changingBetMarket === selectedMarket.id);
                     if (myBet && !isChanging) {

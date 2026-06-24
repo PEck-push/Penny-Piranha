@@ -70,6 +70,7 @@ export default async (req: Request, _ctx: Context) => {
       if (betSnap.exists) throw new Error('already_bet');
       if (m.status !== 'open') throw new Error('market_not_open');
       if (typeof m.kickoffAt === 'number' && now >= m.kickoffAt) throw new Error('market_kickoff_passed');
+      if (typeof m.betCloseAt === 'number' && now >= m.betCloseAt) throw new Error('market_closed');
       if (typeof m.expiresAt === 'number' && now > m.expiresAt) throw new Error('market_expired');
 
       const options = Array.isArray(m.options) ? (m.options as any[]) : [];
@@ -128,6 +129,7 @@ function errorMessage(code: string): string {
     case 'market_not_found':         return 'Markt nicht gefunden.';
     case 'market_not_open':          return 'Markt ist nicht mehr offen.';
     case 'market_kickoff_passed':    return 'Anpfiff ist schon — keine Tipps mehr.';
+    case 'market_closed':            return 'Annahmeschluss erreicht — keine Tipps mehr.';
     case 'market_expired':           return 'Tipp-Fenster geschlossen.';
     case 'option_not_found':         return 'Diese Option gibt es nicht.';
     case 'insufficient_tokens':      return 'Nicht genug Tokens.';
