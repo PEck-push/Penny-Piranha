@@ -11,6 +11,10 @@ export interface SpecialBetTemplate {
   // jackpot zusätzlich absorbiert (nur Finale-Headline).
   block?: 'block1' | 'austria' | 'block2' | 'finale';
   fixedPrize?: number;
+  // Garantierter Mindestgewinn PRO Gewinner (harte Untergrenze, NICHT additiv):
+  // jeder Gewinner bekommt max(floor(prize/n), minPrizePerWinner). Greift die
+  // Garantie, deckt das Haus die Differenz. Nicht gesetzt = kein Minimum.
+  minPrizePerWinner?: number;
   absorbsJackpotPot?: boolean;
   // Mehrere Optionen koennen gleichzeitig richtig sein (z. B. wenn zwei
   // Topfavoriten in derselben K.O.-Runde rausfliegen). Admin haakt bei der
@@ -69,84 +73,87 @@ export const INTERNATIONAL_SPECIALS: SpecialBetTemplate[] = [
 // zählt NICHT zum 2500-Budget).
 //
 // ── Preis-Design (Game-Design-Logik) ──────────────────────────────────────────
-// Gesamtbudget = 4500 TKN, wenn ein Spieler ALLE Fragen richtig tippt (sehr
+// Gesamtbudget = 6800 TKN, wenn ein Spieler ALLE Fragen richtig tippt (sehr
 // unwahrscheinlich). Höhe je Frage skaliert mit:
 //   • Schwierigkeit  → mehr Optionen = geringere Trefferchance = höherer Preis
 //   • Dramaturgie    → Block 1 < Block 2 < Finale (Spannungsbogen)
 //   • Österreich     → eigener Sonderblock, höher dotiert als der Einstieg (Block 1)
-// Vier Blöcke: Block 1 = 600, 🇦🇹 Österreich = 1200, Block 2 = 1000, Finale = 1700 (Σ 4500).
-// (Hochgezogen für 49 Spieler — Front-Loading in die früheren Blöcke, Finale moderat.)
+// Vier Blöcke: Block 1 = 700, 🇦🇹 Österreich = 1950, Block 2 = 1450, Finale = 2700 (Σ 6800).
+//
+// Mindestgewinn: Alle Gratis-/Jackpot-Wetten GARANTIEREN 35 TKN pro Gewinner
+// (harte Untergrenze, nicht additiv). Ausnahme: die JA/NEIN-Arnautović-Wette —
+// dort würden viele Treffer die Auszahlung sprengen, daher kein Minimum.
 export const JACKPOT_TEMPLATES: SpecialBetTemplate[] = [
-  // Block 1 — Ende Gruppenphase (Einstieg) · Σ 600
+  // Block 1 — Ende Gruppenphase (Einstieg) · Σ 700
   {
     id: 'jp-group-goals',
     title: '🥅 Wie viele Tore fallen in der Gruppenphase?',
     options: ['unter 160', '160–179', '180–199', '200–219', '220+'],
-    block: 'block1', fixedPrize: 600, // 5 Opt., international
+    block: 'block1', fixedPrize: 700, minPrizePerWinner: 35, // 5 Opt., international
   },
-  // 🇦🇹 Österreich-Jackpot — eigener Sonderblock · Σ 1200
+  // 🇦🇹 Österreich-Jackpot — eigener Sonderblock · Σ 1950
   {
     id: 'jp-aut-goals',
     title: '🇦🇹 Wie viele Tore schießt Österreich in der Gruppenphase?',
     options: ['0', '1', '2', '3', '4', '5', '6+'],
-    block: 'austria', fixedPrize: 400, // 7 Opt., AT-Bonus
+    block: 'austria', fixedPrize: 650, minPrizePerWinner: 35, // 7 Opt., AT-Bonus
   },
   {
     id: 'jp-aut-points',
     title: '🇦🇹 Wie viele Punkte holt Österreich in der Gruppenphase?',
     options: ['0', '1', '2', '3', '4', '5', '6', '7', '9'],
-    block: 'austria', fixedPrize: 250, // 9 Opt., AT-Bonus
+    block: 'austria', fixedPrize: 450, minPrizePerWinner: 35, // 9 Opt., AT-Bonus
   },
   {
     id: 'jp-aut-progress',
     title: '🇦🇹 Wie weit kommt Österreich?',
     options: ['Gruppenphase', 'Sechzehntelfinale', 'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale', 'Weltmeister'],
-    block: 'austria', fixedPrize: 400, // 7 Opt., AT-Bonus, dramatischster AT-Tipp
+    block: 'austria', fixedPrize: 700, minPrizePerWinner: 35, // 7 Opt., AT-Bonus, dramatischster AT-Tipp
   },
   {
     id: 'jp-aut-arnautovic',
     title: '🇦🇹 Trifft Marko Arnautović im Turnier?',
     options: ['JA', 'NEIN'],
-    block: 'austria', fixedPrize: 150, // 2 Opt., leichter Bonus-Tipp
+    block: 'austria', fixedPrize: 150, // 2 Opt., leichter Bonus-Tipp — KEIN Minimum (JA/NEIN)
   },
-  // Block 2 — Ende Sechzehntel-/Achtelfinale (mittlere Preise) · Σ 1000
+  // Block 2 — Ende Sechzehntel-/Achtelfinale (mittlere Preise) · Σ 1450
   {
     id: 'jp-penalties',
     title: '🎯 Wie viele Sechzehntelfinale gehen ins Elfmeterschießen?',
     options: ['0', '1', '2', '3', '4+'],
-    block: 'block2', fixedPrize: 400, // 5 Opt.
+    block: 'block2', fixedPrize: 650, minPrizePerWinner: 35, // 5 Opt.
   },
   {
     id: 'jp-surprise-out',
     title: '😱 Welcher Topfavorit scheidet zuerst aus?',
     options: ['Brasilien', 'Frankreich', 'England', 'Deutschland', 'Spanien', 'Portugal', 'Argentinien'],
-    block: 'block2', fixedPrize: 600, // 7 Opt., schwer
+    block: 'block2', fixedPrize: 800, minPrizePerWinner: 35, // 7 Opt., schwer
     allowMultiWinner: true, // mehrere Favoriten koennen in derselben Runde rausfliegen
   },
-  // Finale-Jackpot — klassische Tipps, großer Showdown (größte Preise) · Σ 1700
+  // Finale-Jackpot — klassische Tipps, großer Showdown (größte Preise) · Σ 2700
   {
     id: 'jp-worldchampion',
     title: '🏆 Wer wird Weltmeister?',
     options: ['Brasilien', 'Frankreich', 'England', 'Spanien', 'Argentinien', 'Deutschland', 'Portugal', 'Andere'],
-    block: 'finale', fixedPrize: 500, absorbsJackpotPot: true, // Headline, 8 Opt. + angesparter Pot
+    block: 'finale', fixedPrize: 900, minPrizePerWinner: 35, absorbsJackpotPot: true, // Headline, 8 Opt. + angesparter Pot
   },
   {
     id: 'jp-topscorer',
     title: '⚽ Wer wird Torschützenkönig?',
     options: ['Mbappé', 'Haaland', 'Kane', 'Vinícius Jr.', 'Lautaro Martínez', 'Andere'],
-    block: 'finale', fixedPrize: 400, // 6 Opt.
+    block: 'finale', fixedPrize: 600, minPrizePerWinner: 35, // 6 Opt.
   },
   {
     id: 'jp-goldenball',
     title: '🥇 Wer gewinnt den Goldenen Ball?',
     options: ['Mbappé', 'Olise', 'Kane', 'Vinícius Jr.', 'Messi', 'Yamal', 'Andere'],
-    block: 'finale', fixedPrize: 400, // 7 Opt.
+    block: 'finale', fixedPrize: 600, minPrizePerWinner: 35, // 7 Opt.
   },
   {
     id: 'jp-total-goals',
     title: '🌍 Wie viele Tore fallen im gesamten Turnier?',
     options: ['unter 240', '240–269', '270–299', '300–329', '330+'],
-    block: 'finale', fixedPrize: 400, // 5 Opt. (Backup-Bet, gleiches Niveau wie Topscorer/Goldener Ball)
+    block: 'finale', fixedPrize: 600, minPrizePerWinner: 35, // 5 Opt. (Backup-Bet, gleiches Niveau wie Topscorer/Goldener Ball)
   },
 ];
 
