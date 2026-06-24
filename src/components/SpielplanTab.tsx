@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { clsx } from 'clsx';
 import { useStore, Market, getMarketTotal, ScheduleMatch } from '../store';
 import { calcMarketPayoutPreview } from '../utils/credits';
+import { isBettingClosed } from '../utils/market';
 import { WM2026_GROUP_SCHEDULE } from '../data/wm2026Schedule';
 import { flag, deName, isAustriaTeam, toCEST } from '../utils/teams';
 import CharacterAvatar from './CharacterAvatar';
@@ -58,7 +59,9 @@ export default function SpielplanTab() {
     const mkt = markets.find(m => m.id === marketId);
     const afterCutoff = hideOthersBetsFrom == null
       || (mkt?.kickoffAt != null && mkt.kickoffAt >= hideOthersBetsFrom);
-    if (hideOthersBets && afterCutoff) {
+    // Sobald die Tippabgabe gesperrt ist (Anpfiff/Annahmeschluss), werden die
+    // Tipps wieder freigegeben — das befeuert die Diskussion in der Gruppe.
+    if (hideOthersBets && afterCutoff && !isBettingClosed(mkt, now)) {
       const visible = all.filter(b => b.playerId === currentUser);
       return { visible, hidden: all.length - visible.length, total: all.length };
     }

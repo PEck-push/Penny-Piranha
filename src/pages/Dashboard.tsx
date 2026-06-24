@@ -13,6 +13,7 @@ import RevealScreen from '../components/RevealScreen';
 import FeedWidget from '../components/FeedWidget';
 import { JACKPOT_BLOCK_LABELS } from '../data/specialBets';
 import { flag, deName, toCEST } from '../utils/teams';
+import { isBettingClosed } from '../utils/market';
 import CoinIcon from '../components/CoinIcon';
 
 const OPT_HEX    = ['#E6B43C','#FF3D5A','#3B6EFF','#FFD447','#8B3DFF'];
@@ -1398,7 +1399,9 @@ export default function Dashboard() {
                       // Optionale Grenze: nur für Spiele ab dem eingestellten Anstoß.
                       const afterCutoff = hideOthersBetsFrom == null
                         || (selectedMarket.kickoffAt != null && selectedMarket.kickoffAt >= hideOthersBetsFrom);
-                      const hideOthers = hideOthersBets && afterCutoff;
+                      // Mit Sperre der Tippabgabe (Anpfiff/Annahmeschluss) werden die
+                      // Tipps wieder freigegeben → Diskussionsstoff für die Gruppe.
+                      const hideOthers = hideOthersBets && afterCutoff && !isBettingClosed(selectedMarket, now);
                       const allMarketBets = bets.filter(b => b.marketId === selectedMarket.id);
                       const visibleBets = hideOthers ? allMarketBets.filter(b => b.playerId === me.id) : allMarketBets;
                       const hiddenCount = allMarketBets.length - visibleBets.length;
