@@ -138,6 +138,7 @@ export default function Admin() {
   const [freeBetOptions, setFreeBetOptions] = useState<string[]>(['', '']);
   const [freeBetPrize, setFreeBetPrize] = useState('0');
   const [freeBetMinWin, setFreeBetMinWin] = useState('0');
+  const [freeBetMultiWinner, setFreeBetMultiWinner] = useState(false);
   const [freeBetMsg, setFreeBetMsg] = useState('');
 
   // Open question resolution
@@ -848,6 +849,8 @@ export default function Admin() {
       marketSubtype: 'jackpot',
       noStake: true,
       multiSelect: freeBetFormat === 'multi',
+      // Multi-Winner nur bei Einfach-Auswahl; bei Multiple-Choice zählt exakte Übereinstimmung.
+      allowMultiWinner: freeBetFormat !== 'multi' && freeBetMultiWinner,
       fixedPrize: parseInt(freeBetPrize) || 0,
       minPrizePerWinner: parseInt(freeBetMinWin) || 0,
       absorbsJackpotPot: false,
@@ -864,6 +867,7 @@ export default function Admin() {
     setFreeBetOptions(['', '']);
     setFreeBetPrize('0');
     setFreeBetMinWin('0');
+    setFreeBetMultiWinner(false);
     setTimeout(() => setFreeBetMsg(''), 4000);
   };
 
@@ -1650,6 +1654,27 @@ export default function Admin() {
                 </div>
               )}
             </div>
+
+            {/* Mehrere richtige Antworten (Multi-Winner) — nur bei Einfach-Auswahl sinnvoll,
+                NICHT bei Multiple-Choice (dort zählt exakte Übereinstimmung). */}
+            {freeBetFormat !== 'multi' && (
+              <div className="mb-3">
+                <div onClick={() => setFreeBetMultiWinner(v => !v)}
+                  className={clsx("flex items-center justify-between gap-3 rounded-xl border p-3 cursor-pointer transition-all",
+                    freeBetMultiWinner ? "border-yellow/50 bg-yellow/10" : "border-border bg-input hover:border-yellow/40")}>
+                  <div>
+                    <div className={clsx("text-[12px] font-black", freeBetMultiWinner ? "text-yellow" : "text-white")}>🏅 Mehrere richtige Antworten möglich</div>
+                    <div className="text-[10px] text-muted mt-0.5">
+                      Bei der Auflösung kannst du <b>mehrere</b> Optionen als richtig markieren (z. B. Gleichstand).
+                      Alle, die eine davon getippt haben, gewinnen und teilen den Preis.
+                    </div>
+                  </div>
+                  <div className={clsx("w-10 h-6 rounded-full shrink-0 flex items-center px-0.5 transition-all", freeBetMultiWinner ? "bg-yellow justify-end" : "bg-white/15 justify-start")}>
+                    <div className="w-5 h-5 rounded-full bg-white shadow" />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mb-3">
               <label className="block text-[10px] font-black text-muted tracking-[0.12em] uppercase mb-1.5">Fester Haus-Preis (TKN)</label>
