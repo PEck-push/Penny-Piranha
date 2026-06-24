@@ -41,6 +41,11 @@ export interface ShopItem {
   // gilt der Slot-Default (Hand: scale(1.7) translateX(15%), Rest: scale(1.35)).
   // Nuetzlich wenn der Content im Asset nicht zentriert liegt.
   imageTransform?: string;
+  // Paket-Item: optionaler Begleit-Körper, der zusammen mit diesem (Kopf-)Item
+  // getragen wird. Ersetzt beim Tragen den Default-/Builder-Körper (z-10), weicht
+  // aber einem explizit getragenen Shop-Trikot. Reiner Asset-Pfad (Code-verwaltet,
+  // wird via withShopPresentation über das Firestore-Item gelegt).
+  bundleBodyImage?: string;
   createdAt: number;
 }
 
@@ -256,7 +261,7 @@ export const SHOP_HEAD_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
   {
     id: 'mundl',
     label: 'Mundl',
-    description: 'Der echte Wiener Kopf für deinen Charakter. „Wos waaast denn du!"',
+    description: 'Das ganze Mundl-Paket: Kopf UND Körper. „Wos waaast denn du!"',
     slot: 'head',
     icon: '👨',
     price: 80,
@@ -264,6 +269,8 @@ export const SHOP_HEAD_ITEMS: Omit<ShopItem, 'createdAt'>[] = [
     stock: 1,
     sold: 0,
     sortOrder: 210,
+    // Paket: Mundl bringt einen eigenen Körper mit (mundl_body.webp).
+    bundleBodyImage: '/shop/mundl_body.webp',
   },
   {
     id: 'franke',
@@ -402,23 +409,24 @@ export const shopItemImagePath = (item: Pick<ShopItem, 'id' | 'imagePath'>): str
 // Deshalb ist der Code hier Single Source of Truth für die Bild-Position: die
 // Felder werden beim Laden über jedes Firestore-Item gelegt (siehe services/db).
 // Bewusst NICHT enthalten: icon/label/preis/… — die darf der Admin pflegen.
-const SHOP_IMAGE_BY_ID: Record<string, Pick<ShopItem, 'imagePath' | 'imageTransform'>> =
+const SHOP_IMAGE_BY_ID: Record<string, Pick<ShopItem, 'imagePath' | 'imageTransform' | 'bundleBodyImage'>> =
   Object.fromEntries(
     [...SHOP_EXAMPLE_ITEMS, ...SHOP_FIRST_ITEMS, ...SHOP_TORSO_ITEMS, ...SHOP_HEAD_ITEMS].map(i => [
       i.id,
-      { imagePath: i.imagePath, imageTransform: i.imageTransform },
+      { imagePath: i.imagePath, imageTransform: i.imageTransform, bundleBodyImage: i.bundleBodyImage },
     ]),
   );
 
-// Legt Bild-Pfad und -Transform aus dem Code über ein aus Firestore geladenes
-// Item. Nur im Code gesetzte Werte überschreiben; dynamische/Admin-Felder
-// (Preis, Bestand, Verfügbarkeit, Label, Icon …) bleiben unangetastet. Items
-// ohne Code-Eintrag (z. B. rein im Admin angelegt) bleiben unverändert.
+// Legt Bild-Pfad, -Transform und Paket-Körper aus dem Code über ein aus Firestore
+// geladenes Item. Nur im Code gesetzte Werte überschreiben; dynamische/Admin-
+// Felder (Preis, Bestand, Verfügbarkeit, Label, Icon …) bleiben unangetastet.
+// Items ohne Code-Eintrag (z. B. rein im Admin angelegt) bleiben unverändert.
 export const withShopPresentation = (item: ShopItem): ShopItem => {
   const pres = SHOP_IMAGE_BY_ID[item.id];
   if (!pres) return item;
   const merged: ShopItem = { ...item };
-  if (pres.imagePath !== undefined)      merged.imagePath = pres.imagePath;
-  if (pres.imageTransform !== undefined) merged.imageTransform = pres.imageTransform;
+  if (pres.imagePath !== undefined)       merged.imagePath = pres.imagePath;
+  if (pres.imageTransform !== undefined)  merged.imageTransform = pres.imageTransform;
+  if (pres.bundleBodyImage !== undefined) merged.bundleBodyImage = pres.bundleBodyImage;
   return merged;
 };
