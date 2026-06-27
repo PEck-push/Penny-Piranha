@@ -780,7 +780,7 @@ export default function Dashboard() {
       )}
 
       {/* Activity Feed Widget */}
-      <FeedWidget maxItems={5} className="mb-3" />
+      <FeedWidget maxItems={15} className="mb-3" />
     </div>
   );
 
@@ -817,19 +817,30 @@ export default function Dashboard() {
       .sort(byCloseTime);
     const resolved = myBets.filter(b => { const m = markets.find(m => m.id === b.marketId); return m && (m.status === 'resolved' || m.status === 'cancelled'); });
     const myBetMarketIds = new Set(myBets.map(b => b.marketId));
-    const untipped = markets
-      .filter(m => m.status === 'open' && !myBetMarketIds.has(m.id))
-      .sort((a, b) => closeTime(a) - closeTime(b));
 
-    // Gratis-/Jackpot-Tipps ans Ende des Tabs gruppieren — sie sind i.d.R. schon
-    // alle getippt; oben sollen die Spiele stehen. Daher Matches (oben) von
-    // Gratis-Runden (unten) trennen.
     const isGratis = (m?: Market) => !!m && (m.marketSubtype === 'jackpot' || !!m.noStake);
     const mkOf = (b: Bet) => markets.find(m => m.id === b.marketId);
-    const untippedMatches = untipped.filter(m => !isGratis(m));
-    const untippedFree    = untipped.filter(m => isGratis(m));
-    const activeMatches   = active.filter(b => !isGratis(mkOf(b)));
-    const activeFree      = active.filter(b => isGratis(mkOf(b)));
+
+    // Offen & laufend (keine Gratis-Runden): getippte UND noch nicht getippte
+    // Spiele GEMEINSAM, chronologisch nach Annahmeschluss/Anpfiff. Getippte werden
+    // NICHT nach unten sortiert — sie behalten ihre Datums-Position und sind nur
+    // als „getippt" markiert. Nicht getippte, bereits gesperrte Spiele (verpasst)
+    // bleiben hier außen vor; sie tauchen nach der Auflösung unter „Abgeschlossen" auf.
+    const openList = markets
+      .filter(m => (m.status === 'open' || m.status === 'locked') && !isGratis(m))
+      .map(m => ({ m, bet: myBets.find(b => b.marketId === m.id) }))
+      .filter(x => !!x.bet || x.m.status === 'open')
+      .sort((a, b) => closeTime(a.m) - closeTime(b.m));
+
+    // Gratis-/Jackpot-Runden weiterhin separat ganz unten gruppiert.
+    const untippedFree = markets
+      .filter(m => m.status === 'open' && !myBetMarketIds.has(m.id) && isGratis(m))
+      .sort((a, b) => closeTime(a) - closeTime(b));
+    const activeFree = active.filter(b => isGratis(mkOf(b)));
+
+    // Abgeschlossen: nach Datum (neueste zuerst).
+    const resolvedSorted = [...resolved].sort((a, b) => closeTime(mkOf(b)) - closeTime(mkOf(a)));
+
     const goToMarket = (m: Market) => {
       openMarketModal(m);
     };
@@ -838,72 +849,51 @@ export default function Dashboard() {
         <div className="text-[22px] font-black text-white mb-4">Meine Wetten 🎯</div>
 
         <div className="flex items-center justify-between mb-2.5">
-          <span className="text-[12px] font-black text-blue2 uppercase tracking-[0.1em]">🔔 Offen — noch nicht getippt</span>
-          {untippedMatches.length > 0 && <span className="text-[12px] font-bold text-blue2">{untippedMatches.length}</span>}
+          <span className="text-[12px] font-black text-blue2 uppercase tracking-[0.1em]">🔔 Offen &amp; laufend</span>
+          {openList.length > 0 && <span className="text-[12px] font-bold text-blue2">{openList.length}</span>}
         </div>
-        {untippedMatches.length === 0 ? <div className="text-[12px] text-muted mb-6">Alles getippt — stark! 🎯</div> : (
+        {openList.length === 0 ? <div className="text-[12px] text-muted mb-6">Aktuell nichts Offenes.</div> : (
           <div className="mb-6">
-            {untippedMatches.map(m => {
-              const isJackpot = m.marketSubtype === 'jackpot';
+            {openList.map(({ m, bet }) => {
               const isWm = !!m.matchId;
-              const icon = isJackpot ? '🎰' : isWm ? '⚽' : m.type === 'combo' ? '🔗' : m.marketSubtype === 'spezialwette' ? '🌟' : '▶';
+              const icon = isWm ? '⚽' : m.type === 'combo' ? '🔗' : m.marketSubtype === 'spezialwette' ? '🌟' : '▶';
+              const tipped = !!bet;
+              const optIdx = bet ? m.options.findIndex(o => o.id === bet.optionId) : -1;
+              const opt = bet ? m.options.find(o => o.id === bet.optionId) : undefined;
+              const lowStake = tipped && m.status === 'open' && (m.minBet ?? 0) > (bet?.amount ?? 0);
               return (
                 <div key={m.id} onClick={() => goToMarket(m)}
-                  className="bg-card border border-blue2/30 rounded-2xl p-3.5 mb-2 cursor-pointer transition-all hover:border-blue2/60 hover:-translate-y-0.5 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue2/50 to-transparent" />
+                  className={clsx('bg-card border rounded-2xl p-3.5 mb-2 cursor-pointer transition-all hover:-translate-y-0.5 relative overflow-hidden',
+                    tipped ? 'border-green/30 hover:border-green/60' : 'border-blue2/30 hover:border-blue2/60')}>
+                  <div className={clsx('absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent to-transparent', tipped ? 'via-green/50' : 'via-blue2/50')} />
                   <div className="flex items-center gap-2">
                     <span className="text-[14px] shrink-0">{icon}</span>
                     <span className="text-[13px] font-bold text-white flex-1 leading-tight">{m.question}</span>
-                    <span className="text-[10px] font-black text-blue2 bg-blue/10 border border-blue2/25 rounded-md px-2 py-0.5 shrink-0">
-                      {isJackpot ? 'gratis' : 'tippen →'}
-                    </span>
+                    {tipped ? (
+                      <span className={clsx('text-[10px] font-black rounded-md px-2 py-0.5 shrink-0 inline-flex items-center gap-1 max-w-[45%]',
+                        OPT_BG[optIdx] ?? OPT_BG[0], OPT_TEXT[optIdx] ?? OPT_TEXT[0])}>
+                        ✓ <span className="truncate">{opt?.label}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-black text-blue2 bg-blue/10 border border-blue2/25 rounded-md px-2 py-0.5 shrink-0">tippen →</span>
+                    )}
                   </div>
+                  {tipped && m.status === 'locked' && (
+                    <div className="mt-1.5 text-[10px] font-bold text-muted">⏳ Getippt — wartet aufs Ergebnis</div>
+                  )}
+                  {lowStake && (
+                    <div className="mt-2 text-[11px] font-bold text-yellow bg-yellow/10 border border-yellow/30 rounded-lg px-2.5 py-1.5 leading-snug">
+                      ⚠️ Mindesteinsatz ist jetzt {m.minBet} TKN — dein Tipp ({bet?.amount} TKN) liegt darunter. Tippe und passe den Einsatz an.
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        <div className="text-[12px] font-black text-muted uppercase tracking-[0.1em] mb-2.5">Aktiv</div>
-        {activeMatches.length === 0 ? <div className="text-[12px] text-muted mb-6">Keine aktiven Wetten</div> : activeMatches.map(b => {
-          const m = markets.find(m => m.id === b.marketId);
-          if (!m) return null;
-          const opt = m.options.find(o => o.id === b.optionId);
-          const optIdx = m.options.findIndex(o => o.id === b.optionId);
-          const isJackpot = m.marketSubtype === 'jackpot';
-          const potWin = calcPayout(m, b.optionId, b.amount, { optionId: b.optionId, amount: b.amount });
-          return (
-            <div key={b.id} onClick={() => goToMarket(m)} className="bg-card border border-border rounded-2xl p-4 mb-2.5 cursor-pointer transition-all hover:border-blue/40 hover:-translate-y-0.5">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[14px]">{isJackpot ? '🎰' : m.type === 'combo' ? '🔗' : '▶'}</span>
-                <span className="text-[14px] font-bold text-white flex-1 leading-tight">{m.question}</span>
-                <span className={clsx('text-[11px] font-black px-2 py-0.5 rounded-md', OPT_BG[optIdx], OPT_TEXT[optIdx])}>{opt?.label}</span>
-              </div>
-              <div className="text-[12px] text-muted flex justify-between">
-                {isJackpot ? (
-                  <>
-                    <span className="text-green font-bold">Gratis-Tipp</span>
-                    <span>Preistopf: <b className="text-yellow">{m.absorbsJackpotPot ? `${m.fixedPrize ?? 0} + Jackpot` : `${m.fixedPrize ?? 0}`} TKN</b>{(m.minPrizePerWinner ?? 0) > 0 && <> · min. <b className="text-green">{m.minPrizePerWinner}</b>/Gew.</>}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Einsatz: <b className="text-white">{b.amount} TKN</b></span>
-                    <span>Möglicher Gewinn: <b className="text-yellow">~{potWin} TKN</b></span>
-                  </>
-                )}
-              </div>
-              {/* Hinweis, wenn der bestehende Tipp unter dem inzwischen erhöhten
-                  Mindesteinsatz liegt — Spieler sollen ihren Einsatz anpassen. */}
-              {!isJackpot && m.status === 'open' && (m.minBet ?? 0) > b.amount && (
-                <div className="mt-2.5 text-[11px] font-bold text-yellow bg-yellow/10 border border-yellow/30 rounded-lg px-2.5 py-1.5 leading-snug">
-                  ⚠️ Mindesteinsatz ist jetzt {m.minBet} TKN — dein Tipp ({b.amount} TKN) liegt darunter. Tippe auf die Wette und passe den Einsatz an.
-                </div>
-              )}
-            </div>
-          );
-        })}
         <div className="text-[12px] font-black text-muted uppercase tracking-[0.1em] mb-2.5 mt-6">Abgeschlossen</div>
-        {resolved.length === 0 ? <div className="text-[12px] text-muted mb-6">Noch keine abgeschlossenen Wetten</div> : resolved.map(b => {
+        {resolvedSorted.length === 0 ? <div className="text-[12px] text-muted mb-6">Noch keine abgeschlossenen Wetten</div> : resolvedSorted.map(b => {
           const m = markets.find(m => m.id === b.marketId);
           if (!m) return null;
           const optIdx = m.options.findIndex(o => o.id === b.optionId);
