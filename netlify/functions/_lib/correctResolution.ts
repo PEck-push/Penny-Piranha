@@ -135,6 +135,7 @@ export interface CorrectionReport {
   totalTokenDelta: number;
   affectedPlayers: number;
   rows: CorrectionPlayerRow[];
+  scoreSet?: { home: number; away: number } | null; // gesetztes Ergebnis (Spielplan-Tabelle)
   note?: string;
 }
 
@@ -161,11 +162,44 @@ export async function correctMatchResolution(
   if (!options.some(o => o.id === newWinningOptionId)) throw new Error(`Option '${newWinningOptionId}' gibt es in diesem Markt nicht.`);
 
   const oldWinningOptionId: string | null = market.winningOptionId ?? null;
-  if (oldWinningOptionId === newWinningOptionId) {
-    throw new Error('Der Markt ist bereits auf diese Option aufgelöst — keine Korrektur nötig.');
-  }
   const oldResType: ResType = (market.resolutionType as ResType) ?? 'normal';
   const labelOf = (id: string | null) => options.find(o => o.id === id)?.label ?? (id ?? '—');
+
+  // ── Sonderfall: Gewinner-Option stimmt bereits — nur das Ergebnis (Score)
+  // soll korrigiert werden (Spielplan-Tabelle). Keine Token-/Streak-Umbuchung.
+  if (oldWinningOptionId === newWinningOptionId) {
+    if (!opts.score || market.marketSubtype !== 'wm-match') {
+      throw new Error('Der Markt ist bereits auf diese Option aufgelöst — und kein (anderes) Ergebnis zu setzen.');
+    }
+    const scoreOnly: CorrectionReport = {
+      ok: true, dryRun: opts.dryRun, marketId, question: market.question ?? marketId,
+      oldWinningOptionId, oldWinningLabel: labelOf(oldWinningOptionId),
+      newWinningOptionId, newWinningLabel: labelOf(newWinningOptionId),
+      newResType: oldResType, jackpotDelta: 0, totalTokenDelta: 0, affectedPlayers: 0,
+      rows: [], scoreSet: opts.score,
+    };
+    if (opts.dryRun) {
+      scoreOnly.note = `Probelauf — Gewinner unverändert, nur Ergebnis würde auf ${opts.score.home}:${opts.score.away} gesetzt (Spielplan-Tabelle).`;
+      return scoreOnly;
+    }
+    const schedDocId: string | undefined =
+      (typeof market.matchId === 'string' && market.matchId) ||
+      (typeof market.footballDataOrgId === 'number' ? `wc-${market.footballDataOrgId}` : undefined);
+    const batch = db.batch();
+    batch.update(marketRef, { finalScore: { home: opts.score.home, away: opts.score.away } });
+    if (schedDocId) {
+      batch.set(db.collection('schedule').doc(schedDocId),
+        { scoreA: opts.score.home, scoreB: opts.score.away, status: 'finished' }, { merge: true });
+    }
+    batch.set(db.collection('feed').doc(), {
+      type: 'market_resolved', marketId,
+      text: `🛠️ Ergebnis-Korrektur: ${market.question ?? marketId} → ${opts.score.home}:${opts.score.away}`,
+      ts: FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+    scoreOnly.note = `Ergebnis auf ${opts.score.home}:${opts.score.away} gesetzt (Spielplan-Tabelle). Gewinner unverändert.`;
+    return scoreOnly;
+  }
 
   // ── Bets dieses Marktes ────────────────────────────────────────────────────
   const betsSnap = await db.collection('bets').where('marketId', '==', marketId).get();
@@ -312,10 +346,13 @@ export async function correctMatchResolution(
     totalTokenDelta,
     affectedPlayers: playerIds.length,
     rows,
+    scoreSet: opts.score ?? null,
   };
 
   if (opts.dryRun) {
-    report.note = 'Probelauf — es wurde NICHTS geschrieben.';
+    report.note = opts.score
+      ? `Probelauf — nichts geschrieben. Ergebnis würde auf ${opts.score.home}:${opts.score.away} gesetzt (Spielplan-Tabelle).`
+      : 'Probelauf — es wurde NICHTS geschrieben.';
     return report;
   }
 
@@ -341,6 +378,22 @@ export async function correctMatchResolution(
     resolveInProgress: false,
     ...(finalScore ? { finalScore } : {}),
   });
+
+  // Ergebnis im Spielplan korrigieren: die Tabelle unter „Spielplan" rechnet aus
+  // dem schedule-Doc (scoreA/scoreB, status). Doc-ID = matchId (= `wc-<id>`).
+  // Nur für echte WM-Spiele mit gesetztem Ergebnis.
+  if (finalScore && market.marketSubtype === 'wm-match') {
+    const schedDocId: string | undefined =
+      (typeof market.matchId === 'string' && market.matchId) ||
+      (typeof market.footballDataOrgId === 'number' ? `wc-${market.footballDataOrgId}` : undefined);
+    if (schedDocId) {
+      batch.set(
+        db.collection('schedule').doc(schedDocId),
+        { scoreA: finalScore.home, scoreB: finalScore.away, status: 'finished' },
+        { merge: true },
+      );
+    }
+  }
   // Jackpot anpassen + Logbuch.
   if (jackpotDelta !== 0) {
     batch.update(db.collection('appState').doc('global'), { jackpot: FieldValue.increment(jackpotDelta) });
@@ -360,6 +413,7 @@ export async function correctMatchResolution(
   });
 
   await batch.commit();
-  report.note = `Korrektur angewandt: ${playerIds.length} Spieler, Token-Summe ${totalTokenDelta >= 0 ? '+' : ''}${totalTokenDelta}, Jackpot ${jackpotDelta >= 0 ? '+' : ''}${jackpotDelta}.`;
+  report.note = `Korrektur angewandt: ${playerIds.length} Spieler, Token-Summe ${totalTokenDelta >= 0 ? '+' : ''}${totalTokenDelta}, Jackpot ${jackpotDelta >= 0 ? '+' : ''}${jackpotDelta}`
+    + (finalScore && market.marketSubtype === 'wm-match' ? `, Ergebnis ${finalScore.home}:${finalScore.away} (Spielplan).` : '.');
   return report;
 }
