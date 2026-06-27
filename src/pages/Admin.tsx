@@ -15,6 +15,7 @@ import { ACCESSORIES } from '../data/accessories';
 import { SHOP_SLOTS, SHOP_SLOT_LABELS, isShopItemOnSale, type ShopSlot, type ShopUnlockRule } from '../data/shopItems';
 import CharacterAvatar from '../components/CharacterAvatar';
 import ResolvedMarketsInspector from '../components/ResolvedMarketsInspector';
+import ResolutionCorrection from '../components/ResolutionCorrection';
 import { isAdminEmail } from '../config/admins';
 
 const GROUP_LABELS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
@@ -3320,6 +3321,8 @@ export default function Admin() {
           </>)}
 
           {adminTab === 'wartung' && (<>
+          {/* ── AUFLÖSUNG KORRIGIEREN (fehlerhafte API-Ergebnisse) ─ */}
+          <ResolutionCorrection />
           {/* ── TEST-SPIELER ────────────────────────────────────── */}
           {testMode && (
             <div className="bg-card border border-yellow/25 rounded-2xl p-4 mb-2.5">
