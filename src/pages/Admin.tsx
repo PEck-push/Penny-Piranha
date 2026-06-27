@@ -51,6 +51,10 @@ export default function Admin() {
   // Schedule import from football-data.org API (via Netlify Function)
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [importMsg, setImportMsg] = useState('');
+  // Begegnungen neu einspielen (K.-o.-Phase: TBD → echte Teams)
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncReport, setSyncReport] = useState<{ dryRun: boolean; fetched: number; scheduleUpdated: number; marketsUpdated: Array<{ marketId: string; matchId: string; from: string; to: string }>; note?: string } | null>(null);
+  const [syncErr, setSyncErr] = useState('');
   const [prepStatus, setPrepStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [prepMsg, setPrepMsg] = useState('');
 
@@ -526,6 +530,28 @@ export default function Admin() {
     } catch (err: any) {
       setImportStatus('error');
       setImportMsg(err.message || 'Import fehlgeschlagen');
+    }
+  };
+
+  const handleSyncFixtures = async (apply: boolean) => {
+    setSyncBusy(true);
+    setSyncErr('');
+    if (apply) setSyncReport(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt. Bitte als Admin anmelden.');
+      const res = await fetch('/.netlify/functions/sync-fixtures', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apply }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setSyncReport(data);
+    } catch (err: any) {
+      setSyncErr(err.message || 'Aktualisierung fehlgeschlagen');
+    } finally {
+      setSyncBusy(false);
     }
   };
 
@@ -1228,6 +1254,52 @@ export default function Admin() {
             >
               🌐 Spielplan jetzt laden
             </button>
+          </div>
+
+          {/* ── BEGEGNUNGEN NEU EINSPIELEN (K.-o.: TBD → echte Teams) ──── */}
+          <div className="bg-card border border-blue2/20 rounded-2xl p-4 mb-2.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[18px]">🔄</span>
+              <div className="text-[11px] font-black text-blue2 tracking-[0.15em] uppercase">Begegnungen aktualisieren</div>
+            </div>
+            <div className="text-[10px] text-muted mb-3 leading-relaxed">
+              Holt die Paarungen aus der API und ersetzt <b className="text-white">„TBD vs. TBD"</b> durch die
+              feststehenden Teams — in Spielplan UND bereits angelegten, noch offenen WM-Märkten
+              (inkl. Optionen, Pools bleiben). Ergebnisse/Status werden NICHT angefasst.
+              Läuft zusätzlich automatisch täglich um 07:00 UTC.
+            </div>
+            {syncErr && <div className="rounded-xl px-3 py-2 text-[12px] font-bold text-center mb-3 bg-red/10 border border-red/30 text-red">{syncErr}</div>}
+            {syncReport && (
+              <div className="rounded-xl px-3 py-2.5 mb-3 bg-input border border-border">
+                <div className={clsx('text-[11px] font-black mb-1', syncReport.dryRun ? 'text-yellow' : 'text-green')}>
+                  {syncReport.dryRun ? '🔍 Probelauf (nichts geschrieben)' : '✅ Aktualisiert'}
+                </div>
+                <div className="text-[10px] text-muted mb-1.5">
+                  API: {syncReport.fetched} Spiele · Märkte betroffen: <b className="text-white">{syncReport.marketsUpdated.length}</b>
+                </div>
+                {syncReport.marketsUpdated.length > 0 ? (
+                  <div className="max-h-[160px] overflow-y-auto no-scrollbar flex flex-col gap-1">
+                    {syncReport.marketsUpdated.map(u => (
+                      <div key={u.marketId} className="text-[10px] text-white">
+                        <span className="text-muted">{u.from}</span> → <b>{u.to}</b>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-muted">Keine offenen Märkte mit geänderter Paarung.</div>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => handleSyncFixtures(false)} disabled={syncBusy}
+                className="flex-1 p-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-[12px] font-black hover:border-white/30 transition-colors disabled:opacity-50">
+                {syncBusy ? '…' : '🔍 Probelauf'}
+              </button>
+              <button onClick={() => handleSyncFixtures(true)} disabled={syncBusy}
+                className="flex-1 p-2.5 rounded-xl bg-gradient-to-br from-blue to-purple text-white text-[12px] font-black transition-all hover:-translate-y-px disabled:opacity-50">
+                {syncBusy ? '…' : '🔄 Jetzt einspielen'}
+              </button>
+            </div>
           </div>
 
           </>)}
