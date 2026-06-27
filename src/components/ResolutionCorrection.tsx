@@ -17,13 +17,15 @@ interface Report {
   ok: boolean; dryRun: boolean; question: string;
   oldWinningLabel: string; newWinningLabel: string; newResType: string;
   jackpotDelta: number; totalTokenDelta: number; affectedPlayers: number;
-  rows: ReportRow[]; note?: string; error?: string;
+  rows: ReportRow[]; scoreSet?: { home: number; away: number } | null; note?: string; error?: string;
 }
 
 export default function ResolutionCorrection() {
   const markets = useStore(s => s.markets);
   const [marketId, setMarketId] = useState('');
   const [optionId, setOptionId] = useState('');
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [err, setErr] = useState('');
@@ -42,11 +44,20 @@ export default function ResolutionCorrection() {
 
   const market = fixable.find(m => m.id === marketId);
   const labelOf = (id?: string | null) => market?.options.find(o => o.id === id)?.label ?? (id ?? '—');
+  const isWm = market?.marketSubtype === 'wm-match';
+
+  const scoreBody = () => {
+    const h = parseInt(scoreA); const a = parseInt(scoreB);
+    return Number.isFinite(h) && Number.isFinite(a) && h >= 0 && a >= 0 ? { home: h, away: a } : undefined;
+  };
 
   const run = async (apply: boolean) => {
     if (!marketId || !optionId) { setErr('Bitte Markt und richtige Option wählen.'); return; }
+    if (isWm && !scoreBody()) { setErr('Bitte das korrekte Ergebnis (z. B. 1 : 1) eingeben — sonst stimmt die Spielplan-Tabelle nicht.'); return; }
     if (apply && !window.confirm(
-      `Korrektur WIRKLICH anwenden?\n\n„${market?.question}"\n${labelOf(market?.winningOptionId)} → ${labelOf(optionId)}\n\nTokens, Tagesbilanz, Jackpot und Streaks werden umgebucht.`,
+      `Korrektur WIRKLICH anwenden?\n\n„${market?.question}"\n${labelOf(market?.winningOptionId)} → ${labelOf(optionId)}`
+      + (isWm && scoreBody() ? `\nErgebnis: ${scoreBody()!.home}:${scoreBody()!.away}` : '')
+      + `\n\nTokens, Tagesbilanz, Jackpot, Streaks${isWm ? ' und Spielplan-Tabelle' : ''} werden angepasst.`,
     )) return;
     setBusy(true); setErr(''); if (apply) setReport(null);
     try {
@@ -55,7 +66,7 @@ export default function ResolutionCorrection() {
       const res = await fetch('/.netlify/functions/correct-resolution', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ marketId, winningOptionId: optionId, apply }),
+        body: JSON.stringify({ marketId, winningOptionId: optionId, apply, score: scoreBody() }),
       });
       const data: Report = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
@@ -76,7 +87,14 @@ export default function ResolutionCorrection() {
         Streak-Zähler. Nur Standard-Märkte. <b className="text-orange">Immer zuerst Probelauf!</b>
       </div>
 
-      <select value={marketId} onChange={e => { setMarketId(e.target.value); setOptionId(''); setReport(null); setErr(''); }}
+      <select value={marketId} onChange={e => {
+          const id = e.target.value;
+          setMarketId(id); setOptionId(''); setReport(null); setErr('');
+          const m = fixable.find(x => x.id === id);
+          const fs = (m as any)?.finalScore;
+          setScoreA(fs && typeof fs.home === 'number' ? String(fs.home) : '');
+          setScoreB(fs && typeof fs.away === 'number' ? String(fs.away) : '');
+        }}
         className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-[12px] font-bold text-white outline-none focus:border-orange/50 mb-2">
         <option value="">— Aufgelösten Markt wählen —</option>
         {fixable.map(m => (
@@ -94,16 +112,33 @@ export default function ResolutionCorrection() {
               const isCurrent = o.id === market.winningOptionId;
               const sel = o.id === optionId;
               return (
-                <button key={o.id} disabled={isCurrent}
+                <button key={o.id}
                   onClick={() => setOptionId(o.id)}
                   className={clsx('text-[11px] font-bold rounded-lg px-2.5 py-1.5 border transition-colors',
-                    isCurrent ? 'border-white/10 bg-white/5 text-muted/40 cursor-not-allowed line-through'
-                      : sel ? 'border-orange/60 bg-orange/15 text-orange'
+                    sel ? 'border-orange/60 bg-orange/15 text-orange'
+                      : isCurrent ? 'border-white/10 bg-white/5 text-muted'
                         : 'border-white/15 bg-white/5 text-white hover:border-orange/40')}>
                   {o.label}{isCurrent ? ' (aktuell)' : ''}
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {market && isWm && (
+        <div className="flex flex-col gap-1.5 mb-2">
+          <div className="text-[10px] font-black text-muted uppercase tracking-wider">
+            Korrektes Ergebnis (für die Spielplan-Tabelle)
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-[11px] font-bold text-white truncate text-right">{market.teamA ?? 'Heim'}</span>
+            <input type="number" min={0} value={scoreA} onChange={e => setScoreA(e.target.value)}
+              className="w-12 bg-input border border-border rounded-lg px-2 py-1.5 text-[13px] font-black text-white text-center outline-none focus:border-orange/50" />
+            <span className="text-muted font-black">:</span>
+            <input type="number" min={0} value={scoreB} onChange={e => setScoreB(e.target.value)}
+              className="w-12 bg-input border border-border rounded-lg px-2 py-1.5 text-[13px] font-black text-white text-center outline-none focus:border-orange/50" />
+            <span className="flex-1 text-[11px] font-bold text-white truncate">{market.teamB ?? 'Gast'}</span>
           </div>
         </div>
       )}
@@ -132,6 +167,7 @@ export default function ResolutionCorrection() {
           <div className="text-[11px] text-white font-bold mb-0.5">{report.question}</div>
           <div className="text-[10px] text-muted mb-2">
             {report.oldWinningLabel} → <b className="text-white">{report.newWinningLabel}</b> ·
+            {report.scoreSet ? <> Ergebnis: <b className="text-white">{report.scoreSet.home}:{report.scoreSet.away}</b> · </> : null}
             Spieler: {report.affectedPlayers} ·
             Token-Summe: <b className={report.totalTokenDelta >= 0 ? 'text-green' : 'text-red'}>{report.totalTokenDelta >= 0 ? '+' : ''}{report.totalTokenDelta}</b> ·
             Jackpot: <b className="text-yellow">{report.jackpotDelta >= 0 ? '+' : ''}{report.jackpotDelta}</b>
