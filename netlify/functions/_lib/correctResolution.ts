@@ -61,8 +61,8 @@ function computeStandardPayouts(market: any, allBets: BetDoc[], winningOptionId:
 
   if (winPool === 0) {
     resType = 'no-winner';
-    jackpotDelta = totalPool;
-  } else if (winPool === totalPool) {
+    jackpotDelta = totalPool + seed; // Seed (Auto-Abzug) als Fallback in den Jackpot
+  } else if (winPool === totalPool && seed <= 0) {
     resType = 'all-same-side';
     for (const b of winBets) betPayout.set(b.id, b.amount);
     // jackpotDelta = 0 (reine Rückzahlung, Jackpot unangetastet)
