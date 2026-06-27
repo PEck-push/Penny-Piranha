@@ -345,12 +345,15 @@ export async function resolveMarketAdmin(
         poolDelta += totalStake - paid;
       }
     } else if (winPool === 0) {
-      // Kein Gewinner → ganzer Einsatz-Pool in den Jackpot. Seed verfällt.
+      // Kein Gewinner → ganzer Einsatz-Pool UND der Seed (Auto-Abzug-Strafen)
+      // in den Jackpot (Fallback: keine Gewinner dieser Partie vorhanden).
       resType = 'no-winner';
-      jackpotDelta += totalPool;
-      poolDelta += totalPool;
-    } else if (winPool === totalPool) {
-      // Alle auf derselben Seite: reine Einsatz-Rückzahlung, Jackpot unangetastet.
+      jackpotDelta += totalPool + seed;
+      poolDelta += totalPool + seed;
+    } else if (winPool === totalPool && seed <= 0) {
+      // Alle auf derselben Seite (ohne Seed): reine Einsatz-Rückzahlung, Jackpot
+      // unangetastet. MIT Seed läuft es über den Normal-Zweig, damit der Seed
+      // (Auto-Abzug-Strafen) an die – hier alle – Gewinner verteilt wird.
       resType = 'all-same-side';
       for (const b of winBets) {
         payouts[b.playerId] = (payouts[b.playerId] ?? 0) + b.amount;

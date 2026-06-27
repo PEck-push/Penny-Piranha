@@ -1,7 +1,6 @@
 import type { Config } from '@netlify/functions';
 import { getDb, FieldValue } from './_lib/firebaseAdmin';
 import { verifyCron } from './_lib/cronAuth';
-import { logJackpotChange } from './_lib/jackpotLedger';
 import { deName } from '../../src/utils/teams';
 
 // Runs every 15 minutes (see config.schedule below). Two jobs:
@@ -210,7 +209,7 @@ export default async (req: Request) => {
     const bettorIds = new Set(betsSnap.docs.map(d => (d.data() as any).playerId as string));
 
     const autoDeduct: number = market.autoDeductAmount ?? 10;
-    let jackpotGain = 0;
+    let poolGain = 0;
     const batch = db.batch();
 
     for (const player of players) {
@@ -222,7 +221,7 @@ export default async (req: Request) => {
       remaining.set(player.id, tokens - amount); // Restguthaben für weitere Märkte dieses Ticks
 
       batch.update(db.collection('players').doc(player.id), { tokens: FieldValue.increment(-amount) });
-      jackpotGain += amount;
+      poolGain += amount;
       const auditRef = db.collection('autoDeductions').doc();
       batch.set(auditRef, {
         playerId: player.id,
@@ -233,14 +232,13 @@ export default async (req: Request) => {
       });
     }
 
-    if (jackpotGain > 0) {
-      batch.update(db.collection('appState').doc('global'), { jackpot: FieldValue.increment(jackpotGain) });
-      logJackpotChange(batch, db, {
-        delta: jackpotGain,
-        kind: 'auto-deduct',
-        reason: `Auto-Abzug (kein Tipp): ${market.question ?? marketDoc.id}`,
-        marketId: marketDoc.id,
-      });
+    // NEUE REGEL: Die Strafe-Tokens (kein Tipp) fließen NICHT mehr in den globalen
+    // Jackpot, sondern als Seed in den Topf GENAU DIESER Partie. Bei der Auswertung
+    // wird der Seed (effectivePool = Pool + Seed) parimutuel an die Gewinner dieser
+    // Partie ausgeschüttet. Gibt es keinen Gewinner / nur eine Seite, fällt der Seed
+    // bei der Auflösung als Fallback in den Jackpot (siehe resolve.ts).
+    if (poolGain > 0) {
+      batch.update(marketDoc.ref, { initialSeedCredits: FieldValue.increment(poolGain) });
     }
     await batch.commit();
   }
