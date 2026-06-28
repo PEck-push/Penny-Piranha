@@ -2993,7 +2993,7 @@ export default function Admin() {
                     </div>
                     <button
                       onClick={() => {
-                        if (!out && !window.confirm(`„${p.name}" als ausgeschieden markieren?\n\nErhält danach keine Jackpot-/Gratis-Auszahlungen mehr.`)) return;
+                        if (!out && !window.confirm(`„${p.name}" als ausgeschieden markieren?\n\n• Token-Stand wird auf 0 gesetzt (busted)\n• Erhält keine Jackpot-/Gratis-Auszahlungen mehr`)) return;
                         setPlayerEliminated(p.id, !out);
                       }}
                       className={clsx('shrink-0 px-3 py-2 rounded-xl font-black text-[12px] border transition-colors cursor-pointer font-sans',

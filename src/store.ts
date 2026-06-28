@@ -765,9 +765,23 @@ export const useStore = create<AppState>()((set, get) => {
 
     // Spieler endgültig als ausgeschieden markieren (oder zurücknehmen). Wirkt sich
     // serverseitig auf die Jackpot-/Gratis-Auflösung aus: ausgeschiedene Spieler
-    // erhalten KEINE Auszahlung mehr (siehe resolve.ts).
+    // erhalten KEINE Auszahlung mehr (siehe resolve.ts). Beim Ausscheiden wird der
+    // Token-Stand zusätzlich serverseitig auf 0 gesetzt („busted") — tokens ist ein
+    // geschütztes Feld, daher über die admin-grant-Function (setTokens absolut).
     setPlayerEliminated: async (playerId, eliminated) => {
-      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, eliminated } : p) }));
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, eliminated, ...(eliminated ? { tokens: 0 } : {}) } : p) }));
+      if (eliminated) {
+        try {
+          const token = await auth?.currentUser?.getIdToken();
+          if (token) {
+            await fetch('/.netlify/functions/admin-grant', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ playerId, setTokens: 0 }),
+            });
+          }
+        } catch (err) { console.error('[Store] setPlayerEliminated: Token-Reset fehlgeschlagen:', err); }
+      }
       if (db) {
         try {
           await updateDoc(doc(db, 'players', playerId), { eliminated });
