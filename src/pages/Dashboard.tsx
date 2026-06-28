@@ -992,7 +992,9 @@ export default function Dashboard() {
     const playerTotal = (p: typeof players[0]) =>
       p.tokens + bets.filter(b => b.playerId === p.id && (() => { const ms = markets.find(m => m.id === b.marketId)?.status; return ms === 'open' || ms === 'locked'; })()).reduce((s, b) => s + b.amount, 0);
     // Pending-Spieler bleiben in der Liste, werden aber gedimmt dargestellt.
-    const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
+    // Ausgeschiedene („busted") rutschen immer ans Ende, sonst nach Gesamtvermögen.
+    const sorted = [...players].sort((a, b) =>
+      (Number(!!a.eliminated) - Number(!!b.eliminated)) || playerTotal(b) - playerTotal(a));
     const dim = (p?: typeof players[0]) => (p?.approved === false || p?.eliminated ? 'opacity-[0.6]' : '');
     const top = sorted[0];
     return (
@@ -1056,6 +1058,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-[14px] font-black text-white truncate">{p.name}</span>
                   {p.id === me.id && <span className="text-[10px] text-green font-black shrink-0">(Du)</span>}
+                  {p.eliminated && <span className="text-[8px] font-black text-red bg-red/10 border border-red/30 rounded px-1 py-0.5 shrink-0">💀 busted</span>}
                   {p.approved === false && <span className="text-[8px] font-black text-yellow bg-yellow/10 border border-yellow/25 rounded px-1 py-0.5 shrink-0">⏳ offen</span>}
                   {accIcons(p)}
                 </div>
