@@ -102,6 +102,9 @@ export interface Player {
   lastShopVisitTs?: number;
   // Credits / Buyback
   buybackUsed?: boolean;
+  // Endgültig ausgeschieden (auf 0, kein Rückkauf gewollt): nimmt nicht mehr an
+  // Auszahlungen teil — insbesondere KEINE Jackpot-/Gratis-Runden-Gewinne mehr.
+  eliminated?: boolean;
   // Streak
   currentStreak?: number;
   bestStreak?: number;
@@ -387,6 +390,7 @@ interface AppState {
   closeMarket: (marketId: string) => Promise<void>;
   setPlayerAdmin: (playerId: string, isAdmin: boolean) => Promise<void>;
   setPlayerApproved: (playerId: string, approved: boolean) => Promise<void>;
+  setPlayerEliminated: (playerId: string, eliminated: boolean) => Promise<void>;
   resetPlayerCharacter: (playerId: string) => Promise<void>;
   saveCharacter: (uid: string, fields: Partial<Pick<Player, 'headId' | 'bodyId' | 'avatar' | 'avatarId' | 'avatarColor'>>) => Promise<void>;
   setOnboardingDone: (done: boolean) => Promise<void>;
@@ -756,6 +760,18 @@ export const useStore = create<AppState>()((set, get) => {
         try {
           await updateDoc(doc(db, 'players', playerId), { approved });
         } catch (err) { console.error('[Store] setPlayerApproved Fehler:', err); }
+      }
+    },
+
+    // Spieler endgültig als ausgeschieden markieren (oder zurücknehmen). Wirkt sich
+    // serverseitig auf die Jackpot-/Gratis-Auflösung aus: ausgeschiedene Spieler
+    // erhalten KEINE Auszahlung mehr (siehe resolve.ts).
+    setPlayerEliminated: async (playerId, eliminated) => {
+      set(s => ({ players: s.players.map(p => p.id === playerId ? { ...p, eliminated } : p) }));
+      if (db) {
+        try {
+          await updateDoc(doc(db, 'players', playerId), { eliminated });
+        } catch (err) { console.error('[Store] setPlayerEliminated Fehler:', err); }
       }
     },
 

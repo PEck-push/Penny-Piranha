@@ -993,7 +993,7 @@ export default function Dashboard() {
       p.tokens + bets.filter(b => b.playerId === p.id && (() => { const ms = markets.find(m => m.id === b.marketId)?.status; return ms === 'open' || ms === 'locked'; })()).reduce((s, b) => s + b.amount, 0);
     // Pending-Spieler bleiben in der Liste, werden aber gedimmt dargestellt.
     const sorted = [...players].sort((a, b) => playerTotal(b) - playerTotal(a));
-    const dim = (p?: typeof players[0]) => (p?.approved === false ? 'opacity-[0.6]' : '');
+    const dim = (p?: typeof players[0]) => (p?.approved === false || p?.eliminated ? 'opacity-[0.6]' : '');
     const top = sorted[0];
     return (
       <div className="flex-1 flex flex-col relative z-10">
