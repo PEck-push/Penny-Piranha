@@ -239,6 +239,7 @@ export default function Admin() {
   const placeTipAs = useStore(s => s.placeTipAs);
   const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
   const setPlayerApproved = useStore(s => s.setPlayerApproved);
+  const setPlayerEliminated = useStore(s => s.setPlayerEliminated);
   const resetPlayerCharacter = useStore(s => s.resetPlayerCharacter);
   const setAdminMessage = useStore(s => s.setAdminMessage);
   const hideOthersBets = useStore(s => s.hideOthersBets);
@@ -2963,7 +2964,48 @@ export default function Admin() {
             )}
           </div>
 
-
+          {/* ── AUSGESCHIEDENE SPIELER ──────────────────────────── */}
+          <div className="bg-card border border-red/25 rounded-2xl p-4 mb-2.5">
+            <div className="text-[11px] font-black text-red tracking-[0.15em] uppercase mb-2">🚫 Ausgeschieden</div>
+            <div className="text-[10px] text-muted mb-3 leading-relaxed">
+              Spieler auf 0, die nicht zurückkaufen wollten, hier als <b className="text-white">ausgeschieden</b>
+              markieren. Ausgeschiedene erhalten <b className="text-red">keine Jackpot-/Gratis-Auszahlungen</b>
+              mehr (ihre Tipps zählen nicht mehr als Gewinner). Jederzeit rücknehmbar.
+            </div>
+            {(() => {
+              const real = players.filter(p => !p.isTestPlayer);
+              if (real.length === 0) return <div className="text-[12px] text-muted text-center py-2">Keine Spieler</div>;
+              const sorted = [...real].sort((a, b) =>
+                (Number(!!b.eliminated) - Number(!!a.eliminated))
+                || getTotalWealth(a.id, a.tokens, bets, markets) - getTotalWealth(b.id, b.tokens, bets, markets));
+              return sorted.map(p => {
+                const wealth = getTotalWealth(p.id, p.tokens, bets, markets);
+                const out = !!p.eliminated;
+                return (
+                  <div key={p.id} className={clsx('flex items-center gap-3 rounded-xl p-3 mb-2 border',
+                    out ? 'bg-red/5 border-red/30' : 'bg-input border-border')}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-black text-white truncate flex items-center gap-1.5">
+                        {p.name}
+                        {out && <span className="text-[9px] font-black text-red bg-red/10 border border-red/30 rounded px-1.5 py-0.5">AUSGESCHIEDEN</span>}
+                      </div>
+                      <div className="text-[10px] text-muted">Gesamt: <b className={wealth <= 0 ? 'text-red' : 'text-white'}>{wealth} TKN</b></div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (!out && !window.confirm(`„${p.name}" als ausgeschieden markieren?\n\nErhält danach keine Jackpot-/Gratis-Auszahlungen mehr.`)) return;
+                        setPlayerEliminated(p.id, !out);
+                      }}
+                      className={clsx('shrink-0 px-3 py-2 rounded-xl font-black text-[12px] border transition-colors cursor-pointer font-sans',
+                        out ? 'bg-green/15 border-green/40 text-green hover:bg-green/25'
+                          : 'bg-red/15 border-red/40 text-red hover:bg-red/25')}>
+                      {out ? '↩ Zurückholen' : '🚫 Ausscheiden'}
+                    </button>
+                  </div>
+                );
+              });
+            })()}
+          </div>
 
           </>)}
 

@@ -174,7 +174,14 @@ export async function resolveMarketAdmin(
       const currentJackpot = Number((appSnap.data() as any)?.jackpot ?? 0);
       const fixedPrize = Number(market.fixedPrize ?? 0);
       const prize = fixedPrize + (market.absorbsJackpotPot ? currentJackpot : 0);
-      const n = winBets.length;
+      // Ausgeschiedene Spieler (auf 0, kein Rückkauf) bekommen KEINE Jackpot-/
+      // Gratis-Auszahlung mehr. Ihre Gewinner-Tipps werden wie Verlierer mit
+      // payout 0 markiert und zählen nicht beim gleichmäßigen Teilen mit.
+      const jpWinnerIds = [...new Set(winBets.map(b => String(b.playerId)))];
+      const jpSnaps = await Promise.all(jpWinnerIds.map(id => db.collection('players').doc(id).get()));
+      const jpEliminated = new Set(jpSnaps.filter(s => (s.data() as any)?.eliminated === true).map(s => s.id));
+      const eligibleWinBets = winBets.filter(b => !jpEliminated.has(String(b.playerId)));
+      const n = eligibleWinBets.length;
       // Garantierter Mindestgewinn pro Gewinner (harte Untergrenze, NICHT addiert):
       // jeder bekommt max(gleichmäßiger Anteil, minPerWinner). Wenn die Garantie
       // greift (Anteil < min), übersteigt die Summe den Pot — die Differenz deckt
@@ -197,7 +204,7 @@ export async function resolveMarketAdmin(
       });
       const payouts: Record<string, number> = {};
       const betPayouts = new Map<string, number>();
-      for (const b of winBets) {
+      for (const b of eligibleWinBets) {
         payouts[b.playerId] = (payouts[b.playerId] ?? 0) + each;
         betPayouts.set(b.id, each);
         batch.update(db.collection('players').doc(String(b.playerId)), {
@@ -207,7 +214,7 @@ export async function resolveMarketAdmin(
           unseenResolutions: FieldValue.arrayUnion(marketId),
         });
       }
-      // Auch die Verlierer-Bets als „verloren" markieren (payout 0), für die Anzeige.
+      // Verlierer- UND ausgeschiedene Gewinner-Bets als „ohne Auszahlung" (0) markieren.
       for (const b of allBets) if (!betPayouts.has(b.id)) betPayouts.set(b.id, 0);
       persistBetPayouts(batch, betPayouts);
       // Delta = fixedPrize − paid (gilt für beide Fälle): nicht ausgezahlter Rest
