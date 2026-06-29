@@ -125,6 +125,11 @@ export default function Admin() {
   // Avatar-Reset (Test)
   const [resetCharPlayer, setResetCharPlayer] = useState('');
   const [resetCharMsg, setResetCharMsg] = useState('');
+  // Streak-Korrektur (einzelner Spieler)
+  const [streakPlayerId, setStreakPlayerId] = useState('');
+  const [streakValue, setStreakValue] = useState('');
+  const [streakBusy, setStreakBusy] = useState(false);
+  const [streakMsg, setStreakMsg] = useState('');
 
   // Jackpot/Hausbank manuell setzen
   const [jackpotInput, setJackpotInput] = useState('');
@@ -240,6 +245,7 @@ export default function Admin() {
   const setPlayerAdmin = useStore(s => s.setPlayerAdmin);
   const setPlayerApproved = useStore(s => s.setPlayerApproved);
   const setPlayerEliminated = useStore(s => s.setPlayerEliminated);
+  const setPlayerStreak = useStore(s => s.setPlayerStreak);
   const resetPlayerCharacter = useStore(s => s.resetPlayerCharacter);
   const setAdminMessage = useStore(s => s.setAdminMessage);
   const hideOthersBets = useStore(s => s.hideOthersBets);
@@ -3005,6 +3011,56 @@ export default function Admin() {
                 );
               });
             })()}
+          </div>
+
+          {/* ── STREAK KORRIGIEREN ──────────────────────────────── */}
+          <div className="bg-card border border-orange/25 rounded-2xl p-4 mb-2.5">
+            <div className="text-[11px] font-black text-orange tracking-[0.15em] uppercase mb-2">🔥 Streak korrigieren</div>
+            <div className="text-[10px] text-muted mb-3 leading-relaxed">
+              Setzt den <b className="text-white">aktuellen Streak</b> eines Spielers manuell (z. B. nach
+              vergessenem Tipp). Level &amp; Badge (🔥) werden automatisch abgeleitet:
+              0–3 keins · 4–6 on fire · ab 7 damn hot. bestStreak wird nie unter den neuen Wert gesenkt.
+            </div>
+            {streakMsg && <div className="rounded-xl px-3 py-2 text-[12px] font-bold text-center mb-3 bg-green/10 border border-green/30 text-green">{streakMsg}</div>}
+            <select
+              value={streakPlayerId}
+              onChange={e => {
+                const id = e.target.value;
+                setStreakPlayerId(id);
+                const p = players.find(x => x.id === id);
+                setStreakValue(p ? String(p.currentStreak ?? 0) : '');
+                setStreakMsg('');
+              }}
+              className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-[12px] font-bold text-white outline-none focus:border-orange/50 mb-2">
+              <option value="">— Spieler wählen —</option>
+              {[...players].filter(p => !p.isTestPlayer)
+                .sort((a, b) => (b.currentStreak ?? 0) - (a.currentStreak ?? 0))
+                .map(p => (
+                  <option key={p.id} value={p.id}>{p.name} · Streak {p.currentStreak ?? 0}</option>
+                ))}
+            </select>
+            <div className="flex gap-2">
+              <input type="number" min={0} value={streakValue}
+                onChange={e => setStreakValue(e.target.value)}
+                placeholder="Neuer Streak"
+                className="w-28 bg-input border border-border rounded-xl px-3 py-2.5 text-[13px] font-black text-white text-center outline-none focus:border-orange/50" />
+              <button
+                disabled={streakBusy || !streakPlayerId || streakValue === ''}
+                onClick={async () => {
+                  const v = parseInt(streakValue);
+                  if (!Number.isFinite(v) || v < 0) { setStreakMsg('Bitte einen gültigen Wert (≥ 0) eingeben.'); return; }
+                  const p = players.find(x => x.id === streakPlayerId);
+                  if (!window.confirm(`Streak von „${p?.name}" auf ${v} setzen?`)) return;
+                  setStreakBusy(true); setStreakMsg('');
+                  const res = await setPlayerStreak(streakPlayerId, v);
+                  setStreakBusy(false);
+                  setStreakMsg(res.ok ? `✓ Streak von „${p?.name}" auf ${v} gesetzt.` : (res.error ?? 'Fehler.'));
+                  if (res.ok) setTimeout(() => setStreakMsg(''), 5000);
+                }}
+                className="flex-1 p-2.5 rounded-xl bg-orange/15 border border-orange/40 text-orange text-[12px] font-black hover:bg-orange/25 transition-colors disabled:opacity-40">
+                {streakBusy ? '…' : '🔥 Streak setzen'}
+              </button>
+            </div>
           </div>
 
           </>)}

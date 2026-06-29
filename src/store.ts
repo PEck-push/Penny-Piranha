@@ -391,6 +391,7 @@ interface AppState {
   setPlayerAdmin: (playerId: string, isAdmin: boolean) => Promise<void>;
   setPlayerApproved: (playerId: string, approved: boolean) => Promise<void>;
   setPlayerEliminated: (playerId: string, eliminated: boolean) => Promise<void>;
+  setPlayerStreak: (playerId: string, value: number) => Promise<{ ok: boolean; error?: string }>;
   resetPlayerCharacter: (playerId: string) => Promise<void>;
   saveCharacter: (uid: string, fields: Partial<Pick<Player, 'headId' | 'bodyId' | 'avatar' | 'avatarId' | 'avatarColor'>>) => Promise<void>;
   setOnboardingDone: (done: boolean) => Promise<void>;
@@ -786,6 +787,34 @@ export const useStore = create<AppState>()((set, get) => {
         try {
           await updateDoc(doc(db, 'players', playerId), { eliminated });
         } catch (err) { console.error('[Store] setPlayerEliminated Fehler:', err); }
+      }
+    },
+
+    // Admin: currentStreak eines Spielers manuell setzen (Korrektur, z. B. nach
+    // vergessenem Tipp). currentStreak/streakLevel/bestStreak sind geschützt →
+    // über die admin-grant-Function. streakLevel/Badge werden serverseitig abgeleitet.
+    setPlayerStreak: async (playerId, value) => {
+      const v = Math.max(0, Math.floor(value));
+      try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) return { ok: false, error: 'Nicht eingeloggt.' };
+        const res = await fetch('/.netlify/functions/admin-grant', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, setStreak: v }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, error: data?.error ?? `HTTP ${res.status}` };
+        const level: StreakLevel = v >= 7 ? 'damn_hot' : v >= 4 ? 'on_fire' : 'none';
+        set(s => ({
+          players: s.players.map(p => p.id === playerId
+            ? { ...p, currentStreak: v, streakLevel: level, activeBadgeId: level === 'none' ? null : level, bestStreak: Math.max(p.bestStreak ?? 0, v) }
+            : p),
+        }));
+        return { ok: true };
+      } catch (err: any) {
+        console.error('[Store] setPlayerStreak Fehler:', err);
+        return { ok: false, error: err?.message ?? 'Fehler.' };
       }
     },
 
