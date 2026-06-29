@@ -1,7 +1,7 @@
 import type { Context } from '@netlify/functions';
 import { getDb } from './_lib/firebaseAdmin';
 import { verifyAdmin } from './_lib/adminAuth';
-import { fetchMatches, normalizeGroup, stageToPhase, mapStatus } from './_lib/footballData';
+import { fetchMatches, normalizeGroup, stageToPhase, mapStatus, regulationScore } from './_lib/footballData';
 
 // HTTP endpoint, triggered by the admin from inside the app.
 // Fetches the full WM 2026 fixture list from football-data.org and writes
@@ -43,8 +43,9 @@ export default async (req: Request, _context: Context) => {
           kickoffAt: new Date(m.utcDate).getTime(),
           matchday: m.matchday ?? null,
           status: mapStatus(m.status),
-          scoreA: m.score?.fullTime?.home ?? null,
-          scoreB: m.score?.fullTime?.away ?? null,
+          // 90-Min-Stand (ohne Verlängerung/Elfer) — konsistent zur 1X2-Auflösung.
+          scoreA: regulationScore(m).home,
+          scoreB: regulationScore(m).away,
         },
         { merge: true },
       );

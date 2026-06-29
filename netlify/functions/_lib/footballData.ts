@@ -16,9 +16,36 @@ export interface FdoMatch {
     // Tatsächlicher Sieger inkl. Verlängerung/Elfmeter (K.-o.-Phase).
     winner?: 'HOME_TEAM' | 'AWAY_TEAM' | 'DRAW' | null;
     duration?: string; // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+    // ACHTUNG: fullTime ENTHÄLT die Verlängerung (= Stand nach 90 + ggf. ET).
+    // Der reine 90-Min-Stand (reguläre Spielzeit inkl. Nachspielzeit) steht in
+    // regularTime und ist NUR bei ET/Elfer gesetzt. Für die 1X2-Auflösung immer
+    // regulationScore() verwenden, NICHT fullTime.
     fullTime: { home: number | null; away: number | null };
+    regularTime?: { home: number | null; away: number | null };
+    extraTime?: { home: number | null; away: number | null };
     penalties?: { home: number | null; away: number | null };
   };
+}
+
+// 90-Minuten-Stand (reguläre Spielzeit inkl. Nachspielzeit), OHNE Verlängerung
+// und Elfmeterschießen — so bleibt in der K.-o.-Phase ein 3-Wege-Ergebnis (X)
+// möglich (Wettbüro-Standard). football-data.org: fullTime enthält die ET, der
+// 90-Min-Stand liegt in regularTime (nur bei ET/Elfer gesetzt).
+//
+// Rückgabe {home:null,away:null} = 90-Min-Stand (noch) nicht ermittelbar — der
+// Aufrufer darf dann NICHT auflösen (statt fälschlich den ET-Stand zu nehmen).
+export function regulationScore(m: FdoMatch): { home: number | null; away: number | null } {
+  const dur = m.score?.duration;
+  const reg = m.score?.regularTime;
+  const ft = m.score?.fullTime;
+  if (dur === 'EXTRA_TIME' || dur === 'PENALTY_SHOOTOUT') {
+    if (reg && reg.home != null && reg.away != null) return { home: reg.home, away: reg.away };
+    return { home: null, away: null }; // ET/Elfer, aber kein 90-Min-Stand → nicht raten
+  }
+  // Regulär entschieden: fullTime IST der 90-Min-Stand (regularTime oft nicht gesetzt).
+  if (ft && ft.home != null && ft.away != null) return { home: ft.home, away: ft.away };
+  if (reg && reg.home != null && reg.away != null) return { home: reg.home, away: reg.away };
+  return { home: null, away: null };
 }
 
 interface FdoResponse {

@@ -1,6 +1,6 @@
 import type { Config } from '@netlify/functions';
 import { getDb } from './_lib/firebaseAdmin';
-import { fetchMatches } from './_lib/footballData';
+import { fetchMatches, regulationScore } from './_lib/footballData';
 import { resolveMarketAdmin } from './_lib/resolve';
 import { verifyCron } from './_lib/cronAuth';
 
@@ -51,8 +51,14 @@ export default async (req: Request) => {
     const entry = marketByFdoId.get(m.id);
     if (!entry) continue; // kein passender gesperrter Markt → überspringen (auch kein Write)
 
-    const home = m.score?.fullTime?.home;
-    const away = m.score?.fullTime?.away;
+    // 90-MIN-STAND (reguläre Spielzeit inkl. Nachspielzeit) — NICHT fullTime, da
+    // fullTime die Verlängerung enthält. So bleibt in der K.-o.-Phase X möglich.
+    const reg = regulationScore(m);
+    const home = reg.home;
+    const away = reg.away;
+    // Kein ermittelbarer 90-Min-Stand → NICHT auto-auflösen. Das passiert bei
+    // ET-/Elfer-Spielen, deren regularTime (noch) fehlt: lieber auslassen und
+    // der Admin löst manuell/korrigiert auf, als fälschlich den ET-Stand zu nehmen.
     if (home === null || away === null || home === undefined || away === undefined) continue;
 
     // Schedule-Doc einmalig aktualisieren (nur für Märkte, die wir auflösen).
@@ -63,10 +69,9 @@ export default async (req: Request) => {
 
     // WETTBÜRO-STANDARD (1X2 / 90-Min-Markt): Endstand nach regulärer Spielzeit
     // (inkl. Nachspielzeit) entscheidet — Verlängerung und Elfmeterschießen
-    // zählen NICHT. `score.fullTime` aus football-data.org ist explizit der
-    // 90-Min-Stand (auch bei Spielen, die später in der Verlängerung/per Elfer
-    // entschieden wurden). Daher gewinnt bei K.-o.-Spielen mit 1:1 nach 90 Min
-    // der Tipp auf „Unentschieden" (X), unabhängig vom finalen Sieger.
+    // zählen NICHT. Der 90-Min-Stand kommt aus regulationScore() (= score.regularTime
+    // bei ET/Elfer, sonst fullTime). Daher gewinnt bei K.-o.-Spielen mit 1:1 nach
+    // 90 Min der Tipp auf „Unentschieden" (X), unabhängig vom finalen Sieger.
     let key: 'home' | 'away' | 'draw';
     if (home > away) key = 'home';
     else if (away > home) key = 'away';
