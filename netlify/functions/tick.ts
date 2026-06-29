@@ -213,23 +213,39 @@ export default async (req: Request) => {
     const batch = db.batch();
 
     for (const player of players) {
-      if (bettorIds.has(player.id)) continue;
-      const tokens = remaining.get(player.id) ?? 0;
-      if (tokens <= 0) continue;
-      const amount = Math.min(tokens, autoDeduct);
-      if (amount <= 0) continue;
-      remaining.set(player.id, tokens - amount); // Restguthaben für weitere Märkte dieses Ticks
+      if (bettorIds.has(player.id)) continue; // hat getippt → Streak & Tokens unberührt
 
-      batch.update(db.collection('players').doc(player.id), { tokens: FieldValue.increment(-amount) });
-      poolGain += amount;
-      const auditRef = db.collection('autoDeductions').doc();
-      batch.set(auditRef, {
-        playerId: player.id,
-        marketId: marketDoc.id,
-        amount,
-        tokensAfter: tokens - amount,
-        ts: FieldValue.serverTimestamp(),
-      });
+      // Pro Nicht-Tipper EIN Update-Objekt (Streak-Reset + ggf. Token-Abzug).
+      const upd: Record<string, any> = {};
+
+      // STREAK BRICHT BEI NICHT-TIPP: Wer ein Spiel nicht getippt hat, verliert
+      // seinen Lauf — currentStreak auf 0, Badge/Level weg. bestStreak bleibt.
+      if ((player.currentStreak ?? 0) > 0 || (player.streakLevel && player.streakLevel !== 'none')) {
+        upd.currentStreak = 0;
+        upd.streakLevel = 'none';
+        upd.activeBadgeId = null;
+      }
+
+      // Auto-Abzug (nur wenn Guthaben vorhanden).
+      const tokens = remaining.get(player.id) ?? 0;
+      const amount = tokens > 0 ? Math.min(tokens, autoDeduct) : 0;
+      if (amount > 0) {
+        remaining.set(player.id, tokens - amount); // Restguthaben für weitere Märkte dieses Ticks
+        upd.tokens = FieldValue.increment(-amount);
+        poolGain += amount;
+        const auditRef = db.collection('autoDeductions').doc();
+        batch.set(auditRef, {
+          playerId: player.id,
+          marketId: marketDoc.id,
+          amount,
+          tokensAfter: tokens - amount,
+          ts: FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (Object.keys(upd).length > 0) {
+        batch.update(db.collection('players').doc(player.id), upd);
+      }
     }
 
     // NEUE REGEL: Die Strafe-Tokens (kein Tipp) fließen NICHT mehr in den globalen
