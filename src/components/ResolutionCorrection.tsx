@@ -26,6 +26,8 @@ export default function ResolutionCorrection() {
   const [optionId, setOptionId] = useState('');
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
+  const [penA, setPenA] = useState('');
+  const [penB, setPenB] = useState('');
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [err, setErr] = useState('');
@@ -50,14 +52,22 @@ export default function ResolutionCorrection() {
     const h = parseInt(scoreA); const a = parseInt(scoreB);
     return Number.isFinite(h) && Number.isFinite(a) && h >= 0 && a >= 0 ? { home: h, away: a } : undefined;
   };
+  const penaltyBody = () => {
+    const h = parseInt(penA); const a = parseInt(penB);
+    return Number.isFinite(h) && Number.isFinite(a) && h >= 0 && a >= 0 ? { home: h, away: a } : undefined;
+  };
 
   const run = async (apply: boolean) => {
     if (!marketId || !optionId) { setErr('Bitte Markt und richtige Option wählen.'); return; }
     if (isWm && !scoreBody()) { setErr('Bitte das korrekte Ergebnis (z. B. 1 : 1) eingeben — sonst stimmt die Spielplan-Tabelle nicht.'); return; }
+    const pen = penaltyBody();
+    if ((penA !== '' || penB !== '') && !pen) { setErr('i. E.: bitte beide Werte (≥ 0) eingeben oder beide leer lassen.'); return; }
+    if (pen && pen.home === pen.away) { setErr('Ein Elfmeterschießen endet nie unentschieden — bitte korrekte i.E.-Bilanz eingeben.'); return; }
     if (apply && !window.confirm(
       `Korrektur WIRKLICH anwenden?\n\n„${market?.question}"\n${labelOf(market?.winningOptionId)} → ${labelOf(optionId)}`
       + (isWm && scoreBody() ? `\nErgebnis: ${scoreBody()!.home}:${scoreBody()!.away}` : '')
-      + `\n\nTokens, Tagesbilanz, Jackpot, Streaks${isWm ? ' und Spielplan-Tabelle' : ''} werden angepasst.`,
+      + (pen ? `\ni. E.: ${pen.home}:${pen.away}` : '')
+      + `\n\nTokens, Tagesbilanz, Jackpot, Streaks${isWm ? ' und Spielplan-Tabelle/Feed' : ''} werden angepasst.`,
     )) return;
     setBusy(true); setErr(''); if (apply) setReport(null);
     try {
@@ -66,7 +76,7 @@ export default function ResolutionCorrection() {
       const res = await fetch('/.netlify/functions/correct-resolution', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ marketId, winningOptionId: optionId, apply, score: scoreBody() }),
+        body: JSON.stringify({ marketId, winningOptionId: optionId, apply, score: scoreBody(), penalties: penaltyBody() }),
       });
       const data: Report = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
@@ -94,6 +104,10 @@ export default function ResolutionCorrection() {
           const fs = (m as any)?.finalScore;
           setScoreA(fs && typeof fs.home === 'number' ? String(fs.home) : '');
           setScoreB(fs && typeof fs.away === 'number' ? String(fs.away) : '');
+          // i.E. nur vorbefüllen, wenn eine gültige (entschiedene) Bilanz gespeichert ist.
+          const validPen = fs && typeof fs.penaltiesHome === 'number' && typeof fs.penaltiesAway === 'number' && fs.penaltiesHome !== fs.penaltiesAway;
+          setPenA(validPen ? String(fs.penaltiesHome) : '');
+          setPenB(validPen ? String(fs.penaltiesAway) : '');
         }}
         className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-[12px] font-bold text-white outline-none focus:border-orange/50 mb-2">
         <option value="">— Aufgelösten Markt wählen —</option>
@@ -140,6 +154,20 @@ export default function ResolutionCorrection() {
               className="w-12 bg-input border border-border rounded-lg px-2 py-1.5 text-[13px] font-black text-white text-center outline-none focus:border-orange/50" />
             <span className="flex-1 text-[11px] font-bold text-white truncate">{market.teamB ?? 'Gast'}</span>
           </div>
+          {/* Optional: Elfmeterschießen-Ergebnis (korrigiert die Feed-Zeile) */}
+          <div className="text-[10px] font-black text-muted uppercase tracking-wider mt-1">
+            Elfmeterschießen i. E. (optional)
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-[11px] font-bold text-white truncate text-right">{market.teamA ?? 'Heim'}</span>
+            <input type="number" min={0} value={penA} onChange={e => setPenA(e.target.value)}
+              className="w-12 bg-input border border-border rounded-lg px-2 py-1.5 text-[13px] font-black text-white text-center outline-none focus:border-orange/50" />
+            <span className="text-muted font-black">:</span>
+            <input type="number" min={0} value={penB} onChange={e => setPenB(e.target.value)}
+              className="w-12 bg-input border border-border rounded-lg px-2 py-1.5 text-[13px] font-black text-white text-center outline-none focus:border-orange/50" />
+            <span className="flex-1 text-[11px] font-bold text-white truncate">{market.teamB ?? 'Gast'}</span>
+          </div>
+          <div className="text-[9px] text-muted">Leer lassen, wenn kein Elferschießen. Endet nie unentschieden.</div>
         </div>
       )}
 

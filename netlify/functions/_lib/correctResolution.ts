@@ -142,7 +142,7 @@ export interface CorrectionReport {
 export async function correctMatchResolution(
   marketId: string,
   newWinningOptionId: string,
-  opts: { dryRun: boolean; score?: { home: number; away: number } } = { dryRun: true },
+  opts: { dryRun: boolean; score?: { home: number; away: number }; penalties?: { home: number; away: number } } = { dryRun: true },
 ): Promise<CorrectionReport> {
   const db = getDb();
   const marketRef = db.collection('markets').doc(marketId);
@@ -168,36 +168,57 @@ export async function correctMatchResolution(
   // ── Sonderfall: Gewinner-Option stimmt bereits — nur das Ergebnis (Score)
   // soll korrigiert werden (Spielplan-Tabelle). Keine Token-/Streak-Umbuchung.
   if (oldWinningOptionId === newWinningOptionId) {
-    if (!opts.score || market.marketSubtype !== 'wm-match') {
-      throw new Error('Der Markt ist bereits auf diese Option aufgelöst — und kein (anderes) Ergebnis zu setzen.');
+    if ((!opts.score && !opts.penalties) || market.marketSubtype !== 'wm-match') {
+      throw new Error('Der Markt ist bereits auf diese Option aufgelöst — und kein (anderes) Ergebnis/Elfer zu setzen.');
     }
+    // 90-Min-Stand: aus Eingabe, sonst bestehender finalScore.
+    const fsOld = market.finalScore ?? {};
+    const h = opts.score ? opts.score.home : Number(fsOld.home ?? 0);
+    const a = opts.score ? opts.score.away : Number(fsOld.away ?? 0);
+    // Gültige (entschiedene) Elfer-Bilanz.
+    const pens = opts.penalties && opts.penalties.home !== opts.penalties.away ? opts.penalties : null;
+    const teamA = market.teamA ?? 'Heim';
+    const teamB = market.teamB ?? 'Gast';
+    const winLabel = labelOf(newWinningOptionId);
+    const base = `${teamA} ${h}:${a} ${teamB}`;
+    const suffix = pens ? ` (n. 90 Min · i. E. ${pens.home}:${pens.away})` : '';
+    const newText = `Ergebnis: ${base}${suffix} → ${winLabel}`;
+
     const scoreOnly: CorrectionReport = {
       ok: true, dryRun: opts.dryRun, marketId, question: market.question ?? marketId,
       oldWinningOptionId, oldWinningLabel: labelOf(oldWinningOptionId),
       newWinningOptionId, newWinningLabel: labelOf(newWinningOptionId),
       newResType: oldResType, jackpotDelta: 0, totalTokenDelta: 0, affectedPlayers: 0,
-      rows: [], scoreSet: opts.score,
+      rows: [], scoreSet: { home: h, away: a },
     };
     if (opts.dryRun) {
-      scoreOnly.note = `Probelauf — Gewinner unverändert, nur Ergebnis würde auf ${opts.score.home}:${opts.score.away} gesetzt (Spielplan-Tabelle).`;
+      scoreOnly.note = `Probelauf — Gewinner unverändert. Feed/Ergebnis würde lauten: „${newText}".`;
       return scoreOnly;
     }
     const schedDocId: string | undefined =
       (typeof market.matchId === 'string' && market.matchId) ||
       (typeof market.footballDataOrgId === 'number' ? `wc-${market.footballDataOrgId}` : undefined);
     const batch = db.batch();
-    batch.update(marketRef, { finalScore: { home: opts.score.home, away: opts.score.away } });
-    if (schedDocId) {
+    const fsNew: Record<string, any> = { home: h, away: a };
+    if (pens) { fsNew.duration = 'PENALTY_SHOOTOUT'; fsNew.penaltiesHome = pens.home; fsNew.penaltiesAway = pens.away; }
+    else if (fsOld.duration) { fsNew.duration = fsOld.duration; }
+    batch.update(marketRef, { finalScore: fsNew });
+    if (opts.score && schedDocId) {
       batch.set(db.collection('schedule').doc(schedDocId),
-        { scoreA: opts.score.home, scoreB: opts.score.away, status: 'finished' }, { merge: true });
+        { scoreA: h, scoreB: a, status: 'finished' }, { merge: true });
     }
-    batch.set(db.collection('feed').doc(), {
-      type: 'market_resolved', marketId,
-      text: `🛠️ Ergebnis-Korrektur: ${market.question ?? marketId} → ${opts.score.home}:${opts.score.away}`,
-      ts: FieldValue.serverTimestamp(),
+    // Bestehende Auflöse-Feed-Einträge dieses Markts umschreiben (statt neuen
+    // Eintrag anzulegen) — so wird die falsche i.E.-Zeile rückwirkend korrigiert.
+    const feedSnap = await db.collection('feed').where('marketId', '==', marketId).get();
+    let rewrote = 0;
+    feedSnap.forEach(d => {
+      if ((d.data() as any).type === 'market_resolved') { batch.update(d.ref, { text: newText }); rewrote++; }
     });
+    if (rewrote === 0) {
+      batch.set(db.collection('feed').doc(), { type: 'market_resolved', marketId, text: newText, ts: FieldValue.serverTimestamp() });
+    }
     await batch.commit();
-    scoreOnly.note = `Ergebnis auf ${opts.score.home}:${opts.score.away} gesetzt (Spielplan-Tabelle). Gewinner unverändert.`;
+    scoreOnly.note = `Korrigiert: „${newText}"` + (rewrote ? ` (${rewrote} Feed-Eintrag/-Einträge aktualisiert).` : ' (neuer Feed-Eintrag).');
     return scoreOnly;
   }
 

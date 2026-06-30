@@ -206,6 +206,9 @@ export interface Market {
     duration?: string;
     penaltiesHome?: number;
     penaltiesAway?: number;
+    // Sieger nach Verlängerung/Elfmeter (zuverlässig aus score.winner) — für die
+    // Anzeige, wenn die i.E.-Bilanz fehlt/unzuverlässig ist.
+    shootoutWinner?: 'home' | 'away';
   };
   // Firestore-Timestamp serialisiert — kann beim Lesen als
   // { seconds, nanoseconds } oder mit toMillis() ankommen.
