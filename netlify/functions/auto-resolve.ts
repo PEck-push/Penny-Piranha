@@ -90,6 +90,10 @@ export default async (req: Request) => {
       duration: m.score?.duration,
       penaltiesHome: m.score?.penalties?.home ?? null,
       penaltiesAway: m.score?.penalties?.away ?? null,
+      // Zuverlässiger Sieger nach Verlängerung/Elfer (für die Anzeige, falls die
+      // i.E.-Bilalz fehlt/unzuverlässig ist).
+      shootoutWinner: m.score?.winner === 'HOME_TEAM' ? 'home' as const
+        : m.score?.winner === 'AWAY_TEAM' ? 'away' as const : null,
       teamA: entry.data.teamA ?? m.homeTeam?.name ?? 'Heim',
       teamB: entry.data.teamB ?? m.awayTeam?.name ?? 'Gast',
     };
