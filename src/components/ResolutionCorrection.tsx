@@ -99,8 +99,11 @@ export default function ResolutionCorrection() {
 
       <select value={marketId} onChange={e => {
           const id = e.target.value;
-          setMarketId(id); setOptionId(''); setReport(null); setErr('');
           const m = fixable.find(x => x.id === id);
+          // Option standardmäßig auf den AKTUELLEN Gewinner setzen → Buttons sind
+          // sofort aktiv (z. B. wenn nur das Elfer-Ergebnis korrigiert werden soll).
+          // Für eine echte Gewinner-Korrektur einfach eine andere Option wählen.
+          setMarketId(id); setOptionId(m?.winningOptionId ?? ''); setReport(null); setErr('');
           const fs = (m as any)?.finalScore;
           setScoreA(fs && typeof fs.home === 'number' ? String(fs.home) : '');
           setScoreB(fs && typeof fs.away === 'number' ? String(fs.away) : '');
