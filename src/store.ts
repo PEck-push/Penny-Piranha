@@ -398,7 +398,6 @@ interface AppState {
   setPlayerApproved: (playerId: string, approved: boolean) => Promise<void>;
   setPlayerEliminated: (playerId: string, eliminated: boolean) => Promise<void>;
   setPlayerStreak: (playerId: string, value: number) => Promise<{ ok: boolean; error?: string }>;
-  adminCorrectBet: (marketId: string, playerId: string, newOptionId: string, newOptionLabel: string, newAmount: number) => Promise<{ ok: boolean; error?: string }>;
   resetPlayerCharacter: (playerId: string) => Promise<void>;
   saveCharacter: (uid: string, fields: Partial<Pick<Player, 'headId' | 'bodyId' | 'avatar' | 'avatarId' | 'avatarColor'>>) => Promise<void>;
   setOnboardingDone: (done: boolean) => Promise<void>;
@@ -821,27 +820,6 @@ export const useStore = create<AppState>()((set, get) => {
         return { ok: true };
       } catch (err: any) {
         console.error('[Store] setPlayerStreak Fehler:', err);
-        return { ok: false, error: err?.message ?? 'Fehler.' };
-      }
-    },
-
-    // Admin: bestehenden Einsatz/Tipp nachträglich korrigieren (Option/Betrag) —
-    // auch auf gesperrten Märkten. Läuft über die admin-correct-bet-Function
-    // (Pools/Tokens serverseitig, geschützte Felder). onSnapshot spiegelt danach.
-    adminCorrectBet: async (marketId, playerId, newOptionId, newOptionLabel, newAmount) => {
-      try {
-        const token = await auth?.currentUser?.getIdToken();
-        if (!token) return { ok: false, error: 'Nicht eingeloggt.' };
-        const res = await fetch('/.netlify/functions/admin-correct-bet', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ marketId, playerId, newOptionId, newOptionLabel, newAmount }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data?.ok === false) return { ok: false, error: data?.error ?? `HTTP ${res.status}` };
-        return { ok: true };
-      } catch (err: any) {
-        console.error('[Store] adminCorrectBet Fehler:', err);
         return { ok: false, error: err?.message ?? 'Fehler.' };
       }
     },
