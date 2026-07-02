@@ -217,7 +217,8 @@ export async function correctMatchResolution(
     const feedSnap = await db.collection('feed').where('marketId', '==', marketId).get();
     let rewrote = 0;
     feedSnap.forEach(d => {
-      if ((d.data() as any).type === 'market_resolved') { batch.update(d.ref, { text: newText }); rewrote++; }
+      const dd = d.data() as any;
+      if (dd.type === 'market_resolved' && !String(dd.text ?? '').startsWith('🛠️')) { batch.update(d.ref, { text: newText }); rewrote++; }
     });
     if (rewrote === 0) {
       batch.set(db.collection('feed').doc(), { type: 'market_resolved', marketId, text: newText, ts: FieldValue.serverTimestamp() });
@@ -392,8 +393,16 @@ export async function correctMatchResolution(
   for (const b of allBets) {
     batch.update(db.collection('bets').doc(b.id), { payout: neu.betPayout.get(b.id) ?? 0 });
   }
-  // Markt: neue Gewinner-Option + Korrektur-Marker.
-  const finalScore = opts.score ? { home: opts.score.home, away: opts.score.away } : undefined;
+  // Markt: neue Gewinner-Option + Korrektur-Marker. finalScore inkl. n.V./Elfer.
+  const etFull = opts.extraTime ?? null;
+  const pensFull = opts.penalties && opts.penalties.home !== opts.penalties.away ? opts.penalties : null;
+  const finalScore = opts.score ? (() => {
+    const fs: Record<string, any> = { home: opts.score!.home, away: opts.score!.away };
+    if (etFull) { fs.extraTimeHome = etFull.home; fs.extraTimeAway = etFull.away; }
+    if (pensFull) { fs.duration = 'PENALTY_SHOOTOUT'; fs.penaltiesHome = pensFull.home; fs.penaltiesAway = pensFull.away; }
+    else if (etFull) { fs.duration = 'EXTRA_TIME'; }
+    return fs;
+  })() : undefined;
   batch.update(marketRef, {
     winningOptionId: newWinningOptionId,
     resolutionType: neu.resType,
@@ -430,7 +439,29 @@ export async function correctMatchResolution(
       marketId,
     });
   }
-  // Feed-Eintrag (transparent).
+  // Bestehenden „Ergebnis: …"-Feed-Eintrag auf das korrigierte Resultat
+  // umschreiben (sonst bleibt das falsche Ergebnis im Feed stehen). Audit-Notizen
+  // (Text beginnt mit 🛠️) werden dabei NICHT angefasst.
+  {
+    const teamA = market.teamA ?? 'Heim';
+    const teamB = market.teamB ?? 'Gast';
+    const winLabel = labelOf(newWinningOptionId);
+    const h = finalScore ? finalScore.home : Number((market.finalScore ?? {}).home ?? 0);
+    const a = finalScore ? finalScore.away : Number((market.finalScore ?? {}).away ?? 0);
+    const parts: string[] = [];
+    if (etFull) parts.push(`n. V. ${etFull.home}:${etFull.away}`);
+    if (pensFull) parts.push(`i. E. ${pensFull.home}:${pensFull.away}`);
+    const suffix = parts.length ? ` (n. 90 Min · ${parts.join(' · ')})` : '';
+    const newText = `Ergebnis: ${teamA} ${h}:${a} ${teamB}${suffix} → ${winLabel}`;
+    const feedSnap = await db.collection('feed').where('marketId', '==', marketId).get();
+    feedSnap.forEach(d => {
+      const dd = d.data() as any;
+      if (dd.type === 'market_resolved' && !String(dd.text ?? '').startsWith('🛠️')) {
+        batch.update(d.ref, { text: newText });
+      }
+    });
+  }
+  // Audit-Notiz (transparent, erklärt die Token-/Streak-Änderung).
   batch.set(db.collection('feed').doc(), {
     type: 'market_resolved',
     marketId,
