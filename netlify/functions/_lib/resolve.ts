@@ -47,6 +47,8 @@ export interface ResolveScore {
   home: number;
   away: number;
   duration?: string;          // REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
+  extraTimeHome?: number | null; // Endstand nach Verlängerung (n. V.)
+  extraTimeAway?: number | null;
   penaltiesHome?: number | null;
   penaltiesAway?: number | null;
   shootoutWinner?: 'home' | 'away' | null; // zuverlässiger Sieger (score.winner)
@@ -60,16 +62,25 @@ export interface ResolveScore {
 // ist: die Wette ist nach 90 Min entschieden, das Spiel ging aber weiter.
 function formatScoreLine(s: ResolveScore): string {
   const base = `${s.teamA} ${s.home}:${s.away} ${s.teamB}`;
-  if (s.duration === 'PENALTY_SHOOTOUT') {
-    // Nur eine GÜLTIGE Elfer-Bilanz anzeigen (entschieden, ≠ unentschieden) —
-    // football-data liefert hier teils den Stand vor dem Schießen (z. B. 3:3).
-    // Sonst den zuverlässigen Sieger (score.winner) per Name nennen.
-    const validPens = s.penaltiesHome != null && s.penaltiesAway != null && s.penaltiesHome !== s.penaltiesAway;
-    if (validPens) return `${base} (n. 90 Min · i. E. ${s.penaltiesHome}:${s.penaltiesAway})`;
-    const who = s.shootoutWinner === 'home' ? s.teamA : s.shootoutWinner === 'away' ? s.teamB : null;
-    return who ? `${base} (n. 90 Min · i. E. für ${who})` : `${base} (n. 90 Min · i. E. entschieden)`;
+  if (s.duration === 'PENALTY_SHOOTOUT' || s.duration === 'EXTRA_TIME') {
+    const parts: string[] = [];
+    // Endstand nach Verlängerung, falls bekannt (z. B. 3:2 n. V.).
+    if (s.extraTimeHome != null && s.extraTimeAway != null) parts.push(`n. V. ${s.extraTimeHome}:${s.extraTimeAway}`);
+    if (s.duration === 'PENALTY_SHOOTOUT') {
+      // Nur eine GÜLTIGE Elfer-Bilanz anzeigen (entschieden, ≠ unentschieden) —
+      // football-data liefert hier teils den Stand vor dem Schießen. Sonst den
+      // zuverlässigen Sieger (score.winner) per Name.
+      const validPens = s.penaltiesHome != null && s.penaltiesAway != null && s.penaltiesHome !== s.penaltiesAway;
+      if (validPens) parts.push(`i. E. ${s.penaltiesHome}:${s.penaltiesAway}`);
+      else {
+        const who = s.shootoutWinner === 'home' ? s.teamA : s.shootoutWinner === 'away' ? s.teamB : null;
+        parts.push(who ? `i. E. für ${who}` : 'i. E. entschieden');
+      }
+    } else if (parts.length === 0) {
+      parts.push('entschieden i. d. Verlängerung');
+    }
+    return `${base} (n. 90 Min · ${parts.join(' · ')})`;
   }
-  if (s.duration === 'EXTRA_TIME') return `${base} (n. 90 Min · entschieden i. d. Verlängerung)`;
   return base;
 }
 
@@ -402,6 +413,8 @@ export async function resolveMarketAdmin(
       home: score.home,
       away: score.away,
       ...(score.duration ? { duration: score.duration } : {}),
+      ...(score.extraTimeHome != null && score.extraTimeAway != null
+        ? { extraTimeHome: score.extraTimeHome, extraTimeAway: score.extraTimeAway } : {}),
       // Nur eine gültige (entschiedene) Elfer-Bilanz speichern.
       ...(validPens ? { penaltiesHome: score.penaltiesHome, penaltiesAway: score.penaltiesAway } : {}),
       ...(score.shootoutWinner ? { shootoutWinner: score.shootoutWinner } : {}),

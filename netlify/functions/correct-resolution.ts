@@ -15,7 +15,7 @@ export default async (req: Request, _context: Context) => {
 
   let body: any;
   try { body = await req.json(); } catch { body = {}; }
-  const { marketId, winningOptionId, apply, score, penalties } = body ?? {};
+  const { marketId, winningOptionId, apply, score, extraTime, penalties } = body ?? {};
   if (!marketId || !winningOptionId) return json({ error: 'marketId und winningOptionId sind erforderlich.' }, 400);
 
   try {
@@ -23,6 +23,9 @@ export default async (req: Request, _context: Context) => {
       dryRun: apply !== true,
       score: score && typeof score.home === 'number' && typeof score.away === 'number'
         ? { home: score.home, away: score.away }
+        : undefined,
+      extraTime: extraTime && typeof extraTime.home === 'number' && typeof extraTime.away === 'number'
+        ? { home: extraTime.home, away: extraTime.away }
         : undefined,
       penalties: penalties && typeof penalties.home === 'number' && typeof penalties.away === 'number'
         ? { home: penalties.home, away: penalties.away }
