@@ -158,13 +158,15 @@ function formatHeadline(m: Market): string | null {
   const a = m.teamA ?? '';
   const b = m.teamB ?? '';
   const base = `${a} ${s.home}:${s.away} ${b}`.trim();
+  const etStr = s.extraTimeHome != null && s.extraTimeAway != null ? `n. V. ${s.extraTimeHome}:${s.extraTimeAway}` : null;
   if (s.duration === 'PENALTY_SHOOTOUT') {
     const validPens = s.penaltiesHome != null && s.penaltiesAway != null && s.penaltiesHome !== s.penaltiesAway;
-    if (validPens) return `${base} (i. E. ${s.penaltiesHome}:${s.penaltiesAway})`;
-    const who = s.shootoutWinner === 'home' ? a : s.shootoutWinner === 'away' ? b : null;
-    return who ? `${base} (i. E. für ${who})` : `${base} (i. E.)`;
+    const penStr = validPens
+      ? `i. E. ${s.penaltiesHome}:${s.penaltiesAway}`
+      : (s.shootoutWinner === 'home' ? `i. E. für ${a}` : s.shootoutWinner === 'away' ? `i. E. für ${b}` : 'i. E.');
+    return `${base} (${[etStr, penStr].filter(Boolean).join(' · ')})`;
   }
-  if (s.duration === 'EXTRA_TIME') return `${base} (n. V.)`;
+  if (s.duration === 'EXTRA_TIME') return `${base} (${etStr ?? 'n. V.'})`;
   return base;
 }
 

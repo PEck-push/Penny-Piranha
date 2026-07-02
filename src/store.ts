@@ -204,6 +204,9 @@ export interface Market {
     home: number;
     away: number;
     duration?: string;
+    // Endstand nach Verlängerung (n. V.) — der 90-Min-Stand steht in home/away.
+    extraTimeHome?: number;
+    extraTimeAway?: number;
     penaltiesHome?: number;
     penaltiesAway?: number;
     // Sieger nach Verlängerung/Elfmeter (zuverlässig aus score.winner) — für die

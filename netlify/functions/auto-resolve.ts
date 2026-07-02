@@ -88,6 +88,10 @@ export default async (req: Request) => {
       home: home as number,
       away: away as number,
       duration: m.score?.duration,
+      // Endstand nach Verlängerung: bei EXTRA_TIME ist fullTime der Stand nach
+      // 90+ET (reg+et); bei Elfer der Stand vor dem Schießen (reg+et).
+      extraTimeHome: (m.score?.duration === 'EXTRA_TIME') ? (m.score?.fullTime?.home ?? null) : null,
+      extraTimeAway: (m.score?.duration === 'EXTRA_TIME') ? (m.score?.fullTime?.away ?? null) : null,
       penaltiesHome: m.score?.penalties?.home ?? null,
       penaltiesAway: m.score?.penalties?.away ?? null,
       // Zuverlässiger Sieger nach Verlängerung/Elfer (für die Anzeige, falls die

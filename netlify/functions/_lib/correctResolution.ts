@@ -142,7 +142,7 @@ export interface CorrectionReport {
 export async function correctMatchResolution(
   marketId: string,
   newWinningOptionId: string,
-  opts: { dryRun: boolean; score?: { home: number; away: number }; penalties?: { home: number; away: number } } = { dryRun: true },
+  opts: { dryRun: boolean; score?: { home: number; away: number }; extraTime?: { home: number; away: number }; penalties?: { home: number; away: number } } = { dryRun: true },
 ): Promise<CorrectionReport> {
   const db = getDb();
   const marketRef = db.collection('markets').doc(marketId);
@@ -168,20 +168,23 @@ export async function correctMatchResolution(
   // ── Sonderfall: Gewinner-Option stimmt bereits — nur das Ergebnis (Score)
   // soll korrigiert werden (Spielplan-Tabelle). Keine Token-/Streak-Umbuchung.
   if (oldWinningOptionId === newWinningOptionId) {
-    if ((!opts.score && !opts.penalties) || market.marketSubtype !== 'wm-match') {
-      throw new Error('Der Markt ist bereits auf diese Option aufgelöst — und kein (anderes) Ergebnis/Elfer zu setzen.');
+    if ((!opts.score && !opts.penalties && !opts.extraTime) || market.marketSubtype !== 'wm-match') {
+      throw new Error('Der Markt ist bereits auf diese Option aufgelöst — und kein (anderes) Ergebnis/Verlängerung/Elfer zu setzen.');
     }
     // 90-Min-Stand: aus Eingabe, sonst bestehender finalScore.
     const fsOld = market.finalScore ?? {};
     const h = opts.score ? opts.score.home : Number(fsOld.home ?? 0);
     const a = opts.score ? opts.score.away : Number(fsOld.away ?? 0);
-    // Gültige (entschiedene) Elfer-Bilanz.
+    const et = opts.extraTime ?? null;                                   // Endstand n. V.
     const pens = opts.penalties && opts.penalties.home !== opts.penalties.away ? opts.penalties : null;
     const teamA = market.teamA ?? 'Heim';
     const teamB = market.teamB ?? 'Gast';
     const winLabel = labelOf(newWinningOptionId);
     const base = `${teamA} ${h}:${a} ${teamB}`;
-    const suffix = pens ? ` (n. 90 Min · i. E. ${pens.home}:${pens.away})` : '';
+    const parts: string[] = [];
+    if (et) parts.push(`n. V. ${et.home}:${et.away}`);
+    if (pens) parts.push(`i. E. ${pens.home}:${pens.away}`);
+    const suffix = parts.length ? ` (n. 90 Min · ${parts.join(' · ')})` : '';
     const newText = `Ergebnis: ${base}${suffix} → ${winLabel}`;
 
     const scoreOnly: CorrectionReport = {
@@ -200,7 +203,9 @@ export async function correctMatchResolution(
       (typeof market.footballDataOrgId === 'number' ? `wc-${market.footballDataOrgId}` : undefined);
     const batch = db.batch();
     const fsNew: Record<string, any> = { home: h, away: a };
+    if (et) { fsNew.extraTimeHome = et.home; fsNew.extraTimeAway = et.away; }
     if (pens) { fsNew.duration = 'PENALTY_SHOOTOUT'; fsNew.penaltiesHome = pens.home; fsNew.penaltiesAway = pens.away; }
+    else if (et) { fsNew.duration = 'EXTRA_TIME'; }
     else if (fsOld.duration) { fsNew.duration = fsOld.duration; }
     batch.update(marketRef, { finalScore: fsNew });
     if (opts.score && schedDocId) {
