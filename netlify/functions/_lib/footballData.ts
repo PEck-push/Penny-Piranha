@@ -35,16 +35,24 @@ export interface FdoMatch {
 // Rückgabe {home:null,away:null} = 90-Min-Stand (noch) nicht ermittelbar — der
 // Aufrufer darf dann NICHT auflösen (statt fälschlich den ET-Stand zu nehmen).
 export function regulationScore(m: FdoMatch): { home: number | null; away: number | null } {
-  const dur = m.score?.duration;
-  const reg = m.score?.regularTime;
-  const ft = m.score?.fullTime;
-  if (dur === 'EXTRA_TIME' || dur === 'PENALTY_SHOOTOUT') {
-    if (reg && reg.home != null && reg.away != null) return { home: reg.home, away: reg.away };
-    return { home: null, away: null }; // ET/Elfer, aber kein 90-Min-Stand → nicht raten
-  }
-  // Regulär entschieden: fullTime IST der 90-Min-Stand (regularTime oft nicht gesetzt).
-  if (ft && ft.home != null && ft.away != null) return { home: ft.home, away: ft.away };
+  const s = m.score;
+  // 1) regularTime IMMER bevorzugen, wenn vorhanden: bei ET/Elfer die einzige
+  //    korrekte Quelle, bei regulären Spielen identisch mit fullTime.
+  const reg = s?.regularTime;
   if (reg && reg.home != null && reg.away != null) return { home: reg.home, away: reg.away };
+  // 2) „Über 90 Min hinaus" robust erkennen — NICHT nur über duration (die kann
+  //    bei Datenverzug fehlen/falsch sein), sondern auch über gesetzte
+  //    extraTime-/penalties-Knoten (die es nur bei ET/Elfer gibt). In dem Fall
+  //    wäre fullTime der Stand NACH Verlängerung → ohne regularTime nicht raten.
+  const dur = s?.duration;
+  const beyond90 =
+    dur === 'EXTRA_TIME' || dur === 'PENALTY_SHOOTOUT'
+    || (s?.extraTime != null && (s.extraTime.home != null || s.extraTime.away != null))
+    || (s?.penalties != null && (s.penalties.home != null || s.penalties.away != null));
+  if (beyond90) return { home: null, away: null };
+  // 3) Regulär entschieden: fullTime IST der 90-Min-Stand.
+  const ft = s?.fullTime;
+  if (ft && ft.home != null && ft.away != null) return { home: ft.home, away: ft.away };
   return { home: null, away: null };
 }
 
