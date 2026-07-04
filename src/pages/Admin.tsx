@@ -182,6 +182,9 @@ export default function Admin() {
   // API check
   const [apiCheckStatus, setApiCheckStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [apiCheckResult, setApiCheckResult] = useState<any>(null);
+  // Auflöse-Diagnose (warum kommt ein Ergebnis nicht rein?)
+  const [diagBusy, setDiagBusy] = useState(false);
+  const [diagResult, setDiagResult] = useState<any>(null);
   // WhatsApp config
   const [waLinkInput, setWaLinkInput] = useState('');
   const [waLinkStatus, setWaLinkStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
@@ -559,6 +562,24 @@ export default function Admin() {
       setSyncErr(err.message || 'Aktualisierung fehlgeschlagen');
     } finally {
       setSyncBusy(false);
+    }
+  };
+
+  const handleDiagnoseResolve = async () => {
+    setDiagBusy(true);
+    setDiagResult(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Nicht eingeloggt.');
+      const res = await fetch('/.netlify/functions/diagnose-resolve', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setDiagResult(data);
+    } catch (err: any) {
+      setDiagResult({ ok: false, error: err.message });
+    } finally {
+      setDiagBusy(false);
     }
   };
 
@@ -1334,6 +1355,43 @@ export default function Admin() {
             >
               {apiCheckStatus === 'loading' ? 'Prüfe…' : '🔍 API jetzt prüfen'}
             </button>
+
+            {/* Auflöse-Diagnose: warum kommt ein Ergebnis nicht rein? */}
+            <div className="mt-3 pt-3 border-t border-border/60">
+              <div className="text-[10px] text-muted mb-2 leading-relaxed">
+                Prüft je noch offenem/gesperrtem WM-Markt, ob die API ihn als beendet meldet
+                und ob ein 90-Min-Stand vorliegt — zeigt genau, warum ein Ergebnis (nicht) reinkommt.
+              </div>
+              {diagResult && (
+                <div className="rounded-xl border border-border bg-input p-2 mb-2 max-h-[280px] overflow-auto">
+                  {diagResult.ok === false ? (
+                    <div className="text-[11px] text-red font-bold">{diagResult.error}</div>
+                  ) : (
+                    <>
+                      <div className="text-[10px] text-muted mb-1.5">
+                        {diagResult.lockedOrOpenWmMarkets} offene/gesperrte WM-Märkte · API FINISHED: {diagResult.apiFinishedCount}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {(diagResult.rows ?? []).map((r: any, i: number) => (
+                          <div key={i} className="text-[10px] border-b border-border/40 pb-1.5 last:border-0">
+                            <div className="font-black text-white truncate">{r.market}</div>
+                            <div className="text-muted">{r.diagnosis}</div>
+                            <div className="text-muted/70 font-mono text-[9px] break-all">
+                              id={String(r.footballDataOrgId)} · dur={String(r.duration)} · reg={JSON.stringify(r.regularTime)} · full={JSON.stringify(r.fullTime)}
+                            </div>
+                          </div>
+                        ))}
+                        {(diagResult.rows ?? []).length === 0 && <div className="text-[10px] text-muted">Keine offenen/gesperrten WM-Märkte.</div>}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              <button onClick={handleDiagnoseResolve} disabled={diagBusy}
+                className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-[12px] font-black hover:border-white/30 transition-colors disabled:opacity-50">
+                {diagBusy ? 'Diagnostiziere…' : '🩺 Warum kommt kein Ergebnis rein?'}
+              </button>
+            </div>
           </div>
 
           </>)}
