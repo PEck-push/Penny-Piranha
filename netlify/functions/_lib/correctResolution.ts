@@ -210,7 +210,9 @@ export async function correctMatchResolution(
     batch.update(marketRef, { finalScore: fsNew });
     if (opts.score && schedDocId) {
       batch.set(db.collection('schedule').doc(schedDocId),
-        { scoreA: h, scoreB: a, status: 'finished' }, { merge: true });
+        // scoreCorrected: schützt das manuell korrigierte Ergebnis vor künftigen
+        // API-Re-Importen (import-schedule überspringt markierte Docs).
+        { scoreA: h, scoreB: a, status: 'finished', scoreCorrected: true }, { merge: true });
     }
     // Bestehende Auflöse-Feed-Einträge dieses Markts umschreiben (statt neuen
     // Eintrag anzulegen) — so wird die falsche i.E.-Zeile rückwirkend korrigiert.
@@ -424,7 +426,9 @@ export async function correctMatchResolution(
     if (schedDocId) {
       batch.set(
         db.collection('schedule').doc(schedDocId),
-        { scoreA: finalScore.home, scoreB: finalScore.away, status: 'finished' },
+        // scoreCorrected: schützt das manuell korrigierte Ergebnis vor künftigen
+        // API-Re-Importen (import-schedule überspringt markierte Docs).
+        { scoreA: finalScore.home, scoreB: finalScore.away, status: 'finished', scoreCorrected: true },
         { merge: true },
       );
     }

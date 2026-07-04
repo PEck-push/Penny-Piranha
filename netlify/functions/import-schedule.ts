@@ -25,6 +25,14 @@ export default async (req: Request, _context: Context) => {
     const matches = await fetchMatches(competition);
     const db = getDb();
 
+    // Manuell korrigierte Ergebnisse (scoreCorrected, gesetzt vom Korrektur-Tool)
+    // dürfen von einem erneuten API-Import NIE überschrieben werden — die API war
+    // in genau diesen Fällen ja falsch.
+    const existingSnap = await db.collection('schedule').get();
+    const corrected = new Set(
+      existingSnap.docs.filter(d => (d.data() as any).scoreCorrected === true).map(d => d.id),
+    );
+
     let batch = db.batch();
     let ops = 0;
     let written = 0;
@@ -32,6 +40,19 @@ export default async (req: Request, _context: Context) => {
     for (const m of matches) {
       const docId = `wc-${m.id}`;
       const ref = db.collection('schedule').doc(docId);
+      // Status/Score: 90-Min-Stand (ohne Verlängerung/Elfer) — konsistent zur
+      // 1X2-Auflösung. Beendete Spiele OHNE ermittelbaren 90-Min-Stand behalten
+      // ihren vorhandenen Score (kein null-Überschreiben). Korrigierte Docs
+      // bleiben komplett unangetastet (Status + Score).
+      const st = mapStatus(m.status);
+      const reg = regulationScore(m);
+      const resultFields = corrected.has(docId)
+        ? {}
+        : st !== 'finished'
+          ? { status: st, scoreA: null, scoreB: null }
+          : reg.home != null && reg.away != null
+            ? { status: st, scoreA: reg.home, scoreB: reg.away }
+            : { status: st };
       batch.set(
         ref,
         {
@@ -42,10 +63,7 @@ export default async (req: Request, _context: Context) => {
           teamB: m.awayTeam?.name ?? 'TBD',
           kickoffAt: new Date(m.utcDate).getTime(),
           matchday: m.matchday ?? null,
-          status: mapStatus(m.status),
-          // 90-Min-Stand (ohne Verlängerung/Elfer) — konsistent zur 1X2-Auflösung.
-          scoreA: regulationScore(m).home,
-          scoreB: regulationScore(m).away,
+          ...resultFields,
         },
         { merge: true },
       );

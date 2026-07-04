@@ -46,10 +46,17 @@ export default async (req: Request) => {
   if (finished.length === 0) return new Response('no-finished', { status: 200 });
 
   let resolved = 0;
+  const now = Date.now();
 
   for (const m of finished) {
     const entry = marketByFdoId.get(m.id);
     if (!entry) continue; // kein passender gesperrter Markt → überspringen (auch kein Write)
+
+    // Sicherheitsfenster: frühestens 110 Min nach Anpfiff auflösen. Schützt vor
+    // verfrüht/provisorisch als FINISHED gemeldeten API-Daten (falsche Ergebnisse);
+    // reale Spiele dauern ~1h50+, der nächste Tick (15 Min) holt es dann ab.
+    const kickoff = entry.data.kickoffAt;
+    if (typeof kickoff === 'number' && now < kickoff + 110 * 60_000) continue;
 
     // 90-MIN-STAND (reguläre Spielzeit inkl. Nachspielzeit) — NICHT fullTime, da
     // fullTime die Verlängerung enthält. So bleibt in der K.-o.-Phase X möglich.
